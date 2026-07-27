@@ -1,0 +1,15 @@
+# Asymmetrica BTC engine — single source of truth (mandate parameters)
+btc_quantity: 30000
+reference_spot_usd: 65000          # working value 27.07.2026; replace via live feed
+seller_discount_pct: 2.5
+target_option_yield_pct: 2.5
+combined_target_discount_pct: 5.0
+execution_fee_pct: 0.5
+call_delta_target: [0.10, 0.15]
+dte_target_days: [30, 45]
+strike_target_pct_above_spot: [15, 20]
+target_monthly_premium_pct: 3.0
+iv_working_band_pct: [40, 50]      # DVOL band 27.07.2026; live via vol/dvol_feed.py
+risk_free_rate_pct: 4.0
+tranche_btc: [250, 1000]
+expiry_ladder_dte: [30, 37, 44]
