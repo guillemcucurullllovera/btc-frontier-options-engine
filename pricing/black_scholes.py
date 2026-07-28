@@ -5,10 +5,12 @@ Formulas'. Cross-check target: QuantLib parity suite (Agent A6).
 All rates/vols are decimals (0.45 = 45%). T in years.
 """
 from __future__ import annotations
+
 import math
 from dataclasses import dataclass
-from scipy.stats import norm
+
 from scipy.optimize import brentq
+from scipy.stats import norm
 
 
 @dataclass(frozen=True)
@@ -21,7 +23,7 @@ class OptionQuote:
     strike: float
 
 
-def _d1_d2(S: float, K: float, r: float, sigma: float, T: float):
+def _d1_d2(S: float, K: float, r: float, sigma: float, T: float) -> tuple[float, float]:
     sqT = math.sqrt(T)
     d1 = (math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * sqT)
     return d1, d1 - sigma * sqT
@@ -31,8 +33,8 @@ def price(S: float, K: float, r: float, sigma: float, T: float, kind: str = "cal
     d1, d2 = _d1_d2(S, K, r, sigma, T)
     df = math.exp(-r * T)
     if kind == "call":
-        return S * norm.cdf(d1) - K * df * norm.cdf(d2)
-    return K * df * norm.cdf(-d2) - S * norm.cdf(-d1)
+        return float(S * norm.cdf(d1) - K * df * norm.cdf(d2))
+    return float(K * df * norm.cdf(-d2) - S * norm.cdf(-d1))
 
 
 def greeks(S: float, K: float, r: float, sigma: float, T: float, kind: str = "call") -> OptionQuote:
@@ -53,18 +55,16 @@ def greeks(S: float, K: float, r: float, sigma: float, T: float, kind: str = "ca
 def strike_for_delta(S: float, target_delta: float, r: float, sigma: float, T: float,
                      kind: str = "call") -> float:
     """Invert N(d1)=delta analytically: ln(K/S) = (r+sigma^2/2)T - d1*sigma*sqrt(T)."""
-    if kind == "call":
-        d1 = norm.ppf(target_delta)
-    else:  # put delta is negative: N(d1)-1 = target -> d1 = ppf(1+target)
-        d1 = norm.ppf(1.0 + target_delta)
+    d1 = norm.ppf(target_delta) if kind == "call" else norm.ppf(1.0 + target_delta)
     lnKS = (r + 0.5 * sigma * sigma) * T - d1 * sigma * math.sqrt(T)
     return S * math.exp(lnKS)
 
 
 def implied_vol(target_price: float, S: float, K: float, r: float, T: float,
                 kind: str = "call", lo: float = 1e-4, hi: float = 5.0) -> float:
-    f = lambda sig: price(S, K, r, sig, T, kind) - target_price
-    return brentq(f, lo, hi, xtol=1e-8)
+    def _diff(sig: float) -> float:
+        return price(S, K, r, sig, T, kind) - target_price
+    return float(brentq(_diff, lo, hi, xtol=1e-8))
 
 
 def premium_pct_at_delta(S: float, delta: float, r: float, sigma: float, dte_days: float,
@@ -73,4 +73,4 @@ def premium_pct_at_delta(S: float, delta: float, r: float, sigma: float, dte_day
     This is the function that answers 'what does the mandate structure yield'."""
     T = dte_days / 365.0
     K = strike_for_delta(S, delta, r, sigma, T, kind)
-    return 100.0 * price(S, K, r, sigma, T, kind) / S, K
+    return (100.0 * price(S, K, r, sigma, T, kind) / S, K)
