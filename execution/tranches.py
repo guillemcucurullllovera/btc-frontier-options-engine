@@ -3,10 +3,7 @@
 Schedules configurable BTC quantities across an expiry-ladder DTE range
 and a clip-size range over a configurable duration.
 
-Default mandate schedule reconciles exactly to 30 000 BTC across
-DTE ladder [30, 37, 44] with clips in [250, 1000] over 4 weeks.
-
-Frozen per contracts.md §12.3.
+Exact reconciliation: total_scheduled_btc() MUST equal the requested total_btc.
 """
 
 from __future__ import annotations
@@ -16,6 +13,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from engine.errors import ValidationError
 from engine.settlement import Venue
 from execution.impact import ImpactEstimate, KissellConfig, estimate_impact
 
@@ -29,8 +27,6 @@ class ExecutionMethod(StrEnum):
 
 
 class Tranche(BaseModel):
-    """One scheduled tranche — frozen per contracts.md §12.3."""
-
     tranche_id: int
     dte: int
     btc_quantity: int = Field(ge=1)
@@ -44,8 +40,6 @@ class Tranche(BaseModel):
 
 
 class TrancheSchedule(BaseModel):
-    """Complete tranche schedule — frozen per contracts.md §12.3."""
-
     strategy: str = ""
     total_btc: int = Field(ge=1)
     tranches: list[Tranche] = Field(default_factory=list)
@@ -62,89 +56,87 @@ def schedule_tranches(
     expiry_ladder: list[int] | None = None,
     clip_range: tuple[int, int] | None = None,
     duration_weeks: int = 4,
+    adv_btc: float = 25000.0,
+    volatility: float = 0.45,
 ) -> TrancheSchedule:
     """Build a tranche schedule that sums exactly to total_btc.
 
-    Default schedule (30 000 BTC, ladder [30,37,44], clips [250,1000],
-    4 weeks) reconciles exactly with evenly-sized clips.
+    The schedule is built by iterating through (dte, week) slots and
+    assigning clips from the clip_range until total_btc is consumed.
+    Any remainder is distributed as residual clips.
 
-    Parameters
-    ----------
-    total_btc : int
-        Total BTC to schedule (must equal config mandate quantity).
-    expiry_ladder : list[int] | None
-        DTE values to distribute across. Default [30, 37, 44].
-    clip_range : tuple[int, int] | None
-        (min_clip, max_clip) in BTC. Default (250, 1000).
-    duration_weeks : int
-        Number of weeks over which to schedule. Default 4.
-
-    Returns
-    -------
-    TrancheSchedule
-        Complete schedule with total == total_btc.
+    total_scheduled_btc() is guaranteed to equal the requested total_btc.
     """
-    ladder = expiry_ladder or [30, 37, 44]
-    cmin, cmax = clip_range or (250, 1000)
+    ladder = list(expiry_ladder) if expiry_ladder else [30, 37, 44]
+    cmin, cmax = clip_range if clip_range else (250, 1000)
+
+    if not ladder:
+        raise ValidationError("expiry_ladder must be non-empty")
+    if cmin <= 0 or cmax <= 0 or cmin > cmax:
+        raise ValidationError(f"Invalid clip_range ({cmin}, {cmax})")
 
     n_dte = len(ladder)
     n_weeks = duration_weeks
+    num_slots = n_dte * n_weeks
 
-    btc_per_dte: int = total_btc // n_dte
-    remainder: int = total_btc - btc_per_dte * n_dte
+    base_clip = max(cmin, min(cmax, total_btc // num_slots))
+    base_clip = max(cmin, base_clip)
+
+    remaining = total_btc
 
     tranches: list[Tranche] = []
     base_date = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     tranche_id = 0
 
-    for dte_idx, dte in enumerate(ladder):
-        dte_quantity = btc_per_dte + (1 if dte_idx < remainder else 0)
-        btc_per_week = dte_quantity // n_weeks
-        week_remainder = dte_quantity - btc_per_week * n_weeks
-
-        # Determine clip count and size per week
+    for dte in ladder:
         for week in range(n_weeks):
-            week_qty = btc_per_week + (1 if week < week_remainder else 0)
-            if week_qty == 0:
+            if remaining <= 0:
+                break
+            clip = min(base_clip, remaining)
+            if clip < cmin and remaining >= cmin:
+                clip = cmin
+            if clip > remaining:
+                clip = remaining
+            if clip <= 0:
                 continue
 
-            n_clips = max(1, round(week_qty / ((cmin + cmax) / 2.0)))
-            clip_size = week_qty // n_clips
-            clip_rem = week_qty - clip_size * n_clips
+            est_impact = estimate_impact(
+                KissellConfig(order_size_btc=float(clip), adv_btc=adv_btc, volatility=volatility)
+            )
+            d = base_date + timedelta(weeks=week)
+            tranches.append(Tranche(
+                tranche_id=tranche_id,
+                dte=dte,
+                btc_quantity=clip,
+                estimated_impact=est_impact,
+                scheduled_date=d,
+            ))
+            tranche_id += 1
+            remaining -= clip
 
-            for c in range(n_clips):
-                qty = clip_size + (1 if c < clip_rem else 0)
-                if qty < cmin:
-                    clip_size_adj = cmin
-                    n_adj = week_qty // clip_size_adj
-                    if n_adj == 0:
-                        qty = week_qty
-                    else:
-                        qty = clip_size_adj
-                        if c >= n_adj:
-                            continue
-
-                if qty == 0:
+    while remaining > 0:
+        for dte in ladder:
+            if remaining <= 0:
+                break
+            for week in range(n_weeks):
+                if remaining <= 0:
+                    break
+                residual_clip = min(cmin, remaining)
+                if residual_clip <= 0:
                     continue
-
-                d = base_date + timedelta(weeks=week)
                 est_impact = estimate_impact(
-                    KissellConfig(
-                        order_size_btc=float(qty),
-                        adv_btc=5000.0,
-                        volatility=0.45,
-                    )
+                    KissellConfig(order_size_btc=float(residual_clip), adv_btc=adv_btc, volatility=volatility)
                 )
-                tranches.append(
-                    Tranche(
-                        tranche_id=tranche_id,
-                        dte=dte,
-                        btc_quantity=qty,
-                        estimated_impact=est_impact,
-                        scheduled_date=d,
-                    )
-                )
+                d = base_date + timedelta(weeks=week)
+                tranches.append(Tranche(
+                    tranche_id=tranche_id,
+                    dte=dte,
+                    btc_quantity=residual_clip,
+                    estimated_impact=est_impact,
+                    scheduled_date=d,
+                ))
                 tranche_id += 1
+                remaining -= residual_clip
 
     total = sum(t.btc_quantity for t in tranches)
     return TrancheSchedule(

@@ -1,0 +1,130 @@
+# BTC 30k Engine — Nightly Research Configuration
+#
+# Defines the complete parameter space for overnight research runs:
+#   - historical backtests, OOS/walk-forward, regimes, Monte Carlo, stress,
+#     execution sensitivity.
+#
+# Massive is the primary historical BTC spot source.
+# CryptoDataDownload is an explicitly-labelled fallback.
+# Deribit observations are OBSERVED only when genuinely observed.
+# Reconstructed historical options are MODEL_RECONSTRUCTED.
+#
+# All percentage values are decimal (0.45 = 45%, 0.025 = 2.5%).
+
+# ── Mandate parameters ──────────────────────────────────────────────────────
+mandate:
+  btc_quantity: 30000
+  reference_spot_usd: 65000
+  seller_discount_pct: 0.025
+  target_option_yield_pct: 0.025
+  execution_fee_pct: 0.005
+
+# ── Strategy parameters ─────────────────────────────────────────────────────
+strategies:
+  enabled:
+    - unhedged_baseline
+    - covered_call
+    - cash_secured_put
+    - long_btc_plus_short_put
+    - collar
+    - call_spread
+    - partial_overlay
+    - strike_ladder
+  partial_overlay_ratios: [0.25, 0.50, 0.75]
+  ladder_dtes: [[30, 37, 44]]
+
+# ── Backtest parameters ─────────────────────────────────────────────────────
+backtest:
+  window_start: "2023-01-01"
+  window_end: "2026-07-27"
+  dte_days: 30
+  strike_pct_above: 0.15
+  risk_free_rate: 0.04
+  volatility: 0.45
+
+# ── OOS validation parameters ───────────────────────────────────────────────
+oos_validation:
+  train_start: "2023-01-01"
+  train_end: "2024-12-31"
+  test_start: "2025-01-01"
+  test_end: "2026-07-27"
+  cscv_s: 16
+  cscv_n: 100
+  walk_forward: "expanding"
+
+# ── Monte Carlo parameters ──────────────────────────────────────────────────
+monte_carlo:
+  enabled: true
+  n_paths: 50000
+  models: ["GBM", "Merton"]
+  horizon_years: 0.082
+  drift: 0.10
+  seed: 42
+  use_antithetic: true
+  merton_params:
+    jump_intensity: 2.0
+    jump_mean: -0.05
+    jump_std: 0.10
+
+# ── Stress testing parameters ───────────────────────────────────────────────
+stress:
+  enabled: true
+  start_spot: 65000
+  scenarios:
+    - name: "2025_breakout_to_126k"
+    - name: "2026_retrace_to_65k"
+    - name: "flash_crash_to_30k"
+    - name: "dvol_35_to_65_shock"
+    - name: "combined_severe"
+    - name: "bull_rally_100k"
+    - name: "liquidity_shock"
+    - name: "settlement_price_shock"
+    - name: "sideways_chop"
+
+# ── Execution sensitivity parameters ────────────────────────────────────────
+execution_sensitivity:
+  enabled: true
+  spot_offsets_pct: [-10.0, -5.0, -1.0, 0.0, 1.0, 5.0, 10.0]
+  fee_bases: ["reference_notional", "executed_volume"]
+
+# ── Regime classification parameters ────────────────────────────────────────
+regimes:
+  enabled: true
+  window_days: 90
+  vol_window: 30
+  bull_threshold: 0.20
+  bear_threshold: -0.20
+  high_vol_threshold: 0.60
+  low_vol_threshold: 0.30
+
+# ── Data sources ─────────────────────────────────────────────────────────────
+data_sources:
+  primary_spot: "massive"
+  fallback_spot: "cryptodatadownload"
+  primary_option: "deribit"
+  fallback_option: "cryptodatadownload"
+  allow_cdd_fallback: true
+
+# ── Output ───────────────────────────────────────────────────────────────────
+output:
+  format: "parquet"
+  write_csv_comparison: true
+  write_report: true
+  write_presentation_summary: true
+  checksums: true
+  resolved_config: true
+  log_level: "INFO"
+
+# ── Execution ────────────────────────────────────────────────────────────────
+execution:
+  deterministic_seeds: true
+  base_seed: 42
+  enable_checkpoints: true
+  resume: true
+  max_workers: 1
+
+# ── Execution impact ─────────────────────────────────────────────────────────
+impact:
+  adv_btc: 25000
+  spread_bps: 2.0
+  iv_giveup_vol_pts: 1.0
