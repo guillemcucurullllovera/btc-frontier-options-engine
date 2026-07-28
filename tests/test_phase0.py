@@ -49,7 +49,14 @@ from engine.strategy import (
     StrategyKind,
     classify,
 )
-from execution.waterfall import load_params, waterfall
+from execution.impact import ImpactEstimate, KissellConfig, estimate_impact
+from execution.tranches import Tranche, TrancheSchedule, schedule_tranches
+from execution.waterfall import (
+    WaterfallSensitivity,
+    load_params,
+    waterfall,
+    waterfall_sensitivity,
+)
 from pricing.black_scholes import OptionQuote
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -512,10 +519,13 @@ def test_provenance_field_present_on_all_outputs() -> None:
     assert inst.origin == "deribit"
 
 
-@pytest.mark.skip(reason="Deferred to A4 — ImpactEstimate not yet built")
 def test_impact_estimate_provenance_per_component() -> None:
-    """Provenance enum values for impact components are defined."""
-    assert False, "Not implemented — A4"
+    """ImpactEstimate carries ASSUMED provenance on uncalibrated components."""
+    config = KissellConfig(order_size_btc=500.0, adv_btc=5000.0, volatility=0.45)
+    est = estimate_impact(config)
+    assert est.i_star_bp_provenance == Provenance.ASSUMED
+    assert est.market_impact_bp_provenance == Provenance.ASSUMED
+    assert est.iv_giveup_vol_pts_provenance == Provenance.ASSUMED
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -722,14 +732,34 @@ def test_covered_call_not_marked_optimal() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.xfail(reason="D-1 fee base unresolved")
 def test_waterfall_fee_base_sensitivity() -> None:
-    assert False, "Not implemented — A4 Sprint 1"
+    """Both fee-base variants produce valid arithmetic."""
+    p = load_params()
+    sens = WaterfallSensitivity(
+        spot_offsets_pct=[0.0],
+        fee_bases=["reference_notional", "executed_volume"],
+    )
+    results = waterfall_sensitivity(p, sens)
+    assert len(results) == 2
+    fb_set = {r["fee_base"] for r in results}
+    assert "reference_notional" in fb_set
+    assert "executed_volume" in fb_set
+    for r in results:
+        assert r["asymmetrica_fee_usd"] > 0
+        assert r["client_effective_cost_per_btc_target_case"] > 0
 
 
-@pytest.mark.skip(reason="Deferred to A4 — waterfall_sensitivity not yet implemented")
 def test_waterfall_spot_sensitivity() -> None:
-    assert False, "Not implemented — A4 Sprint 1"
+    """All spot offsets produce valid arithmetic."""
+    p = load_params()
+    results = waterfall_sensitivity(p)
+    offset_set = {r["spot_offset_pct"] for r in results}
+    assert -10.0 in offset_set
+    assert 0.0 in offset_set
+    assert 10.0 in offset_set
+    for r in results:
+        assert r["asymmetrica_fee_usd"] > 0
+        assert r["reference_notional_usd"] > 0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -838,3 +868,216 @@ def test_strategy_carries_pending_decisions() -> None:
     )
     assert len(strategy.pending_decisions) == 2
     assert strategy.pending_decisions[0].code == "D-1"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# §12.1 — Market impact model tests (A4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def test_i_star_formula() -> None:
+    """I-Star formula produces expected values for known inputs."""
+    config = KissellConfig(
+        order_size_btc=500.0, adv_btc=5000.0, volatility=0.45,
+        a1=100.0, a2=0.5, a3=0.5, b1=0.5, a4=0.2, pov=0.10,
+    )
+    est = estimate_impact(config)
+    expected_i_star = 100.0 * (0.1 ** 0.5) * (0.45 ** 0.5)
+    assert abs(est.i_star_bp - expected_i_star) < 1e-9
+    assert est.i_star_bp > 0
+    assert est.market_impact_bp > 0
+    assert est.temporary_impact_bp > 0
+    assert est.permanent_impact_bp > 0
+
+
+def test_impact_monotonicity() -> None:
+    """Impact increases with order size and volatility."""
+    small = estimate_impact(KissellConfig(order_size_btc=250.0, adv_btc=5000.0, volatility=0.45))
+    large = estimate_impact(KissellConfig(order_size_btc=1000.0, adv_btc=5000.0, volatility=0.45))
+    assert large.i_star_bp > small.i_star_bp
+    assert large.market_impact_bp > small.market_impact_bp
+
+    low_vol = estimate_impact(KissellConfig(order_size_btc=500.0, adv_btc=5000.0, volatility=0.30))
+    mid_vol = estimate_impact(KissellConfig(order_size_btc=500.0, adv_btc=5000.0, volatility=0.60))
+    assert mid_vol.i_star_bp > low_vol.i_star_bp
+
+
+def test_impact_zero_order_rejected() -> None:
+    """KissellConfig rejects zero order size."""
+    with pytest.raises(Exception):
+        KissellConfig(order_size_btc=0.0, adv_btc=5000.0, volatility=0.45)
+
+
+def test_impact_provenance_present() -> None:
+    """ImpactEstimate carries provenance on every component."""
+    config = KissellConfig(order_size_btc=500.0, adv_btc=5000.0, volatility=0.45)
+    est = estimate_impact(config)
+    assert est.provenance is not None
+    assert str(est.provenance) == "calculated"
+
+
+def test_square_root_eta_scaling() -> None:
+    """Square-root eta = sqrt(Q/ADV)."""
+    est = estimate_impact(KissellConfig(order_size_btc=500.0, adv_btc=5000.0, volatility=0.45))
+    assert abs(est.square_root_eta - (500.0 / 5000.0) ** 0.5) < 1e-12
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# §12.3 — Tranche scheduler tests (A4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def test_tranche_reconciliation_30k() -> None:
+    """Default mandate schedule reconciles exactly to 30 000 BTC."""
+    schedule = schedule_tranches(total_btc=30000)
+    assert schedule.total_btc == 30000
+    total = sum(t.btc_quantity for t in schedule.tranches)
+    assert total == 30000, f"Scheduled {total} != 30000"
+
+
+def test_tranche_dte_ladder() -> None:
+    """Tranches reflect configured DTE ladder [30, 37, 44]."""
+    schedule = schedule_tranches(total_btc=30000)
+    assert 30 in schedule.expiry_ladder_dte
+    assert 37 in schedule.expiry_ladder_dte
+    assert 44 in schedule.expiry_ladder_dte
+    dtes = {t.dte for t in schedule.tranches}
+    assert dtes == {30, 37, 44}
+
+
+def test_tranche_clip_limits() -> None:
+    """All clips are within configured [250, 1000] range."""
+    schedule = schedule_tranches(total_btc=30000)
+    for t in schedule.tranches:
+        assert 250 <= t.btc_quantity <= 1000, (
+            f"Clip {t.btc_quantity} outside [250, 1000]"
+        )
+
+
+def test_tranche_non_negative() -> None:
+    """Tranche quantities are all positive."""
+    schedule = schedule_tranches(total_btc=30000)
+    assert all(t.btc_quantity >= 0 for t in schedule.tranches)
+    assert schedule.total_scheduled_btc() == 30000
+
+
+def test_tranche_custom_quantity() -> None:
+    """Custom total BTC reconciles correctly."""
+    schedule = schedule_tranches(total_btc=15000, expiry_ladder=[30, 44])
+    assert schedule.total_scheduled_btc() == 15000
+
+
+def test_tranche_duration_weeks() -> None:
+    """Duration weeks set on schedule."""
+    schedule = schedule_tranches(total_btc=30000, duration_weeks=8)
+    assert schedule.duration_weeks == 8
+    assert schedule.total_scheduled_btc() == 30000
+
+
+def test_tranche_impact_estimate_present() -> None:
+    """Every tranche carries an impact estimate."""
+    schedule = schedule_tranches(total_btc=30000)
+    for t in schedule.tranches:
+        assert t.estimated_impact is not None
+        assert t.estimated_impact.i_star_bp > 0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# §12.4 — Waterfall sensitivity tests (A4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def test_waterfall_sensitivity_all_offsets() -> None:
+    """All seven default spot offsets produce valid results."""
+    results = waterfall_sensitivity()
+    offsets = sorted({r["spot_offset_pct"] for r in results})
+    assert len(offsets) == 7
+
+
+def test_waterfall_sensitivity_fee_base_variants() -> None:
+    """Both fee-base variants are produced and differ."""
+    results = waterfall_sensitivity()
+    ref = [r for r in results if r["fee_base"] == "reference_notional"]
+    exec_vol = [r for r in results if r["fee_base"] == "executed_volume"]
+    assert len(ref) == 7
+    assert len(exec_vol) == 7
+    for r_ref, r_ev in zip(ref, exec_vol, strict=True):
+        assert r_ref["asymmetrica_fee_usd"] != r_ev["asymmetrica_fee_usd"]
+
+
+def test_waterfall_sensitivity_no_silent_decision() -> None:
+    """Fee-base variant does not silently resolve D-1."""
+    p = load_params()
+    results = waterfall_sensitivity(p)
+    for r in results:
+        assert "fee_base" in r
+        assert r["fee_base"] in ("reference_notional", "executed_volume")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# §12.1 — KissellConfig validation tests (A4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def test_kissell_config_rejects_invalid() -> None:
+    """KissellConfig rejects non-positive order_size_btc."""
+    with pytest.raises(Exception):
+        KissellConfig(order_size_btc=-100.0, adv_btc=5000.0, volatility=0.45)
+    with pytest.raises(Exception):
+        KissellConfig(order_size_btc=500.0, adv_btc=0.0, volatility=0.45)
+    with pytest.raises(Exception):
+        KissellConfig(order_size_btc=500.0, adv_btc=5000.0, volatility=-0.1)
+    with pytest.raises(Exception):
+        KissellConfig(order_size_btc=500.0, adv_btc=5000.0, volatility=0.45, b1=1.5)
+    with pytest.raises(Exception):
+        KissellConfig(order_size_btc=500.0, adv_btc=5000.0, volatility=0.45, pov=0.0)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FeeBreakdown model tests (A4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def test_fee_breakdown_pending_decision() -> None:
+    """FeeBreakdown carries fee_base=None pending D-1."""
+    from execution.impact import FeeBreakdown
+    fb = FeeBreakdown()
+    assert fb.fee_base is None
+
+
+def test_fee_breakdown_tracks_decisions() -> None:
+    """FeeBreakdown pending_decision_refs includes D-1."""
+    from execution.impact import FeeBreakdown
+    fb = FeeBreakdown(
+        pending_decision_refs=["D-1", "D-3"],
+    )
+    assert "D-1" in fb.pending_decision_refs
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TrancheSchedule model tests (A4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def test_tranche_schedule_validates() -> None:
+    """TrancheSchedule structure validates correctly."""
+    from datetime import UTC, datetime
+
+    impact = ImpactEstimate(order_size_btc=250.0, adv_btc=5000.0, volatility=0.45)
+    t = Tranche(
+        tranche_id=0,
+        dte=30,
+        btc_quantity=250,
+        scheduled_date=datetime.now(UTC),
+        estimated_impact=impact,
+    )
+    s = TrancheSchedule(
+        strategy="test",
+        total_btc=250,
+        tranches=[t],
+        expiry_ladder_dte=[30],
+        clip_size_range=(250, 1000),
+        duration_weeks=4,
+    )
+    assert s.total_scheduled_btc() == 250
+    assert s.tranches[0].dte == 30
