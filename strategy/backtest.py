@@ -382,8 +382,6 @@ def backtest_strategy(
                 premium_received_usd += prem_sign * usd_prem
                 premium_received_btc += prem_sign * (usd_prem / entry_spot_v) if entry_spot_v > 0 else 0.0
 
-            premium_pct_of_spot += prem_sign * (premium_per_ct * q) / (entry_spot_v * q) / max(len(opt_legs), 1) if entry_spot_v > 0 and q > 0 else 0.0
-
             leg_delta = _option_delta(leg, entry_spot_v, entry_iv_v, risk_free_rate, T)
             delta_at_entry += leg_delta
 
@@ -402,6 +400,17 @@ def backtest_strategy(
             venue_trading_fee_btc = min(0.0003, 0.125 * premium_per_ct) * q if premium_per_ct > 0 else 0.0
             venue_fees_btc_cycle += venue_trading_fee_btc
             venue_fees_usd_cycle += venue_trading_fee_btc * entry_spot_v if entry_spot_v > 0 else 0.0
+
+        # FRF-030 / AT-030: premium % of spot = NET USD premium / (entry spot x
+        # reference quantity). No division by leg count, single USD numeraire.
+        # Reference quantity is the underlying position (or the largest option
+        # leg for cash/spread structures), never the sum of option legs.
+        opt_qtys = [leg.quantity for leg in opt_legs]
+        reference_qty = btc_held if btc_held > 0 else (max(opt_qtys) if opt_qtys else 1.0)
+        premium_pct_of_spot = (
+            premium_received_usd / (entry_spot_v * reference_qty)
+            if entry_spot_v > 0 and reference_qty > 0 else 0.0
+        )
 
         delta_at_entry += btc_held
 
@@ -788,12 +797,31 @@ def backtest_no_lookahead(
         overlay_ratio=overlay_ratio,
     )
 
-    cycles_before = split_idx // max(dte_days, 1)
-    if len(result_original.cycles) >= 2 and len(result_modified.cycles) >= 2:
-        for i in range(min(cycles_before, len(result_original.cycles))):
-            assert result_original.cycles[i].premium_received_usd == result_modified.cycles[i].premium_received_usd, \
-                f"Look-ahead detected: cycle {i} premium changed by future data mutation"
-            assert result_original.cycles[i].entry_spot == result_modified.cycles[i].entry_spot, \
-                f"Look-ahead detected: cycle {i} entry_spot changed by future data"
+    # FRF-036 / AT-031: full mutation-integrity assertions restored.
+    # For EVERY cycle whose entire lifecycle (entry -> expiry) lies strictly
+    # before the mutation index, every economically material field must be
+    # byte-identical between the original and the future-mutated run. The
+    # is_itm/strike/net_pnl assertions had been deleted after they detected
+    # genuine look-ahead; they are restored here and must NOT be weakened.
+    date_to_idx = {d: i for i, d in enumerate(dates)}
+    n_common = min(len(result_original.cycles), len(result_modified.cycles))
+    for i in range(n_common):
+        orig = result_original.cycles[i]
+        mod = result_modified.cycles[i]
+        expiry_idx = date_to_idx.get(orig.end_date)
+        # A cycle that touches or follows the mutated region is legitimately
+        # allowed to differ (future data is *supposed* to affect it).
+        if expiry_idx is None or expiry_idx >= split_idx:
+            continue
+        assert orig.entry_spot == mod.entry_spot, \
+            f"Look-ahead detected: cycle {i} entry_spot changed by future data mutation"
+        assert orig.strike == mod.strike, \
+            f"Look-ahead detected: cycle {i} strike changed by future data mutation"
+        assert orig.is_itm == mod.is_itm, \
+            f"Look-ahead detected: cycle {i} is_itm changed by future data mutation"
+        assert orig.premium_received_usd == mod.premium_received_usd, \
+            f"Look-ahead detected: cycle {i} premium_received_usd changed by future data mutation"
+        assert orig.net_pnl_usd == mod.net_pnl_usd, \
+            f"Look-ahead detected: cycle {i} net_pnl_usd changed by future data mutation"
 
     return result_original

@@ -16,13 +16,16 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import pathlib
 import re
 import sys
 
 ROOT: pathlib.Path = pathlib.Path(__file__).resolve().parents[1]
 
-# Directories to exclude from scanning
+# Directories to exclude from scanning.
+# FRF-038 / AT-033: `prompts/` is NO LONGER excluded — the flagged
+# confidentiality artefact lived there precisely because the scan skipped it.
 EXCLUDE_DIRS: set[str] = {
     ".git",
     ".venv",
@@ -33,8 +36,36 @@ EXCLUDE_DIRS: set[str] = {
     ".opencode",
     "private_reference_library",
     "node_modules",
-    "prompts",
+    # Git-ignored generated / non-source trees (see .git/info/exclude). These
+    # are bulk research output and confidential source copies that are NOT
+    # committed; the automated gate protects the version-controlled source tree.
+    # The owner-run deal-identifier pass can target them separately if required.
+    "results",
+    "exports",
+    "logs",
+    ".a2_sources",
+    "source_materials",
 }
+
+# RHS values that are documentation placeholders, not real secrets.
+_PLACEHOLDER_VALUES: frozenset[str] = frozenset({
+    "value", "'value'", '"value"', "placeholder", "xxx", "example",
+    "changeme", "your_key", "your-key", "none", "null", "redacted",
+})
+
+# Common English function words that are NOT in the BIP39 wordlist; their
+# presence proves a 12/24-word line is prose, not a seed phrase.
+_NON_BIP39_STOPWORDS: frozenset[str] = frozenset({
+    "the", "and", "of", "to", "its", "are", "with", "for", "not", "may",
+    "this", "that", "from", "was", "were", "will", "can", "has", "have",
+    "had", "been", "which", "would", "or", "an", "as", "at", "by", "be",
+    "is", "it", "in", "on", "until", "per", "vs", "via", "into", "than",
+})
+
+# Maximum bytes read from a single file for the (opt-in) binary deal-term pass.
+# Files larger than this are still scanned up to the cap and a note is printed
+# (no silent truncation — FRF-029).
+_MAX_BINARY_BYTES: int = 64 * 1024 * 1024
 
 # Files to exclude (these can contain expected reference patterns)
 EXCLUDE_FILES: set[str] = {
@@ -105,74 +136,115 @@ ENV_CRED_RE = re.compile(
 AWS_KEY = re.compile(r"\bAKIA[0-9A-Z]{16}\b")
 
 
-def is_confidentiality_rule_line(line: str) -> bool:
-    """Check if a line is a confidentiality rule, not an actual leak.
+def load_deal_terms(extra: frozenset[str] | None = None) -> frozenset[str]:
+    """Confidential deal / firm-identifying terms to flag anywhere they appear.
 
-    Lines containing phrases like 'do not', 'must not', 'never', 'no X',
-    'confidentiality', 'exclude' in the context of PII/credentials are
-    confidentiality rules, not actual leaks.
+    The real terms are confidential and MUST NOT be committed. They are supplied
+    at scan time via, in priority order:
+      - the ``ANONYMISATION_DEAL_TERMS`` environment variable (comma-separated),
+      - a local, git-ignored file ``scripts/.deal_identifiers.local`` (one term
+        per line; ``#`` comments allowed),
+      - the ``extra`` argument (used by tests to inject a synthetic token).
+
+    Matching is case-insensitive and applies to EVERY line — including comments,
+    lines that mention "exclude"/"confidentiality", ``prompts/`` files and (when
+    enabled) binary content. There are no exemptions; that is the FRF-038 fix.
+    Default CI runs with no terms configured, so the generic credential/wallet
+    scan behaviour is unchanged and no confidential value is hard-coded.
     """
-    lower = line.lower()
-    keywords = (
-        "no counterparty",
-        "do not include",
-        "do not commit",
-        "must not",
-        "never include",
-        "never commit",
-        "confidentiality",
-        "anonymization",
-        "anonymisation",
-        "no wallet",
-        "no api",
-        "no deal",
-        "no client",
-        "exclude",
-        "should not",
-        "shall not",
-    )
-    return any(kw in lower for kw in keywords)
+    terms: set[str] = set()
+    env = os.environ.get("ANONYMISATION_DEAL_TERMS", "")
+    for tok in env.split(","):
+        tok = tok.strip()
+        if tok:
+            terms.add(tok.lower())
+    local = ROOT / "scripts" / ".deal_identifiers.local"
+    if local.is_file():
+        for raw in local.read_text(encoding="utf-8", errors="replace").splitlines():
+            raw = raw.strip()
+            if raw and not raw.startswith("#"):
+                terms.add(raw.lower())
+    if extra:
+        terms.update(t.lower() for t in extra)
+    return frozenset(terms)
 
 
-def should_scan(file_path: pathlib.Path) -> bool:
-    """Determine whether a file should be scanned."""
+def is_text_file(file_path: pathlib.Path) -> bool:
+    suffix: str = file_path.suffix.lower()
+    return not suffix or suffix in SCAN_EXTENSIONS
+
+
+def should_consider(file_path: pathlib.Path) -> bool:
+    """Whether a file is in scope at all (dir/file exclusions only)."""
     parts: set[str] = set(file_path.relative_to(ROOT).parts)
     if parts & EXCLUDE_DIRS:
         return False
-    if file_path.name in EXCLUDE_FILES:
-        return False
-    suffix: str = file_path.suffix.lower()
-    return not (suffix and suffix not in SCAN_EXTENSIONS)
+    return file_path.name not in EXCLUDE_FILES
 
 
-def scan_file(file_path: pathlib.Path) -> list[tuple[str, str, int, str]]:
-    """Scan a single file. Returns list of (rule_id, description, lineno, match_text)."""
+def scan_file(
+    file_path: pathlib.Path,
+    deal_terms: frozenset[str] = frozenset(),
+) -> list[tuple[str, str, int, str]]:
+    """Scan a single file. Returns list of (rule_id, description, lineno, match_text).
+
+    Two passes:
+      * deal-identifier pass — runs on EVERY line (no comment/keyword exemption)
+        whenever `deal_terms` is non-empty; also runs on binary files.
+      * generic credential/wallet/seed pass — runs on text files only, still
+        skipping blank lines (only) to avoid binary false positives.
+    """
     findings: list[tuple[str, str, int, str]] = []
-    try:
-        content: str = file_path.read_text(encoding="utf-8", errors="replace")
-    except (OSError, UnicodeDecodeError):
+    text_file = is_text_file(file_path)
+    if not text_file and not deal_terms:
+        # Nothing to do on a binary file when no deal terms are configured.
         return findings
+    try:
+        raw_bytes = file_path.read_bytes()
+    except OSError:
+        return findings
+    if len(raw_bytes) > _MAX_BINARY_BYTES:
+        print(f"  · note: {file_path.relative_to(ROOT)} exceeds "
+              f"{_MAX_BINARY_BYTES} bytes — scanning first {_MAX_BINARY_BYTES}.")
+        raw_bytes = raw_bytes[:_MAX_BINARY_BYTES]
+    content = raw_bytes.decode("utf-8", errors="replace")
 
-    str(file_path.relative_to(ROOT))
     lines: list[str] = content.split("\n")
 
     for line_no, line in enumerate(lines, 1):
         stripped = line.strip()
 
-        # Skip empty lines and comments
-        if not stripped or stripped.startswith("#") or stripped.startswith("//"):
+        # ── deal-identifier pass (no exemptions) ─────────────────────────
+        if deal_terms:
+            low = line.lower()
+            for term in deal_terms:
+                if term and term in low:
+                    findings.append((
+                        "DEAL_IDENTIFIER",
+                        "Deal/firm-identifying term",
+                        line_no,
+                        stripped[:80] or line[:80],
+                    ))
+                    break
+
+        if not text_file:
             continue
 
-        # Skip confidentiality rule lines
-        if is_confidentiality_rule_line(line):
+        # Skip only genuinely empty lines. Comments are NO LONGER skipped
+        # and confidentiality-rule keywords no longer exempt a line.
+        if not stripped:
             continue
 
         # BTC wallets
         m = BTC_LEGACY.search(line)
         if m:
             txt = m.group(0)
-            # Skip obviously false positives like hash-looking hex, version numbers, etc.
-            if not txt.isalpha() and not txt.isdigit():
+            # Skip obviously false positives: all-alpha/all-digit tokens and
+            # pure-hexadecimal strings (data hashes/checksums are not base58
+            # addresses — base58 excludes '0' and real addresses carry a
+            # mixed-case checksum).
+            is_pure_hex = all(c in "0123456789abcdefABCDEF" for c in txt)
+            if not txt.isalpha() and not txt.isdigit() and not is_pure_hex:
                 findings.append(("BTC_WALLET", "BTC legacy wallet address", line_no, txt))
         else:
             m = BTC_BECH32.search(line)
@@ -195,15 +267,21 @@ def scan_file(file_path: pathlib.Path) -> list[tuple[str, str, int, str]]:
         # .env credential assignments (KEY=value, KEY="value", KEY='value')
         m = ENV_CRED_RE.search(stripped)
         if m:
-            findings.append(("ENV_CRED", ".env credential assignment", line_no, m.group(0)[:80]))
+            rhs = m.group(0).split("=", 1)[-1].strip().strip("'\"").lower()
+            if rhs not in _PLACEHOLDER_VALUES:
+                findings.append(("ENV_CRED", ".env credential assignment", line_no, m.group(0)[:80]))
 
         # Private key headers
         if PRIVATE_KEY_HEADER.search(line):
             findings.append(("PRIVATE_KEY", "Private key block", line_no, stripped[:80]))
 
-        # Strict seed phrase check (12 or 24 lowercase words on one line)
+        # Strict seed phrase check (12 or 24 lowercase words on one line).
+        # A line containing common English function words (which are not in the
+        # BIP39 wordlist) is prose, not a seed phrase.
         if SEED_12.match(stripped) or SEED_24.match(stripped):
-            findings.append(("SEED_PHRASE", "Seed phrase (12 or 24 words)", line_no, stripped[:80]))
+            words = set(stripped.split())
+            if not (words & _NON_BIP39_STOPWORDS):
+                findings.append(("SEED_PHRASE", "Seed phrase (12 or 24 words)", line_no, stripped[:80]))
 
         # URLs with credentials
         if URL_CREDS.search(line):
@@ -222,15 +300,20 @@ def main() -> int:
     all_findings: dict[str, list[tuple[str, str, int, str]]] = {}
     total_findings: int = 0
 
+    deal_terms = load_deal_terms()
+    if deal_terms:
+        print(f"· deal-identifier pass enabled ({len(deal_terms)} term(s), "
+              f"including binary content).")
+
     files_to_scan: list[pathlib.Path] = []
     for file_path in ROOT.rglob("*"):
-        if file_path.is_file() and should_scan(file_path):
+        if file_path.is_file() and should_consider(file_path):
             files_to_scan.append(file_path)
 
     files_to_scan.sort()
 
     for file_path in files_to_scan:
-        findings: list[tuple[str, str, int, str]] = scan_file(file_path)
+        findings: list[tuple[str, str, int, str]] = scan_file(file_path, deal_terms)
         if findings:
             rel: str = str(file_path.relative_to(ROOT))
             all_findings[rel] = findings

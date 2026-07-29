@@ -223,14 +223,20 @@ def test_inverse_call_price_deep_otm() -> None:
 
 
 def test_inverse_call_price_deep_itm() -> None:
-    """Deep ITM inverse call limit: as K->0, price -> exp(-rT)."""
-    p = price_inverse_btc(100000.0, 100.0, 0.04, 0.45, 30.0 / 365.0, "call")
-    expected_limit = math.exp(-0.04 * 30.0 / 365.0)
-    assert 0.98 < p / expected_limit < 1.00
+    """Deep ITM inverse call limit (FRF-015): as K->0, price -> exp(-qT).
+
+    Corrected from the old exp(-rT) convention. At q=0 the limit is 1.0 BTC.
+    """
+    p = price_inverse_btc(100000.0, 1.0, 0.04, 0.45, 30.0 / 365.0, "call")
+    # K/F ≈ 1e-5, so p is within ~1e-4 of the exp(-qT)=1.0 limit at q=0.
+    assert abs(p - 1.0) < 1e-4
 
 
 def test_inverse_put_price_atm() -> None:
-    """ATM inverse put/call both nonzero and obey put-call parity."""
+    """ATM inverse put/call both nonzero and obey put-call parity (FRF-015).
+
+    Parity under the BTC numeraire: C - P = exp(-qT)·(1 - K/F); q=0 -> (1 - K/F).
+    """
     S, K, r, sig, T = 100000.0, 100000.0, 0.04, 0.45, 30.0 / 365.0
     c = price_inverse_btc(S, K, r, sig, T, "call")
     p = price_inverse_btc(S, K, r, sig, T, "put")
@@ -239,17 +245,17 @@ def test_inverse_put_price_atm() -> None:
 
     F = S * math.exp(r * T)
     parity = c - p
-    expected_parity = math.exp(-r * T) * (1.0 - K / F)
+    expected_parity = math.exp(-0.0 * T) * (1.0 - K / F)  # q = 0
     assert abs(parity - expected_parity) < 1e-9
 
 
 def test_inverse_put_parity_general() -> None:
-    """Inverse put-call parity: C - P = exp(-rT)·(1 - K/F)."""
+    """Inverse put-call parity (FRF-015): C - P = exp(-qT)·(1 - K/F)."""
     S, K, r, sig, T = 95000.0, 100000.0, 0.04, 0.50, 0.1
     F = S * math.exp(r * T)  # q = 0
     c = price_inverse_btc(S, K, r, sig, T, "call")
     p = price_inverse_btc(S, K, r, sig, T, "put")
-    expected = math.exp(-r * T) * (1.0 - K / F)
+    expected = math.exp(-0.0 * T) * (1.0 - K / F)  # q = 0 -> exp(-qT) = 1
     assert abs(c - p - expected) < 1e-9
 
 
@@ -276,11 +282,11 @@ def test_inverse_call_price_non_negative() -> None:
 
 
 def test_inverse_call_price_zero_vol() -> None:
-    """At zero vol, inverse call = max(0, exp(-rT)·(1 - K/F))."""
+    """At zero vol, inverse call = max(0, exp(-qT)·(1 - K/F)) (FRF-015)."""
     S, K, r, T = 100000.0, 95000.0, 0.04, 0.5
     F = S * math.exp(r * T)
-    c = price_inverse_btc(S, K, r, 1e-12, T, "call")
-    expected = max(0.0, math.exp(-r * T) * (1.0 - K / F))
+    c = price_inverse_btc(S, K, r, 1e-6, T, "call")
+    expected = max(0.0, math.exp(-0.0 * T) * (1.0 - K / F))  # q = 0
     assert abs(c - expected) < 1e-4
 
 

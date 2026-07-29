@@ -150,7 +150,7 @@ When the engine's algorithmic classification differs from a source business labe
     + Σ[option legs, side=LONG] (quantity × (settlement_holder − entry_premium))
     + Σ[option legs, side=SHORT] (quantity × (−settlement_holder + entry_premium))
   ```
-  where `settlement_holder` is the gross settlement amount the holder would receive from the contract at expiry (per contract, in USD or BTC as appropriate), and `entry_premium` is per-contract premium (positive = paid by holder, negative for the holder = received by holder).
+  where `settlement_holder` is the gross settlement amount the holder would receive from the contract at expiry (per contract, in USD or BTC as appropriate), and `entry_premium` is the per-contract premium **magnitude** (unsigned, ≥ 0). Its economic direction derives from `side`, exactly like `quantity`: a LONG leg pays it (the `− entry_premium` term above) and a SHORT leg receives it (the `+ entry_premium` term). **[Amendment A-2026-07-29 / FRF-018:** the earlier signed convention "positive = paid, negative = received" is retired; `entry_premium` is now unsigned-with-side, consistent with the H-1 `quantity` convention. All builders and `strategy/payoffs.py` already follow this; the property test `AT-032` pins it.**]**
 - **P&L:** positive = gain, negative = loss, all in base currency (USD). BTC-denominated P&L is multiplied by the delivery price for USD equivalence.
 - The engine must never apply the holder-settlement formula directly to a short writer position without negating the cash flow and adding the entry premium.
 
@@ -212,7 +212,7 @@ This USD-equivalent is the **gross holder payoff, not the position P&L**. It doe
 | Minimum tick | 5 index points ($25) — 1 index point = $5 for the 5-BTC contract |
 | Increment for ≤25 pt premiums | 1 index point |
 | Exercise style | European, auto-exercise ITM |
-| Settlement at expiry | **Auto-exercise into a long (call) or short (put) CME Bitcoin Futures contract at the strike.** That futures contract then cash-settles to USD via the BRR/BRRNY/BVX fixing on the last trade date. There is no physical BTC delivery. |
+| Settlement at expiry | **Auto-exercise into a long (call) or short (put) CME Bitcoin Futures contract at the strike.** That futures contract then cash-settles to USD via the **BRR** fixing on the last trade date. There is no physical BTC delivery. *(Amendment A-2026-07-29 / FRF-037: corrected — BRR is the BTC settlement fixing; BRRNY applies only to BRRNY-settled products and requires a primary source before use; BVX is a CME volatility-futures fixing and is NOT a BTC settlement fixing.)* |
 | Final settlement price (monthly) | BRR (CME CF Bitcoin Reference Rate), 4 p.m. London |
 | Weekly options fix | VWAP 03:30–03:59:59 p.m. London |
 
@@ -308,7 +308,7 @@ class SettlementSpec(BaseModel):
 | Venue | Product | Mechanism | Currency | Exercise | Multiplier | Delivery | Source |
 |-------|---------|-----------|----------|----------|-----------|----------|--------|
 | Deribit | inverse_option | cash | BTC | European | 1 | TWAP 0730–0800 | `deribitfilesascopiedtxt.txt` lines 1–274 |
-| Deribit | linear_option | futures_delivery_then_cash | USDC | European | 1 | TWAP 0730–0800 | `deribitfilesascopiedtxt.txt` lines 3606–3805 |
+| Deribit | linear_option | futures_delivery_then_cash | USDC | European | 1 | TWAP 0730–0800 | `deribitfilesascopiedtxt.txt` linear-options spec §*(Amendment A-2026-07-29 / FRF-037: lines 3606–3805 are the FEE SCHEDULE, not the linear-option mechanism; re-cite to the linear-options contract-spec section)* |
 | CME | option_on_futures | futures_delivery_then_cash | USD | European | 5 | BRR 1600 London | `_text_cache/BTC_pending links/350A.txt` |
 | OTC | otc_option | physical_underlying or cash | USD or BTC | Negotiated | Negotiated (set per-trade; no default) | Negotiated | ISDA DA Definitions + whitepaper §4–5 |
 
@@ -493,23 +493,31 @@ def greeks_black76(F: float, X: float, r: float, sigma: float, T: float, kind: s
 def price_grid(S: float, Ks: np.ndarray, r: float, sigma: float, Ts: np.ndarray, kind: str = "call") -> np.ndarray: ...
 
 # Inverse option pricing (A1, re-derived from Deribit spec — NOT from reconciled audit §10.8)
-# The pricing formula uses risk-neutral valuation. With zero BTC convenience yield,
-# the forward is F = S · exp(r · T). When q != 0 (BTC yield/borrow rate),
-# F = S · exp((r − q) · T). The functions accept 'q' (convenience yield, decimal, optional, default 0.0)
-# and derive forward internally.
+# NUMERAIRE (Amendment A-2026-07-29 / FRF-015): an inverse option settles in BTC and
+# pays max(F_T − K, 0)/F_T BTC per contract. Priced under the STOCK (BTC) numeraire,
+# not the USD money-market numeraire — so the correct discount factor is exp(−qT)
+# (BTC convenience-yield/borrow), NOT exp(−rT). Forward F = S · exp((r − q) · T).
 def price_inverse_btc(S: float, K: float, r: float, sigma: float, T: float, kind: str = "call", q: float = 0.0) -> float:
     """Inverse-BTC option pricer re-derived from Deribit official spec.
-    
-    Forward: F = S · exp((r − q) · T). The option pays (F − K) / F at expiry in BTC for calls.
-    Risk-neutral valuation: price_BTC = exp(−rT) · E[max(F_T − K, 0) / F_T].
-    
-    For zero carry (q = 0): F = S · exp(rT). Under Black's model,
-    price_BTC_call = exp(−rT) · [N(d1') · Φ(d1') − K/F · N(d2') · Φ(d2')]
-    where d1' = (ln(F / K) + σ²T/2) / (σ√T), d2' = d1' − σ√T,
-    and adjustments account for quanto-like delivery-price denominator.
-    
-    Cross-check against Deribit spec example at line 22:
-    S_T=125k, K=100k, delivery=125k → holder settlement = 0.2 BTC.
+
+    Forward: F = S · exp((r − q) · T). The call pays max(F_T − K, 0)/F_T BTC at expiry.
+    Under the BTC (stock) numeraire the present value in BTC is:
+
+        price_BTC_call = exp(−qT) · [ N(d1) − (K/F) · N(d2) ]
+        price_BTC_put  = price_BTC_call − exp(−qT) · (1 − K/F)     (parity)
+
+    where d1 = (ln(F/K) + σ²T/2)/(σ√T), d2 = d1 − σ√T.
+
+    VERIFICATION ANCHOR (no official pre-expiry mark vector exists — MS-9/MS-10):
+      • No-arbitrage identity at q=0:  price_BTC × S  ==  Black-Scholes USD price.
+        (F = S·exp(rT) ⇒ d1 == BS d1 ⇒ price_BTC·S = S·N(d1) − K·e^{−rT}·N(d2).)
+      • Deep-ITM limit (K → 0):  price_BTC_call → exp(−qT)  (→ 1.0 BTC at q=0).
+      These are tested independently for calls AND puts over a parameter grid (AT-015).
+
+    Deribit spec establishes SETTLEMENT (line 22: S_T=125k, K=100k ⇒ holder 0.2 BTC),
+    not the pre-expiry mark; the numeraire above is derived by dimensional analysis
+    per authoritative_corrections.md §4. q=0 is an ASSUMED default (no observed BTC
+    convenience-yield source — MS-11).
     """
     ...
 
@@ -628,8 +636,9 @@ class Leg(BaseModel):
     product: str
     side: Literal["LONG", "SHORT"]
     quantity: float = Field(ge=0)   # Unsigned; economic effect from side
-    entry_premium: float            # Per-contract premium PAID (positive) or RECEIVED (negative),
-                                    # in the option's quoted currency per contract spec
+    entry_premium: float = Field(ge=0)  # Per-contract premium MAGNITUDE (unsigned, ≥0);
+                                    # LONG pays it, SHORT receives it — direction from `side`.
+                                    # Amendment A-2026-07-29 / FRF-018 (was: signed, received=negative).
     settlement: SettlementSpec
     # For underlying legs:
     entry_spot: float | None = None  # Spot price at leg initiation
@@ -904,7 +913,9 @@ class OOSValidationResult(BaseModel):
     pbo_estimate: float                    # Probability of Backtest Overfitting (Bailey et al. 2015)
     performance_degradation: float          # Train Sharpe − Test Sharpe (positive = overfit concern)
     cscv_s: int = Field(ge=8, le=64, default=16)   # S parameter per Bailey et al. recommendation
-    cscv_n: int = Field(ge=100)                     # N ≥ 100 per Bailey et al. guideline (H-14)
+    cscv_n: int = Field(ge=100)                     # N ≥ 100 is an INTERNAL business_requirement
+                                                    # (Amendment A-2026-07-29 / FRF-037: Bailey et al.
+                                                    # state "N ≫ 10", not "N ≥ 100"; the 100 floor is our choice)
 ```
 
 ### 11.5 Regime analysis result
@@ -1043,20 +1054,26 @@ def waterfall_sensitivity(p: dict, sensitivity: WaterfallSensitivity) -> list[di
 
 ### 13.1 Golden-vector tests (preserved and extended)
 
+Citation corrections (Amendment A-2026-07-29 / FRF-037): the 10.4506 / 5.5735 /
+0.6368 values are **computed standard-parameter vectors**, not printed in Hull or
+Haug at those exact inputs (verified numerically correct). Put-call parity is
+Hull §11.4 (not §15.8). No numeric change.
+
 | Test vector | Source | Expected | Tolerance | Interpretation |
 |-------------|--------|----------|-----------|----------------|
-| ATM call, S=K=100, r=0.05, σ=0.20, T=1 | Hull/Haug | 10.4506 | 1e-3 | — |
-| ATM put (same params) | Hull/Haug | 5.5735 | 1e-3 | — |
-| ATM call delta | Haug §2.1 | 0.6368 | 1e-3 | — |
-| Put-call parity | Hull §15.8 | C−P = S−K·e^(-rT) | 1e-9 | — |
+| ATM call, S=K=100, r=0.05, σ=0.20, T=1 | Computed (BS standard params); cf. Hull/Haug method | 10.4506 | 1e-3 | — |
+| ATM put (same params) | Computed (BS standard params) | 5.5735 | 1e-3 | — |
+| ATM call delta | Computed (BS standard params) | 0.6368 | 1e-3 | — |
+| Put-call parity | Hull §11.4 | C−P = S−K·e^(-rT) | 1e-9 | — |
 | IV roundtrip | — | σ recovered | 1e-6 | — |
 | Strike-for-delta roundtrip | — | Δ recovered | 1e-6 | — |
 | Black-76 call, F=X=19, σ=0.28, T=0.75, r=0.10 | Haug §1.1.3, p.6 | 1.7011 | 1e-3 | — |
 | Black-76 put, F=X=19, σ=0.28, T=0.75, r=0.10 | Haug §1.1.3, parity | 1.7011 (parity with call) | 1e-3 | C = P at-the-money forward |
+| Black-76 put theta (FRF-016) | Parity Θ_put = Θ_call − r·e^{−rT}(F−X) | analytic == central FD | 1e-4 | Corrected sign; see §7.3 |
 | Inverse CALL holder settlement: S_T=125k, K=100k, delivery=125k | `deribitfilesascopiedtxt.txt` line 22 | 0.2 BTC | 1e-9 | **Gross settlement to LONG HOLDER** per 1 BTC contract. Writer cash flow = −0.2 BTC. |
 | Inverse PUT holder settlement: S_T=80k, K=100k, delivery=80k | Deribit spec lines 16–56 | 0.25 BTC | 1e-9 | `max(100k−80k,0)/80k = 0.25` |
-| Inverse-BTC call pricing golden vector | Deribit spec (full S,K,r,σ,T) | TBD from test derivation | 1e-4 | Requires documented inputs from spec |
-| Inverse-BTC put pricing golden vector | Deribit spec (full S,K,r,σ,T) | TBD from test derivation | 1e-4 | Requires documented inputs from spec |
+| Inverse-BTC **call** pricing, no-arbitrage anchor (FRF-015) | Derived: BTC numeraire + no-arb identity (§7.3) | `price_BTC × S == BS_USD` at q=0; deep-ITM(K→0) → e^{−qT} | 1e-6 | Anchor is the no-arbitrage identity, not a spec vector (MS-9/MS-10). Tested over an S,K,r,σ,T grid, q=0 and q≠0. |
+| Inverse-BTC **put** pricing, no-arbitrage anchor (FRF-015) | Derived: BTC numeraire + no-arb identity (§7.3) | `price_BTC × S == BS_USD` at q=0; parity vs call | 1e-6 | Independently tested for puts over the same grid. |
 
 ### 13.2 Strategy payoff tests
 
@@ -1533,6 +1550,23 @@ These are not source gaps — they require explicit human decisions. They are ca
 ## 21. Correction traceability matrix
 
 Every mandatory correction from `docs/architecture/contracts_review_minimax_clean.md` §§8–9 is mapped to the corrected section of this freeze candidate.
+
+### 21.0 Versioned Stage-2 amendment record — A-2026-07-29 (WP-A2 / FRF-018, FRF-037)
+
+This record is the versioned contract amendment required by the Stage-1 repair
+specification (WP-A2) before the A1 pricing fixes (`f75e148`) may be integrated.
+No golden numeric value changes; the changes are convention/citation only.
+
+| # | Amendment | Section(s) | Authority | Type |
+|---|-----------|-----------|-----------|------|
+| A2-1 | **Premium-sign convention (FRF-018).** `Leg.entry_premium` is now the unsigned per-contract magnitude (≥ 0); economic direction derives from `side` (LONG pays, SHORT receives), consistent with the H-1 `quantity` convention. The earlier signed convention ("received = negative") is retired. `engine/strategy.py`, `strategy/payoffs.py` and every builder already conform; property test **AT-032** pins both documented entry paths to identical P&L against the analytic LBSP identity. | §3.2, §9.1 | AC §3 (preserve tested interfaces); resolves §9.1↔§3.2 contradiction | resolves internal contradiction |
+| A2-2 | **Inverse-BTC numeraire (FRF-015 / conflict C-2.2).** §7.3 rewritten: the inverse option is priced under the **BTC (stock) numeraire** — discount factor `exp(−qT)`, not `exp(−rT)`. Verification anchor is the no-arbitrage identity `price_BTC × S == Black-Scholes USD` at q=0 (and deep-ITM K→0 → `exp(−qT)`), tested independently for calls AND puts (AT-015). The garbled `N(d1')·Φ(d1')` sketch is removed. | §7.3, §13.1 | AC §4; deribitfilesascopiedtxt.txt | corrects defective sketch |
+| A2-3 | **Inverse golden-vector rows (FRF-015).** §13.1 "TBD" pricing rows replaced with the documented no-arbitrage anchor for call and put (no official pre-expiry mark vector exists — MS-9/MS-10). | §13.1 | AC §4 | fills TBD |
+| A2-4 | **Black-76 put-theta note (FRF-016).** §13.1 records the corrected put-theta identity `Θ_put = Θ_call − r·e^{−rT}(F−X)`, verified analytic == central FD (AT-016). | §13.1, §7.3 | Haug §1.1.3 | documents fix |
+| A2-5 | **Citation corrections (FRF-037), no numeric change.** 10.4506/5.5735/0.6368 relabelled computed standard-parameter vectors; put-call parity re-cited Hull §11.4 (was §15.8); CSCV `N ≥ 100` relabelled an internal business_requirement (Bailey states "N ≫ 10"); §3.4 BVX removed as a BTC settlement fixing (BVX is a volatility-futures fixing; BRRNY needs a primary source); §5.2 linear-mechanism re-cited off the fee-schedule lines. | §13.1, §11.4, §3.4, §5.2 | AC §6 (venue docs over textbooks) | citation only |
+| A2-6 | **Do NOT reintroduce** reconciled-audit §10.8 inverse formulas or a combined settlement enum (FRF-031 superseded; FRF-032 rejected). | §5.1, §7.3 | AC §1, §4 | preservation constraint |
+
+`OptionQuote` and the frozen settlement enums are **not** modified by this amendment.
 
 ### 21.1 Critical corrections (Section 8 items 1–7)
 

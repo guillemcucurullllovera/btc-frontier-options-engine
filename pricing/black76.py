@@ -60,16 +60,18 @@ def greeks_black76(
 
     gamma = df * pdf_d1 / (F * sigma * sqT)
 
-    # vega = df * F * sqT * n(d1) * exp(-rT)... wait, actually in Black-76
-    # standard vega formula: vega = e^{-rT} * F * sqrt(T) * N'(d1)
+    # Black-76 vega: e^{-rT} · F · √T · N'(d1), per 1.00 absolute vol change.
     vega = df * F * pdf_d1 * sqT
 
-    # theta = -dPrice/dT
+    # theta = -dPrice/dT.
+    # FRF-016 fix: the put interest terms had the wrong sign (error = 2rP).
+    # Derived from put-call parity Θ_put = Θ_call - r·e^{-rT}(F-X):
+    #   Θ_put = -term1 + r·df·X·N(-d2) - r·df·F·N(-d1).
     term1 = df * F * pdf_d1 * sigma / (2.0 * sqT)
     if kind == "call":
         theta_ = -term1 + r * df * F * norm.cdf(d1) - r * df * X * norm.cdf(d2)
     else:
-        theta_ = -term1 - r * df * X * norm.cdf(-d2) + r * df * F * norm.cdf(-d1)
+        theta_ = -term1 + r * df * X * norm.cdf(-d2) - r * df * F * norm.cdf(-d1)
 
     return OptionQuote(
         price=float(price_val),

@@ -54,9 +54,14 @@ class Leg(BaseModel):
     quantity: float = Field(ge=0)  # Unsigned; economic effect from side
     entry_premium: float = Field(
         default=0.0,
+        ge=0.0,
         description=(
-            "Per-contract premium PAID by the leg owner (positive) or RECEIVED "
-            "(negative entry_premium means leg owner received premium, e.g. a short option)."
+            "Per-contract premium MAGNITUDE (unsigned, ≥ 0) in the option's "
+            "quoted currency. Economic direction derives from `side`, exactly "
+            "like `quantity`: a LONG leg PAYS this premium (debit), a SHORT leg "
+            "RECEIVES it (credit). See contracts.md §9.1 amendment A-2026-07-29 "
+            "(FRF-018): the earlier signed convention (received = negative) is "
+            "retired in favour of this unsigned-with-side convention."
         ),
     )
     settlement: SettlementSpec | None = None  # None for spot legs
@@ -126,12 +131,28 @@ def classify(legs: list[Leg]) -> StrategyKind:
     # Cash is modelled as a leg with product="cash"
     has_cash = any(leg.product == "cash" for leg in legs)
 
-    # Covered call: long underlying + short call
+    # FRF-019: legs with no recognisable position component (neither spot, cash
+    # nor option) are invalid input — raise rather than silently label BESPOKE.
+    has_any_option = bool(call_long or call_short or put_long or put_short)
+    if not (has_spot or has_spot_short or has_cash or has_any_option):
+        raise ClassificationError(
+            "No recognisable position legs (spot/cash/option) to classify: "
+            f"{[(leg.product, leg.side, leg.option_type) for leg in legs]}"
+        )
+
+    spot_long_qty = sum(leg.quantity for leg in spot_long)
+    short_call_qty = sum(leg.quantity for leg in call_short)
+
+    # Covered call vs partial overlay: long underlying + short call only.
+    # FRF-019: PARTIAL_OVERLAY is reachable — the short-call quantity covers only
+    # a fraction of the underlying (overlay ratio < 1).
     if has_spot and has_call_short and not spot_short and not put_long and not put_short and not call_long:
+        if short_call_qty < spot_long_qty - 1e-9:
+            return StrategyKind.PARTIAL_OVERLAY
         return StrategyKind.COVERED_CALL
 
-    # Cash-secured put: cash collateral + short put
-    if has_cash and has_put_short and not has_spot and not has_call_short and not has_call_long and not has_put_long:
+    # Cash-secured put: cash collateral + short put (no underlying either side)
+    if has_cash and has_put_short and not has_spot and not has_spot_short and not has_call_short and not has_call_long and not has_put_long:
         return StrategyKind.CASH_SECURED_PUT
 
     # Covered put: short underlying + short put
@@ -146,27 +167,28 @@ def classify(legs: list[Leg]) -> StrategyKind:
     if has_spot and has_put_long and not spot_short and not call_short and not call_long and not put_short:
         return StrategyKind.PROTECTIVE_PUT
 
-    # Call spread: long/short calls at different strikes, no underlying
-    if (call_long or call_short) and ((call_long and call_short) or (len(call_long) + len(call_short) >= 2)) and not has_spot and not has_put_short and not has_put_long:
-        return StrategyKind.CALL_SPREAD
+    # Call spread: FRF-019 requires OPPOSITE sides (a long AND a short call) at
+    # DISTINCT strikes, no underlying and no puts. Two same-direction calls do
+    # NOT form a call spread.
+    if (call_long and call_short and not has_spot and not has_spot_short
+            and not has_put_short and not has_put_long):
+        strikes_long = {leg.strike for leg in call_long}
+        strikes_short = {leg.strike for leg in call_short}
+        if strikes_long != strikes_short:
+            return StrategyKind.CALL_SPREAD
 
     # Collar: long underlying + short call + long put
     if has_spot and has_call_short and has_put_long and not spot_short and not call_long and not put_short:
         return StrategyKind.COLLAR
 
-    # Partial overlay: long underlying + short call on fraction (qualified by metadata, falls back to covered call)
-    if has_spot and has_call_short and not spot_short and not put_long and not put_short and not call_long:
-        return StrategyKind.PARTIAL_OVERLAY
-
-    # Naked call: short call, no underlying
-    if has_call_short and not has_spot and not has_put_short and not has_put_long and not call_long:
+    # Naked call: short call only, no underlying (either side)
+    if has_call_short and not has_spot and not has_spot_short and not has_put_short and not has_put_long and not call_long:
         return StrategyKind.NAKED_CALL
 
-    # Naked put: short put, no underlying
-    if has_put_short and not has_spot and not has_call_short and not has_call_long and not put_long:
+    # Naked put: short put only, no underlying (either side)
+    if has_put_short and not has_spot and not has_spot_short and not has_call_short and not has_call_long and not put_long:
         return StrategyKind.NAKED_PUT
 
-    raise ClassificationError(
-        f"Could not classify legs into a known StrategyKind. "
-        f"Legs provided: {[(leg.product, leg.side, leg.option_type) for leg in legs]}"
-    )
+    # FRF-019: any unrecognised COMBINATION of otherwise-valid legs is BESPOKE
+    # (not a hard error). Empty / no-component input already raised above.
+    return StrategyKind.BESPOKE

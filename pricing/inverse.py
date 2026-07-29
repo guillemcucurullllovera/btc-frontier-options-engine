@@ -11,25 +11,33 @@ Key characteristics:
   - Delivery:      TWAP of Deribit BTC index, 07:30-08:00 UTC
   - Exercise:      European, automatic at expiry
 
-Pricing derivation:
-  Under risk-neutral valuation with zero convenience yield (q=0):
-    F = S · exp(r · T)
+Pricing derivation (Amendment A-2026-07-29 / FRF-015):
+  An inverse option SETTLES IN BTC and pays max(F_T - K, 0)/F_T BTC per contract.
+  It must therefore be priced under the STOCK (BTC) numeraire, NOT the USD
+  money-market numeraire — so the discount factor is exp(-qT) (BTC convenience
+  yield / borrow), NOT exp(-rT).
+
+    F = S · exp((r - q) · T)
 
   The inverse call pays the holder at expiry:
     max(F_T - K, 0) / F_T   BTC per 1 BTC contract
 
-  Discounted expected value (Black's model):
-    C_inv = exp(-rT) · [N(d₁) - (K/F) · N(d₂)]
+  Present value in BTC (stock numeraire):
+    C_inv = exp(-qT) · [N(d₁) - (K/F) · N(d₂)]
 
   The inverse put via put-call parity:
-    P_inv = exp(-rT) · [(K/F) · N(-d₂) - N(-d₁)]
+    P_inv = C_inv - exp(-qT) · (1 - K/F)
 
   where:
-    d₁ = [ln(F/K) + o^2T/2] / (o√T)
-    d₂ = d₁ - o√T
+    d₁ = [ln(F/K) + sigma²T/2] / (sigma√T)
+    d₂ = d₁ - sigma√T
+
+  Verification anchors (no official pre-expiry mark vector — MS-9/MS-10):
+    - No-arbitrage at q=0:  price_BTC · S == Black-Scholes USD price.
+    - Deep-ITM (K→0):       C_inv → exp(-qT)  (→ 1.0 BTC at q=0).
+  q=0 is an ASSUMED default (no observed BTC convenience-yield source — MS-11).
 
   Greeks are computed via central finite differences on the analytical price.
-
   Do NOT implement formulas from the reconciled audit §10.8.
 """
 
@@ -37,6 +45,7 @@ from __future__ import annotations
 
 import math
 
+from engine.errors import PricingError
 from pricing.black_scholes import OptionQuote
 
 
@@ -47,8 +56,13 @@ def settlement_inverse_call_holder(delivery_price: float, strike: float) -> floa
 
     Source: deribitfilesascopiedtxt.txt §"Inverse Options" lines 1-199.
     For the SHORT WRITER, the cash flow is the NEGATION of this amount.
-    """
 
+    Degenerate boundary (FRF-029 / AT-029): a non-positive delivery_price
+    (e.g. the S_T→0 payoff-curve point) yields 0.0 rather than raising
+    ZeroDivisionError. The USD-equivalent (btc x delivery_price) is 0 there.
+    """
+    if delivery_price <= 0.0:
+        return 0.0
     return float(max(delivery_price - strike, 0.0) / delivery_price)
 
 
@@ -58,9 +72,21 @@ def settlement_inverse_put_holder(delivery_price: float, strike: float) -> float
     Formula:  max(strike - delivery_price, 0) / delivery_price
 
     For the SHORT WRITER, the cash flow is the NEGATION of this amount.
+    Non-positive delivery_price yields 0.0 (see call variant; AT-029).
     """
-
+    if delivery_price <= 0.0:
+        return 0.0
     return float(max(strike - delivery_price, 0.0) / delivery_price)
+
+
+def _validate_pricing_inputs(S: float, K: float, sigma: float, T: float, kind: str) -> None:
+    if kind not in ("call", "put"):
+        raise PricingError(f"kind must be 'call' or 'put', got {kind!r}")
+    if not (S > 0.0 and K > 0.0 and sigma > 0.0 and T > 0.0):
+        raise PricingError(
+            "price_inverse_btc requires strictly positive S, K, sigma, T; got "
+            f"S={S}, K={K}, sigma={sigma}, T={T}"
+        )
 
 
 def _d1_d2(F: float, K: float, sigma: float, T: float) -> tuple[float, float]:
@@ -69,10 +95,12 @@ def _d1_d2(F: float, K: float, sigma: float, T: float) -> tuple[float, float]:
     return d1, d1 - sigma * sqT
 
 
-def _call_price_raw(F: float, K: float, r: float, sigma: float, T: float) -> float:
-    """Core inverse BTC call price in BTC per 1 BTC contract (unquoted raw value).
+def _call_price_raw(F: float, K: float, q: float, sigma: float, T: float) -> float:
+    """Core inverse BTC call price in BTC per 1 BTC contract.
 
-    F is the forward price F = S · exp((r-q)·T).
+    C_inv = exp(-qT) · [N(d₁) - (K/F) · N(d₂)],  F = S · exp((r-q)·T).
+    Discount is exp(-qT) (BTC/stock numeraire), NOT exp(-rT); deep-ITM K→0
+    limit is exp(-qT). See module docstring / contracts §7.3 amendment.
     """
 
     import math as _m
@@ -80,15 +108,15 @@ def _call_price_raw(F: float, K: float, r: float, sigma: float, T: float) -> flo
     from scipy.stats import norm as _norm
 
     d1, d2 = _d1_d2(F, K, sigma, T)
-    df = _m.exp(-r * T)
+    btc_df = _m.exp(-q * T)
 
-    return float(df * (_norm.cdf(d1) - (K / F) * _norm.cdf(d2)))
+    return float(btc_df * (_norm.cdf(d1) - (K / F) * _norm.cdf(d2)))
 
 
-def _put_price_raw(F: float, K: float, r: float, sigma: float, T: float) -> float:
-    """Core inverse BTC put price in BTC per 1 BTC contract (unquoted raw value).
+def _put_price_raw(F: float, K: float, q: float, sigma: float, T: float) -> float:
+    """Core inverse BTC put price in BTC per 1 BTC contract.
 
-    Via put-call parity: P_inv = C_inv - exp(-rT) · (1 - K/F).
+    Via put-call parity: P_inv = C_inv - exp(-qT) · (1 - K/F).
     """
 
     import math as _m
@@ -96,9 +124,9 @@ def _put_price_raw(F: float, K: float, r: float, sigma: float, T: float) -> floa
     from scipy.stats import norm as _norm
 
     d1, d2 = _d1_d2(F, K, sigma, T)
-    df = _m.exp(-r * T)
+    btc_df = _m.exp(-q * T)
 
-    return float(df * ((K / F) * _norm.cdf(-d2) - _norm.cdf(-d1)))
+    return float(btc_df * ((K / F) * _norm.cdf(-d2) - _norm.cdf(-d1)))
 
 
 def price_inverse_btc(
@@ -115,19 +143,19 @@ def price_inverse_btc(
     kind  — "call" or "put"
     q     — convenience yield / BTC borrow rate (decimal, optional, default 0.0)
 
-    Forward: F = S · exp((r - q) · T).
-
-    Cross-check against Deribit spec example at line 22:
-    S_T=125k, K=100k -> holder settlement = 0.2 BTC.
+    Forward: F = S · exp((r - q) · T). Discount factor exp(-qT) (BTC numeraire).
+    No-arbitrage anchor (q=0): price_inverse_btc · S == Black-Scholes USD price.
+    Raises PricingError on non-positive S/K/sigma/T or an invalid `kind`.
     """
 
     import math as _m
 
+    _validate_pricing_inputs(S, K, sigma, T, kind)
     F = S * _m.exp((r - q) * T)
 
     if kind == "call":
-        return _call_price_raw(F, K, r, sigma, T)
-    return _put_price_raw(F, K, r, sigma, T)
+        return _call_price_raw(F, K, q, sigma, T)
+    return _put_price_raw(F, K, q, sigma, T)
 
 
 def greeks_inverse_btc(

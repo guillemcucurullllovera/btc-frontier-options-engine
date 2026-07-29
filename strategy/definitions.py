@@ -288,11 +288,17 @@ def build_partial_overlay(
         _make_usd_option_leg("call", "SHORT", overlay_qty, strike, premium_received, dte_days),
     ]
     canonical = classify(legs)
+    # A fractional overlay (ratio < 1) classifies as PARTIAL_OVERLAY; a full
+    # overlay (ratio == 1) as COVERED_CALL. Both are consistent with the
+    # "Partial Covered Call Overlay" business label, so no mismatch warning.
+    expected = (StrategyKind.PARTIAL_OVERLAY if overlay_ratio < 1.0
+                else StrategyKind.COVERED_CALL)
     return Strategy(
         strategy_id=strategy_id, business_label=business_label,
         canonical=canonical, legs=legs,
         classification_warning=(
-            "W-CLASSIFY-MISMATCH" if canonical != StrategyKind.COVERED_CALL else None
+            None if canonical == expected
+            else f"W-CLASSIFY-MISMATCH: canonical {canonical} != expected {expected}"
         ),
         structural_max_loss=total_quantity * entry_spot - overlay_qty * premium_received,
         pending_decisions=[PENDING_D1, PENDING_D3, PENDING_D9],
@@ -328,11 +334,14 @@ def build_strike_ladder(
         )
 
     canonical = classify(legs)
+    # Structural max loss occurs at S_T=0 (all calls OTM): lose the full spot
+    # position net of the premiums collected across the ladder (FRF-026).
+    total_premium = sum(tranche_qty * (entry_spot * premium_pct_of_spot) for _ in dte_ladder)
     return Strategy(
         strategy_id="strike_ladder",
         business_label="Strike & Expiry Ladder",
         canonical=canonical, legs=legs,
-        structural_max_loss=base_quantity * entry_spot,
+        structural_max_loss=base_quantity * entry_spot - total_premium,
         pending_decisions=[PENDING_D1, PENDING_D3, PENDING_D9],
     )
 

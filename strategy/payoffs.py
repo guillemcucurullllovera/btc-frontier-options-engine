@@ -231,6 +231,59 @@ def long_btc_plus_short_put_identities(S0: float, K: float, P: float) -> dict[st
     }
 
 
+def structural_max_loss(strategy: Strategy) -> float:
+    """Structural maximum-loss MAGNITUDE (USD, positive) from the actual payoff.
+
+    Derived from the leg identities, NOT a ±spot-window truncation (FRF-026).
+    The strategy P&L is piecewise-linear in S_T, so its global minimum over
+    S_T ∈ [0, ∞) occurs at a kink (S_T = 0 or a strike) — unless the P&L slope
+    stays negative as S_T → ∞ (uncapped short-call exposure), in which case the
+    loss is unbounded and `inf` is returned. Returned as a positive magnitude;
+    0.0 if the strategy cannot lose over the domain.
+    """
+    strikes = sorted({leg.strike for leg in strategy.legs if leg.strike is not None})
+    entry_spots = [leg.entry_spot for leg in strategy.legs if leg.entry_spot is not None]
+    hi = strikes[-1] if strikes else (max(entry_spots) if entry_spots else 1.0)
+    # Slope just above the highest kink; if it stays negative the loss is
+    # unbounded to the upside (e.g. a naked short call).
+    a = strategy_pnl(strategy, hi + 1.0)
+    b = strategy_pnl(strategy, hi + 2.0)
+    if (b - a) < -1e-6:
+        return float("inf")
+    candidates = [0.0, *strikes, hi + 1.0]
+    min_pnl = min(strategy_pnl(strategy, float(s)) for s in candidates)
+    return max(0.0, -min_pnl)
+
+
+@dataclass(frozen=True)
+class LossQuantities:
+    """Mandated downside-exposure block (FRF-026)."""
+
+    max_loss_usd: float          # positive magnitude (inf if unbounded)
+    max_loss_per_btc: float      # USD per reference BTC
+    max_loss_pct_notional: float # as a fraction of notional
+    max_loss_pct_capital: float  # as a fraction of capital at risk
+
+
+def loss_quantities(
+    strategy: Strategy,
+    reference_btc: float,
+    notional_usd: float,
+    capital_usd: float,
+) -> LossQuantities:
+    """Structural loss reported in USD, per-BTC, %notional and %capital."""
+    sml = structural_max_loss(strategy)
+    per_btc = sml / reference_btc if reference_btc > 0 and sml != float("inf") else sml
+    pct_notional = sml / notional_usd if notional_usd > 0 and sml != float("inf") else sml
+    pct_capital = sml / capital_usd if capital_usd > 0 and sml != float("inf") else sml
+    return LossQuantities(
+        max_loss_usd=sml,
+        max_loss_per_btc=per_btc,
+        max_loss_pct_notional=pct_notional,
+        max_loss_pct_capital=pct_capital,
+    )
+
+
 def compute_strategy_payoff(
     strategy: Strategy,
     S0: float,
@@ -246,8 +299,11 @@ def compute_strategy_payoff(
     curve = strategy_payoff_curve(strategy, points)
     bes = breakeven_points(strategy)
 
+    # FRF-026: structural (not ±window-truncated) max loss; consistent SIGN
+    # (max_loss is the signed minimum P&L, i.e. negative for a loss).
+    sml = structural_max_loss(strategy)
+    max_loss = float("-inf") if sml == float("inf") else -sml
     max_gain: float | None = None
-    max_loss = float(min(point.pnl_usd for point in curve))
     upside_cap: float | None = None
     missed_upside_exposure = False
     downside_slope = 0.0
@@ -260,7 +316,6 @@ def compute_strategy_payoff(
     elif strategy.canonical == StrategyKind.CASH_SECURED_PUT:
         max_gain = max(point.pnl_usd for point in curve)
     elif strategy.canonical == StrategyKind.LONG_BTC_PLUS_SHORT_PUT:
-        max_loss = S0 + (strategy.legs[1].strike or 0.0) - abs(strategy.legs[1].entry_premium)
         downside_slope = 2.0
 
     if strategy.canonical not in (StrategyKind.COVERED_CALL, StrategyKind.PARTIAL_OVERLAY,
