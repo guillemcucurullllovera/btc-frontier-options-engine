@@ -1,0 +1,3132 @@
+[0m
+> build · MiniMax-M3
+[0m
+<think>
+The user wants me to perform an independent senior quantitative validation review of a BTC research project. This is a READ-ONLY review. Let me start by exploring the workspace structure to understand what's available.
+
+Let me begin by examining the directory structure and the key files mentioned in the task
+</think>
+
+.
+[0m$ [0mls -la
+total 284
+drwxr-xr-x 27 heimdall heimdall  4096 Jul 29 07:01 .
+drwx------  5 heimdall heimdall  4096 Jul 28 16:43 ..
+-rw-r--r--  1 heimdall heimdall  8196 Jul 27 17:21 .DS_Store
+-rw-------  1 heimdall heimdall   575 Jul 28 07:51 .env
+-rw-rw-r--  1 heimdall heimdall   295 Jul 28 08:03 .env.example
+drwxrwxr-x  9 heimdall heimdall  4096 Jul 29 08:47 .git
+drwxrwxr-x  3 heimdall heimdall  4096 Jul 28 15:42 .github
+-rw-rw-r--  1 heimdall heimdall   145 Jul 28 15:42 .gitignore
+-rw-rw-r--  1 heimdall heimdall    42 Jul 29 00:50 .latest_research_baseline
+-rw-rw-r--  1 heimdall heimdall    37 Jul 29 00:07 .latest_research_intensive
+-rw-rw-r--  1 heimdall heimdall    38 Jul 29 00:56 .latest_research_robustness
+-rw-rw-r--  1 heimdall heimdall    25 Jul 28 22:20 .latest_research_run
+-rw-rw-r--  1 heimdall heimdall    33 Jul 29 00:07 .latest_research_suite
+drwxrwxr-x  3 heimdall heimdall  4096 Jul 28 23:30 .mypy_cache
+drwxrwxr-x  4 heimdall heimdall  4096 Jul 28 08:55 .opencode
+drwxr-xr-x  3 heimdall heimdall  4096 Jul 27 17:21 .pytest_cache
+drwxrwxr-x  3 heimdall heimdall  4096 Jul 28 08:13 .ruff_cache
+drwxrwxr-x  5 heimdall heimdall  4096 Jul 27 17:40 .venv
+-rw-rw-r--  1 heimdall heimdall  6810 Jul 28 15:42 AGENTS.md
+-rw-r--r--  1 heimdall heimdall   454 Jul 27 17:22 README.md
+drwxr-xr-x  2 heimdall heimdall  4096 Jul 28 15:42 agents
+drwxr-xr-x  3 heimdall heimdall  4096 Jul 28 22:16 config
+-rw-rw-r--  1 heimdall heimdall 91277 Jul 28 14:21 contracts.md
+drwxrwxr-x  9 heimdall heimdall  4096 Jul 28 08:23 docs
+drwxrwxr-x  3 heimdall heimdall  4096 Jul 28 15:42 engine
+drwxr-xr-x  3 heimdall heimdall  4096 Jul 28 22:16 execution
+drwxrwxr-x  3 heimdall heimdall  4096 Jul 29 07:49 exports
+drwxrwxr-x  2 heimdall heimdall  4096 Jul 28 08:23 logs
+-rw-rw-r--  1 heimdall heimdall   885 Jul 28 07:25 opencode.json
+drwxr-xr-x  3 heimdall heimdall  4096 Jul 28 18:25 pricing
+drwx------ 17 heimdall heimdall  4096 Jul 28 12:14 private_reference_library
+drwxrwxr-x  2 heimdall heimdall  4096 Jul 29 06:49 prompts
+-rw-rw-r--  1 heimdall heimdall  2463 Jul 28 18:25 pyproject.toml
+drwxrwxr-x  3 heimdall heimdall  4096 Jul 28 11:23 reference
+drwxrwxr-x  3 heimdall heimdall  4096 Jul 28 22:16 research
+drwxrwxr-x  3 heimdall heimdall  4096 Jul 28 22:04 results
+drwxrwxr-x  2 heimdall heimdall  4096 Jul 28 23:28 scripts
+drwxrwxr-x  3 heimdall heimdall  4096 Jul 28 22:16 strategy
+drwxr-xr-x  4 heimdall heimdall  4096 Jul 28 22:16 tests
+-rw-rw-r--  1 heimdall heimdall 18230 Jul 28 15:42 uv.lock
+drwxr-xr-x  3 heimdall heimdall  4096 Jul 28 18:25 vol
+drwxr-xr-x  2 heimdall heimdall  4096 Jul 27 17:22 {config,pricing,vol,execution,scenarios,tests,agents,reports}
+[0m
+[0m$ [0mcat .latest_research_baseline .latest_research_robustness .latest_research_intensive .latest_research_run .latest_research_suite
+empirical-baseline-fixed-20260729T005016Z
+empirical-robustness-20260729T005618Z
+empirical-intensive-20260729T000727Z
+nightly-20260728T222057Z
+empirical-suite-20260729T000727Z
+[0m
+[0m$ [0mls research/ results/ docs/reports/ 2>/dev/null
+docs/reports/:
+deepseek_initial_audit.md
+effective_acquisition_cost_fix_deepseek.md
+final_empirical_research_synthesis_deepseek.md
+independent_validation_deepseek_console.log
+independent_validation_minimax_console.log
+live_massive_integration_deepseek.md
+minimax_initial_audit.md
+partial_20260729T090744Z
+phase0
+phase1
+phase2
+reconciled_initial_audit.md
+reference_study
+research_runner_empirical_fix_deepseek.md
+
+research/:
+__init__.py
+__pycache__
+manifest.py
+reporting.py
+runner.py
+
+results/:
+research
+[0m
+[0m$ [0mls results/research/
+empirical-baseline-20260729T000727Z
+empirical-baseline-20260729T003308Z
+empirical-baseline-fixed-20260729T005016Z
+empirical-intensive-20260729T000727Z
+empirical-intensive-20260729T003308Z
+empirical-robustness-20260729T005618Z
+empirical-suite-20260729T000727Z
+empirical-suite-20260729T003308Z
+latest_empirical_suite.txt
+nightly-20260728T222057Z
+[0m
+[0m$ [0mls results/research/empirical-baseline-fixed-20260729T005016Z/ results/research/empirical-robustness-20260729T005618Z/ results/research/empirical-intensive-20260729T000727Z/
+results/research/empirical-baseline-fixed-20260729T005016Z/:
+_spot_data_dump.csv
+backtest_results.parquet
+cache
+checksums.sha256
+data_manifest.json
+decision_pending.json
+execution_sensitivity.parquet
+logs
+monte_carlo_results.parquet
+oos_results.parquet
+presentation_summary.md
+regime_results.parquet
+research_report.md
+resolved_config.yaml
+run_manifest.json
+run_status.json
+strategy_comparison.csv
+stress_results.parquet
+
+results/research/empirical-intensive-20260729T000727Z/:
+logs
+
+results/research/empirical-robustness-20260729T005618Z/:
+all_strategy_results.csv
+configs
+logs
+mc-1500000-seed-1009
+mc-1500000-seed-101
+mc-1500000-seed-1103
+mc-1500000-seed-1201
+mc-1500000-seed-211
+mc-1500000-seed-307
+mc-1500000-seed-401
+mc-1500000-seed-503
+mc-1500000-seed-601
+mc-1500000-seed-701
+mc-1500000-seed-809
+mc-1500000-seed-907
+mc-3000000-seed-1009
+mc-3000000-seed-101
+mc-3000000-seed-1103
+mc-3000000-seed-1201
+mc-3000000-seed-211
+mc-3000000-seed-307
+mc-3000000-seed-401
+mc-3000000-seed-503
+mc-3000000-seed-601
+mc-3000000-seed-701
+mc-3000000-seed-809
+mc-3000000-seed-907
+mc-500000-seed-1009
+mc-500000-seed-101
+mc-500000-seed-1103
+mc-500000-seed-1201
+mc-500000-seed-211
+mc-500000-seed-307
+mc-500000-seed-401
+mc-500000-seed-503
+mc-500000-seed-601
+mc-500000-seed-701
+mc-500000-seed-809
+mc-500000-seed-907
+process.pid
+robustness_summary.csv
+run_summary.csv
+suite_status.json
+[0m
+[0m$ [0mls results/research/empirical-baseline-20260729T003308Z/
+_spot_data_dump.csv
+backtest_results.parquet
+cache
+checksums.sha256
+data_manifest.json
+decision_pending.json
+execution_sensitivity.parquet
+logs
+monte_carlo_results.parquet
+oos_results.parquet
+presentation_summary.md
+regime_results.parquet
+research_report.md
+resolved_config.yaml
+run_manifest.json
+run_status.json
+strategy_comparison.csv
+stress_results.parquet
+[0m
+[0m$ [0mcat results/research/empirical-baseline-fixed-20260729T005016Z/run_status.json results/research/empirical-baseline-fixed-20260729T005016Z/run_manifest.json | head -200
+{
+  "status": "completed",
+  "run_id": "empirical-baseline-fixed-20260729T005016Z",
+  "completed_at": "2026-07-29T00:50:34.599984+00:00"
+}{
+  "run_id": "empirical-baseline-fixed-20260729T005016Z",
+  "started_at": "2026-07-29T00:50:17.568226+00:00",
+  "config_path": "config/research_nightly.yaml",
+  "config_checksum": "6e00adbd7ff4dbbe7f0aea734ef4ee2550c26365713a28b770be5b1bc87dde1c",
+  "output_dir": "results/research/empirical-baseline-fixed-20260729T005016Z",
+  "status": "completed",
+  "completed_at": "2026-07-29T00:50:34.599682+00:00",
+  "data_sources": [
+    {
+      "source": "massive",
+      "endpoint": "/v2/aggs/ticker/{ticker}/range/1/day/{from_}/{to}",
+      "retrieval_date": "2026-07-29 00:50:18.028020+00:00",
+      "record_count": 729,
+      "checksum_sha256": "4879bfbb6b181d0429975f6cb5eb085709ba875c23e79e4c8c8ad1cd8258e263",
+      "provenance": "observed",
+      "notes": ""
+    }
+  ],
+  "strategy_count": 8,
+  "total_cycles": 168,
+  "total_paths_mc": 800000,
+  "errors": [],
+  "warnings": [],
+  "provenance": "calculated"
+}
+[0m
+[0m$ [0mcat config/research_nightly.yaml
+# BTC 30k Engine — Nightly Research Configuration
+#
+# Defines the complete parameter space for overnight research runs:
+#   - historical backtests, OOS/walk-forward, regimes, Monte Carlo, stress,
+#     execution sensitivity.
+#
+# Massive is the primary historical BTC spot source.
+# CryptoDataDownload is an explicitly-labelled fallback.
+# Deribit observations are OBSERVED only when genuinely observed.
+# Reconstructed historical options are MODEL_RECONSTRUCTED.
+#
+# All percentage values are decimal (0.45 = 45%, 0.025 = 2.5%).
+
+# ── Mandate parameters ──────────────────────────────────────────────────────
+mandate:
+  btc_quantity: 30000
+  reference_spot_usd: 65000
+  seller_discount_pct: 0.025
+  target_option_yield_pct: 0.025
+  execution_fee_pct: 0.005
+
+# ── Strategy parameters ─────────────────────────────────────────────────────
+strategies:
+  enabled:
+    - unhedged_baseline
+    - covered_call
+    - cash_secured_put
+    - long_btc_plus_short_put
+    - collar
+    - call_spread
+    - partial_overlay
+    - strike_ladder
+  partial_overlay_ratios: [0.25, 0.50, 0.75]
+  ladder_dtes: [[30, 37, 44]]
+
+# ── Backtest parameters ─────────────────────────────────────────────────────
+backtest:
+  window_start: "2023-01-01"
+  window_end: "2026-07-27"
+  dte_days: 30
+  strike_pct_above: 0.15
+  risk_free_rate: 0.04
+  volatility: 0.45
+
+# ── OOS validation parameters ───────────────────────────────────────────────
+oos_validation:
+  train_start: "2023-01-01"
+  train_end: "2024-12-31"
+  test_start: "2025-01-01"
+  test_end: "2026-07-27"
+  cscv_s: 16
+  cscv_n: 100
+  walk_forward: "expanding"
+
+# ── Monte Carlo parameters ──────────────────────────────────────────────────
+monte_carlo:
+  enabled: true
+  n_paths: 50000
+  models: ["GBM", "Merton"]
+  horizon_years: 0.082
+  drift: 0.10
+  seed: 42
+  use_antithetic: true
+  merton_params:
+    jump_intensity: 2.0
+    jump_mean: -0.05
+    jump_std: 0.10
+
+# ── Stress testing parameters ───────────────────────────────────────────────
+stress:
+  enabled: true
+  start_spot: 65000
+  scenarios:
+    - name: "2025_breakout_to_126k"
+    - name: "2026_retrace_to_65k"
+    - name: "flash_crash_to_30k"
+    - name: "dvol_35_to_65_shock"
+    - name: "combined_severe"
+    - name: "bull_rally_100k"
+    - name: "liquidity_shock"
+    - name: "settlement_price_shock"
+    - name: "sideways_chop"
+
+# ── Execution sensitivity parameters ────────────────────────────────────────
+execution_sensitivity:
+  enabled: true
+  spot_offsets_pct: [-10.0, -5.0, -1.0, 0.0, 1.0, 5.0, 10.0]
+  fee_bases: ["reference_notional", "executed_volume"]
+
+# ── Regime classification parameters ────────────────────────────────────────
+regimes:
+  enabled: true
+  window_days: 90
+  vol_window: 30
+  bull_threshold: 0.20
+  bear_threshold: -0.20
+  high_vol_threshold: 0.60
+  low_vol_threshold: 0.30
+
+# ── Data sources ─────────────────────────────────────────────────────────────
+data_sources:
+  primary_spot: "massive"
+  fallback_spot: "cryptodatadownload"
+  primary_option: "deribit"
+  fallback_option: "cryptodatadownload"
+  allow_cdd_fallback: true
+
+# ── Output ───────────────────────────────────────────────────────────────────
+output:
+  format: "parquet"
+  write_csv_comparison: true
+  write_report: true
+  write_presentation_summary: true
+  checksums: true
+  resolved_config: true
+  log_level: "INFO"
+
+# ── Execution ────────────────────────────────────────────────────────────────
+execution:
+  deterministic_seeds: true
+  base_seed: 42
+  enable_checkpoints: true
+  resume: true
+  max_workers: 1
+
+# ── Execution impact ─────────────────────────────────────────────────────────
+impact:
+  adv_btc: 25000
+  spread_bps: 2.0
+  iv_giveup_vol_pts: 1.0
+[0m
+[0m$ [0mcat results/research/empirical-baseline-fixed-20260729T005016Z/research_report.md
+# BTC 30k Strategy Research Report
+*Run: empirical-baseline-fixed-20260729T005016Z*
+*Generated: 2026-07-29T00:50:34.599041+00:00*
+
+## Data Source
+- Provider: massive
+- Observation count: 729
+- Date range: 2024-07-29 00:00:00+00:00 to 2026-07-27 00:00:00+00:00
+- Provenance: observed
+- Fallback used: False
+
+## Strategies: 8
+## Total backtest cycles: 168
+## Total MC paths: 800000
+
+## Strategy Comparison
+
+- **unhedged_baseline**: P&L -56.20%, Eff. Acq. $63,375/BTC
+- **covered_call**: P&L 11.26%, Sharpe 0.079, Eff. Acq. $67,491/BTC
+- **cash_secured_put**: P&L 1.73%, Sharpe 0.078, Eff. Acq. $55,676/BTC
+- **long_btc_plus_short_put**: P&L 16.57%, Sharpe 0.041, Eff. Acq. $63,948/BTC
+- **collar**: P&L 1.21%, Sharpe 0.017, Eff. Acq. $73,388/BTC
+- **call_spread**: P&L -10.76%, Sharpe -0.201, Eff. Acq. $72,285/BTC
+- **partial_overlay**: P&L 13.05%, Sharpe 0.051, Eff. Acq. $66,297/BTC
+- **strike_ladder**: P&L 14.83%, Sharpe 0.106, Eff. Acq. $65,106/BTC
+
+*No strategy is described as best, optimal, preferred, recommended, safest or winner.*
+*This document does not constitute an investment recommendation.*
+[0m
+[0m$ [0mcat results/research/empirical-baseline-fixed-20260729T005016Z/strategy_comparison.csv
+strategy_id,strategy_kind,business_label,total_pnl_pct,itm_frequency,touch_frequency,max_drawdown_pct,sharpe_ratio,total_premium_usd,effective_acquisition_cost,pbo_estimate,deflated_sharpe_ratio,var_95_loss,es_975_loss,probability_of_loss,highest_pnl_stress,lowest_pnl_stress
+unhedged_baseline,bespoke,Unhedged BTC Acquisition,-56.198194016756155,0.0,0.0,0.0,,0.0,63375.0,,,395670135.44949055,551490490.6492633,0.49746,1830000000.0,-1050000000.0
+covered_call,covered_call,Covered Call (Long BTC + Short Call),11.260391848461984,0.625,0.7083333333333334,0.31706668443104935,0.07938256162258897,11341760164.843733,67491.42683710015,,,350670135.44949055,506490490.64926326,0.42974,345000000.0,-985912457.10127
+cash_secured_put,cash_secured_put,Cash-Secured Put,1.7288677024243193,0.0,1.0,0.06552006830878192,0.07814807273433048,215964345.71690118,55676.3237165096,,,155670135.44949055,311490490.6492633,0.16622,45000000.0,-1632855022.766432
+long_btc_plus_short_put,long_btc_plus_short_put,Long BTC + Short Put,16.56753003490326,0.0,1.0,1.7761847643672541,0.04054268653141057,215964345.71690118,63947.7737165096,,,551340270.8989811,862980981.2985266,0.42974,1875000000.0,-2682855022.766432
+collar,collar,Collar (Long BTC + Short Call + Long Put),1.2149129447285836,0.625,1.0,0.17724107274736553,0.017475435227027256,11254109847.413252,73387.72377113419,,,291000000.0,291000000.0,0.48434,462986132.07189465,-291000000.0
+call_spread,call_spread,Call Spread,-10.757924397862755,0.625,0.625,0.02341307806169425,-0.20137446103880058,4188895067.9425178,72285.38586035674,,,152478628.56284758,270869339.10570127,0.12264,43983088.37079912,-273000000.0
+partial_overlay,covered_call,Partial Covered Call Overlay,13.049527090470466,0.625,0.7083333333333334,0.4981254068068889,0.05148100096272162,5670880082.421866,66296.79529355008,,,373170135.44949055,528990490.64926326,0.4641,1087500000.0,-1017956228.550635
+strike_ladder,covered_call,Strike & Expiry Ladder,14.833058585600888,0.625,0.75,0.3036275565444077,0.10596687694939402,11461097413.207916,65105.90545304483,,,356670135.44949055,512490490.64926326,0.4385,331500000.0,-990954792.6720923
+[0m
+[0m$ [0mcat results/research/empirical-baseline-fixed-20260729T005016Z/presentation_summary.md
+# BTC 30k Strategy Research — Presentation Summary
+*Generated: 2026-07-29T00:50:34.169127+00:00*
+
+## Research Scope
+
+Strategies analysed: 8
+
+## Key Observations
+
+### unhedged_baseline (bespoke)
+- Total P&L: -56.20%
+- ITM frequency: 0.0%
+- Effective acquisition cost: $63,375 per BTC
+
+### covered_call (covered_call)
+- Total P&L: 11.26%
+- ITM frequency: 62.5%
+- Sharpe ratio: 0.079
+- Effective acquisition cost: $67,491 per BTC
+
+### cash_secured_put (cash_secured_put)
+- Total P&L: 1.73%
+- ITM frequency: 0.0%
+- Sharpe ratio: 0.078
+- Effective acquisition cost: $55,676 per BTC
+
+### long_btc_plus_short_put (long_btc_plus_short_put)
+- Total P&L: 16.57%
+- ITM frequency: 0.0%
+- Sharpe ratio: 0.041
+- Effective acquisition cost: $63,948 per BTC
+
+### collar (collar)
+- Total P&L: 1.21%
+- ITM frequency: 62.5%
+- Sharpe ratio: 0.017
+- Effective acquisition cost: $73,388 per BTC
+
+### call_spread (call_spread)
+- Total P&L: -10.76%
+- ITM frequency: 62.5%
+- Sharpe ratio: -0.201
+- Effective acquisition cost: $72,285 per BTC
+
+### partial_overlay (covered_call)
+- Total P&L: 13.05%
+- ITM frequency: 62.5%
+- Sharpe ratio: 0.051
+- Effective acquisition cost: $66,297 per BTC
+
+### strike_ladder (covered_call)
+- Total P&L: 14.83%
+- ITM frequency: 62.5%
+- Sharpe ratio: 0.106
+- Effective acquisition cost: $65,106 per BTC
+
+## Pending Decisions
+- D-1: Fee base (reference_notional vs executed_volume) — unresolved
+- D-3: Primary venue (Deribit vs CME vs OTC) — unresolved
+- D-9: Delta-hedge model specification — unresolved
+
+## Data Attribution
+- Primary spot source: Massive
+- Option data: Deribit (observed) / model-reconstructed where missing
+- Fallback: CryptoDataDownload (explicitly enabled)
+- Monte Carlo and stress paths: simulated
+
+*No strategy is described as best, optimal, preferred, recommended, safest or winner.*
+*This document does not constitute an investment recommendation.*
+[0m
+[0m$ [0mhead -20 results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv && wc -l results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv
+timestamp,close
+2024-07-29T00:00:00+00:00,66771.45
+2024-07-30T00:00:00+00:00,66169.68
+2024-07-31T00:00:00+00:00,64609.62
+2024-08-01T00:00:00+00:00,65288.18
+2024-08-02T00:00:00+00:00,61418.06
+2024-08-03T00:00:00+00:00,60674.93
+2024-08-04T00:00:00+00:00,58130.95
+2024-08-05T00:00:00+00:00,54029.12
+2024-08-06T00:00:00+00:00,56048.08
+2024-08-07T00:00:00+00:00,55148.1
+2024-08-08T00:00:00+00:00,61705.58
+2024-08-09T00:00:00+00:00,60862.13
+2024-08-10T00:00:00+00:00,60935.02
+2024-08-11T00:00:00+00:00,58722.49
+2024-08-12T00:00:00+00:00,59358.78
+2024-08-13T00:00:00+00:00,60603.19
+2024-08-14T00:00:00+00:00,58690.62
+2024-08-15T00:00:00+00:00,57543.61
+2024-08-16T00:00:00+00:00,58888.99
+730 results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv
+[0m
+[0m$ [0mtail -5 results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv
+2026-07-23T00:00:00+00:00,65051.23
+2026-07-24T00:00:00+00:00,64083.32
+2026-07-25T00:00:00+00:00,64295.61
+2026-07-26T00:00:00+00:00,65341.07
+2026-07-27T00:00:00+00:00,63694.43
+[0m
+<think>
+Now let me compute the actual observed Massive spot start price, end price and historical unhedged return directly from the spot data.
+</think>
+
+</think>
+[0m$ [0mpython3 -c "
+import csv
+with open('results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv') as f:
+    rows = list(csv.DictReader(f))
+print(f'n_rows={len(rows)}')
+print(f'first_ts={rows[0][\"timestamp\"]}, close={rows[0][\"close\"]}')
+print(f'last_ts={rows[-1][\"timestamp\"]}, close={rows[-1][\"close\"]}')
+start = float(rows[0]['close'])
+end = float(rows[-1]['close'])
+print(f'return_pct = (end-start)/start*100 = {(end-start)/start*100:.6f}%')
+"
+
+n_rows=729
+first_ts=2024-07-29T00:00:00+00:00, close=66771.45
+last_ts=2026-07-27T00:00:00+00:00, close=63694.43
+return_pct = (end-start)/start*100 = -4.608287%
+[0m
+[0m$ [0mls strategy/ engine/ pricing/ execution/ vol/
+engine/:
+__pycache__
+data_models.py
+errors.py
+fixture_loader.py
+settlement.py
+strategy.py
+
+execution/:
+__pycache__
+impact.py
+tranches.py
+waterfall.py
+
+pricing/:
+__pycache__
+black76.py
+black_scholes.py
+grid.py
+inverse.py
+payoff.py
+
+strategy/:
+__pycache__
+backtest.py
+comparison.py
+definitions.py
+monte_carlo.py
+payoffs.py
+regimes.py
+scenarios.py
+stress.py
+
+vol/:
+__pycache__
+client.py
+dvol_feed.py
+fixture_recorder.py
+garch.py
+history.py
+surface.py
+[0m
+<think>
+The actual observed Massive spot start price is 66771.45, end price is 63694.43, and the historical unhedged return is -4.6083% over the period from 2024-07-29 to 2026-07-27.
+
+But the report claims:
+- unhedged_baseline: P&L -56.20% 
+
+This is a major discrepancy. Let me explore the implementation code now.The
+</think>
+
+actual computed unhedged return from spot data is -4.608%, but the strategy comparison reports -56.20%. Let me investigate the implementation.
+[0m$ [0mls research/ scripts/ tests/ docs/
+docs/:
+architecture
+data
+model_validation
+references
+reports
+requirements
+venue_rules
+
+research/:
+__init__.py
+__pycache__
+manifest.py
+reporting.py
+runner.py
+
+scripts/:
+anonymisation_scan.py
+preflight_massive.py
+run_full_research.py
+
+tests/:
+__pycache__
+fixtures
+test_a1.py
+test_a3.py
+test_engine.py
+test_phase0.py
+test_research_runner.py
+test_vol.py
+[0m
+[0m$ [0mcat strategy/definitions.py
+"""Standard strategy definitions for the BTC acquisition mandate.
+
+Each function builds a Strategy with proper legs, ensuring correct
+classification, premium signs, and settlement specs.
+
+Never call any strategy 'best', 'optimal', 'safest', 'preferred',
+'recommended' or 'winner'.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import Literal
+
+from engine.errors import ClassificationError, ValidationError
+from engine.settlement import (
+    DeliveryPriceConvention,
+    ExerciseStyle,
+    SettlementCurrency,
+    SettlementMechanism,
+    SettlementSpec,
+    Venue,
+)
+from engine.strategy import DecisionRef, Leg, Strategy, StrategyKind, classify
+
+PENDING_D1 = DecisionRef(code="D-1", owner="Mandate issuer", impact="$243,750 swing on $9.75M fee")
+PENDING_D3 = DecisionRef(code="D-3", owner="Mandate issuer", impact="Determines settlement mechanics, margin, instrument-type modelling")
+PENDING_D9 = DecisionRef(code="D-9", owner="Mandate issuer", impact="A3 cannot compute delta-hedge P&L until resolved")
+
+
+def _make_spot_leg(quantity: float, entry_price: float) -> Leg:
+    return Leg(
+        instrument="BTC-spot", venue=Venue.OTC, product="spot",
+        side="LONG", quantity=quantity, entry_spot=entry_price,
+    )
+
+
+def _make_cash_leg(quantity: float) -> Leg:
+    return Leg(
+        instrument="USD-cash", venue=Venue.OTC, product="cash",
+        side="LONG", quantity=quantity,
+    )
+
+
+def _make_deribit_option_leg(
+    option_type: Literal["call", "put"],
+    side: Literal["LONG", "SHORT"],
+    quantity: float,
+    strike: float,
+    premium: float,
+    dte_days: int = 30,
+    expiry: datetime | None = None,
+) -> Leg:
+    if expiry is None:
+        expiry = datetime.now(UTC) + timedelta(days=dte_days)
+    settlement = SettlementSpec(
+        venue=Venue.DERIBIT, product="inverse_option",
+        settlement_mechanism=SettlementMechanism.CASH,
+        settlement_currency=SettlementCurrency.BTC,
+        exercise_style=ExerciseStyle.EUROPEAN,
+        contract_multiplier=1.0,
+        delivery_price_convention=DeliveryPriceConvention.TWAP_0730_0800_UTC,
+    )
+    return Leg(
+        instrument=f"BTC-{expiry.strftime('%d%b%y').upper()}-{int(strike)}-{option_type[0].upper()}",
+        venue=Venue.DERIBIT,
+        product="call_option" if option_type == "call" else "put_option",
+        side=side, quantity=quantity, entry_premium=premium,
+        settlement=settlement, option_type=option_type, strike=strike,
+        expiry_timestamp=expiry,
+    )
+
+
+def _make_cme_option_leg(
+    option_type: Literal["call", "put"],
+    side: Literal["LONG", "SHORT"],
+    quantity: float,
+    strike: float,
+    premium: float,
+    dte_days: int = 30,
+    expiry: datetime | None = None,
+) -> Leg:
+    if expiry is None:
+        expiry = datetime.now(UTC) + timedelta(days=dte_days)
+    settlement = SettlementSpec(
+        venue=Venue.CME, product="option_on_futures",
+        settlement_mechanism=SettlementMechanism.FUTURES_DELIVERY_THEN_CASH,
+        settlement_currency=SettlementCurrency.USD,
+        exercise_style=ExerciseStyle.EUROPEAN,
+        contract_multiplier=5.0,
+        delivery_price_convention=DeliveryPriceConvention.BRR_1600_LONDON,
+    )
+    return Leg(
+        instrument=f"CME-BTC-{expiry.strftime('%d%b%y').upper()}-{int(strike)}-{option_type[0].upper()}",
+        venue=Venue.CME, product="call_option" if option_type == "call" else "put_option",
+        side=side, quantity=quantity, entry_premium=premium,
+        settlement=settlement, option_type=option_type, strike=strike,
+        expiry_timestamp=expiry,
+    )
+
+
+def _make_usd_option_leg(
+    option_type: Literal["call", "put"],
+    side: Literal["LONG", "SHORT"],
+    quantity: float,
+    strike: float,
+    premium: float,
+    dte_days: int = 30,
+    expiry: datetime | None = None,
+) -> Leg:
+    if expiry is None:
+        expiry = datetime.now(UTC) + timedelta(days=dte_days)
+    settlement = SettlementSpec(
+        venue=Venue.OTC, product="otc_option",
+        settlement_mechanism=SettlementMechanism.CASH,
+        settlement_currency=SettlementCurrency.USD,
+        exercise_style=ExerciseStyle.EUROPEAN,
+        contract_multiplier=1.0,
+        delivery_price_convention=DeliveryPriceConvention.NEGOTIATED,
+    )
+    return Leg(
+        instrument=f"OTC-BTC-{expiry.strftime('%d%b%y').upper()}-{int(strike)}-{option_type[0].upper()}",
+        venue=Venue.OTC, product="call_option" if option_type == "call" else "put_option",
+        side=side, quantity=quantity, entry_premium=premium,
+        settlement=settlement, option_type=option_type, strike=strike,
+        expiry_timestamp=expiry,
+    )
+
+
+def build_unhedged_baseline(
+    quantity: float = 30_000.0,
+    entry_spot: float = 65_000.0,
+    strategy_id: str = "unhedged_baseline",
+    business_label: str = "Unhedged BTC Acquisition",
+) -> Strategy:
+    legs = [_make_spot_leg(quantity, entry_spot)]
+    try:
+        canonical = classify(legs)
+    except ClassificationError:
+        canonical = StrategyKind.BESPOKE
+    return Strategy(
+        strategy_id=strategy_id, business_label=business_label,
+        canonical=canonical, legs=legs,
+        structural_max_loss=quantity * entry_spot,
+        pending_decisions=[PENDING_D3],
+    )
+
+
+def build_covered_call(
+    quantity: float = 30_000.0,
+    entry_spot: float = 65_000.0,
+    strike: float = 75_000.0,
+    premium_received: float = 1_500.0,
+    dte_days: int = 30,
+    strategy_id: str = "covered_call",
+    business_label: str = "Covered Call (Long BTC + Short Call)",
+) -> Strategy:
+    legs = [
+        _make_spot_leg(quantity, entry_spot),
+        _make_usd_option_leg("call", "SHORT", quantity, strike, premium_received, dte_days),
+    ]
+    canonical = classify(legs)
+    return Strategy(
+        strategy_id=strategy_id, business_label=business_label,
+        canonical=canonical, legs=legs,
+        structural_max_loss=quantity * (entry_spot - premium_received),
+        pending_decisions=[PENDING_D1, PENDING_D3, PENDING_D9],
+    )
+
+
+def build_cash_secured_put(
+    quantity: float = 30_000.0,
+    entry_spot: float = 65_000.0,
+    strike: float = 58_500.0,
+    premium_received: float = 1_500.0,
+    dte_days: int = 30,
+    strategy_id: str = "cash_secured_put",
+    business_label: str = "Cash-Secured Put",
+) -> Strategy:
+    cash_required = quantity * strike
+    legs = [
+        _make_cash_leg(cash_required),
+        _make_usd_option_leg("put", "SHORT", quantity, strike, premium_received, dte_days),
+    ]
+    canonical = classify(legs)
+    return Strategy(
+        strategy_id=strategy_id, business_label=business_label,
+        canonical=canonical, legs=legs,
+        structural_max_loss=quantity * (strike - premium_received),
+        pending_decisions=[PENDING_D1, PENDING_D3],
+    )
+
+
+def build_long_btc_plus_short_put(
+    quantity: float = 30_000.0,
+    entry_spot: float = 65_000.0,
+    strike: float = 58_500.0,
+    premium_received: float = 1_500.0,
+    dte_days: int = 30,
+    strategy_id: str = "long_btc_plus_short_put",
+    business_label: str = "Long BTC + Short Put",
+) -> Strategy:
+    legs = [
+        _make_spot_leg(quantity, entry_spot),
+        _make_usd_option_leg("put", "SHORT", quantity, strike, premium_received, dte_days),
+    ]
+    canonical = classify(legs)
+    if canonical != StrategyKind.LONG_BTC_PLUS_SHORT_PUT:
+        raise ClassificationError(f"Expected LONG_BTC_PLUS_SHORT_PUT but got {canonical}")
+    return Strategy(
+        strategy_id=strategy_id, business_label=business_label,
+        canonical=canonical, legs=legs,
+        classification_warning=(
+            "W-CLASSIFY-MISMATCH: business_label 'Covered Put Strategy' differs from canonical LONG_BTC_PLUS_SHORT_PUT"
+            if "covered" in business_label.lower() else None
+        ),
+        structural_max_loss=quantity * (entry_spot + strike - premium_received),
+        pending_decisions=[PENDING_D3, PENDING_D9],
+    )
+
+
+def build_collar(
+    quantity: float = 30_000.0,
+    entry_spot: float = 65_000.0,
+    call_strike: float = 75_000.0,
+    put_strike: float = 55_000.0,
+    call_premium: float = 1_500.0,
+    put_premium: float = 1_200.0,
+    dte_days: int = 30,
+    strategy_id: str = "collar",
+    business_label: str = "Collar (Long BTC + Short Call + Long Put)",
+) -> Strategy:
+    legs = [
+        _make_spot_leg(quantity, entry_spot),
+        _make_usd_option_leg("call", "SHORT", quantity, call_strike, call_premium, dte_days),
+        _make_usd_option_leg("put", "LONG", quantity, put_strike, put_premium, dte_days),
+    ]
+    canonical = classify(legs)
+    return Strategy(
+        strategy_id=strategy_id, business_label=business_label,
+        canonical=canonical, legs=legs,
+        structural_max_loss=quantity * (entry_spot - put_strike + put_premium - call_premium),
+        pending_decisions=[PENDING_D1, PENDING_D3, PENDING_D9],
+    )
+
+
+def build_call_spread(
+    quantity: float = 30_000.0,
+    call_strike_short: float = 75_000.0,
+    call_strike_long: float = 85_000.0,
+    short_premium: float = 1_500.0,
+    long_premium: float = 600.0,
+    dte_days: int = 30,
+    strategy_id: str = "call_spread",
+    business_label: str = "Call Spread",
+) -> Strategy:
+    legs = [
+        _make_usd_option_leg("call", "SHORT", quantity, call_strike_short, short_premium, dte_days),
+        _make_usd_option_leg("call", "LONG", quantity, call_strike_long, long_premium, dte_days),
+    ]
+    canonical = classify(legs)
+    spread_width = call_strike_long - call_strike_short
+    return Strategy(
+        strategy_id=strategy_id, business_label=business_label,
+        canonical=canonical, legs=legs,
+        structural_max_loss=quantity * (spread_width - short_premium + long_premium),
+        pending_decisions=[PENDING_D1, PENDING_D3],
+    )
+
+
+def build_partial_overlay(
+    total_quantity: float = 30_000.0,
+    overlay_ratio: float = 0.5,
+    entry_spot: float = 65_000.0,
+    strike: float = 75_000.0,
+    premium_received: float = 1_500.0,
+    dte_days: int = 30,
+    strategy_id: str = "partial_overlay",
+    business_label: str = "Partial Covered Call Overlay",
+) -> Strategy:
+    if not 0.0 <= overlay_ratio <= 1.0:
+        raise ValidationError(f"overlay_ratio must be in [0, 1], got {overlay_ratio}")
+
+    overlay_qty = total_quantity * overlay_ratio
+    legs = [
+        _make_spot_leg(total_quantity, entry_spot),
+        _make_usd_option_leg("call", "SHORT", overlay_qty, strike, premium_received, dte_days),
+    ]
+    canonical = classify(legs)
+    return Strategy(
+        strategy_id=strategy_id, business_label=business_label,
+        canonical=canonical, legs=legs,
+        classification_warning=(
+            "W-CLASSIFY-MISMATCH" if canonical != StrategyKind.COVERED_CALL else None
+        ),
+        structural_max_loss=total_quantity * entry_spot - overlay_qty * premium_received,
+        pending_decisions=[PENDING_D1, PENDING_D3, PENDING_D9],
+    )
+
+
+def build_strike_ladder(
+    base_quantity: float = 30_000.0,
+    entry_spot: float = 65_000.0,
+    contract_mult: float = 1.0,
+    dte_days: int = 30,
+    dte_ladder: list[int] | None = None,
+    strike_uplift_pct: float = 0.15,
+    premium_pct_of_spot: float = 0.02,
+) -> Strategy:
+    """Build a strike-ladder strategy with multiple short calls across DTE values.
+
+    Parameters injected from configuration; no hardcoded business assumptions.
+    Default DTE ladder is [30, 37, 44].
+    """
+    if dte_ladder is None:
+        dte_ladder = [30, 37, 44]
+    num_tranches = len(dte_ladder)
+    tranche_qty = base_quantity / num_tranches
+
+    legs = [_make_spot_leg(base_quantity, entry_spot)]
+
+    for dte in dte_ladder:
+        strike = entry_spot * (1.0 + strike_uplift_pct)
+        premium = entry_spot * premium_pct_of_spot
+        legs.append(
+            _make_usd_option_leg("call", "SHORT", tranche_qty, strike, premium, dte)
+        )
+
+    canonical = classify(legs)
+    return Strategy(
+        strategy_id="strike_ladder",
+        business_label="Strike & Expiry Ladder",
+        canonical=canonical, legs=legs,
+        structural_max_loss=base_quantity * entry_spot,
+        pending_decisions=[PENDING_D1, PENDING_D3, PENDING_D9],
+    )
+
+
+STRATEGY_BUILDERS: dict[str, Callable[..., Strategy]] = {
+    "unhedged_baseline": build_unhedged_baseline,
+    "covered_call": build_covered_call,
+    "cash_secured_put": build_cash_secured_put,
+    "long_btc_plus_short_put": build_long_btc_plus_short_put,
+    "collar": build_collar,
+    "call_spread": build_call_spread,
+    "partial_overlay": build_partial_overlay,
+    "strike_ladder": build_strike_ladder,
+}
+
+
+def build_all_mandate_strategies(
+    quantity: float = 30_000.0,
+    entry_spot: float = 65_000.0,
+) -> list[Strategy]:
+    strategies: list[Strategy] = [
+        build_unhedged_baseline(quantity, entry_spot),
+        build_covered_call(quantity, entry_spot),
+        build_cash_secured_put(quantity, entry_spot),
+        build_long_btc_plus_short_put(quantity, entry_spot),
+        build_collar(quantity, entry_spot),
+        build_call_spread(quantity),
+        build_partial_overlay(quantity, overlay_ratio=0.5, entry_spot=entry_spot),
+        build_partial_overlay(quantity, overlay_ratio=0.75, entry_spot=entry_spot,
+                              strategy_id="partial_overlay_75"),
+        build_strike_ladder(quantity, entry_spot),
+    ]
+    return strategies
+[0m
+[0m$ [0mcat strategy/backtest.py
+"""Event-driven leg-level backtest engine with dimensionally reconciled ledgers.
+
+Each backtest executes every strategy from its actual position legs.
+Ledgers tracked per-cycle and carried cycle-to-cycle:
+  - cash_usd, btc_inventory, collateral_usd
+  - premium_btc, premium_usd
+  - realised_pnl_usd, unrealised_pnl_usd
+  - fees_usd, spread_slippage_usd, impact_usd, delivery_fee_usd
+  - option_settlement_btc, option_settlement_usd
+
+Chronological spot/vol consumption. No look-ahead bias.
+A4 FeeBreakdown, ImpactEstimate, waterfall and tranche integration.
+Explicit roll/close/profit-taking/stop-loss events.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Literal
+
+import numpy as np
+
+from config.models import Provenance
+from engine.errors import DataError
+from engine.settlement import SettlementCurrency, SettlementMechanism, Venue
+from engine.strategy import DecisionRef, Leg, Strategy
+from execution.impact import FeeBreakdown, KissellConfig, estimate_impact
+from pricing.black_scholes import greeks as bs_greeks
+from pricing.black_scholes import price as bs_price
+from pricing.inverse import (
+    price_inverse_btc,
+    settlement_inverse_call_holder,
+    settlement_inverse_put_holder,
+)
+
+PENDING_D1 = DecisionRef(code="D-1", owner="Mandate issuer", impact="$243,750 swing on $9.75M fee")
+PENDING_D3 = DecisionRef(code="D-3", owner="Mandate issuer", impact="Determines settlement mechanics, margin, instrument-type modelling")
+PENDING_D9 = DecisionRef(code="D-9", owner="Mandate issuer", impact="A3 cannot compute delta-hedge P&L until resolved")
+W_HEDGE_MODEL_UNSPECIFIED = "W-HEDGE-MODEL-UNSPECIFIED: delta-hedge path requested but D-9 unresolved"
+
+
+@dataclass(frozen=True)
+class RollPolicy:
+    policy_type: Literal["expiry", "delta", "dte", "profit_taking", "stop_loss", "none"] = "expiry"
+    dte_min: int = 7
+    delta_trigger: float = 0.05
+    profit_target_pct: float = 0.50
+    stop_loss_pct: float = 1.00
+    close_vs_settle: Literal["close", "settle"] = "settle"
+
+
+@dataclass(frozen=True)
+class LedgerSnapshot:
+    timestamp: datetime
+    spot: float
+    iv: float
+    cash_usd: float
+    btc_inventory: float
+    collateral_usd: float
+    mtm_usd: float
+    realised_pnl_usd: float
+    unrealised_pnl_usd: float
+    fees_usd: float
+    total_premium_received_usd: float
+    provenance: Provenance = Provenance.CALCULATED
+
+
+@dataclass(frozen=True)
+class BacktestCycle:
+    cycle_num: int
+    start_date: datetime
+    end_date: datetime
+    dte: float
+    entry_spot: float
+    strike: float
+    delta_at_entry: float
+    entry_iv: float
+    premium_received_pct: float
+    premium_received_usd: float
+    premium_received_btc: float
+    premium_provenance: Provenance
+    expiry_spot: float
+    expiry_delivery_price: float
+    is_itm: bool
+    settlement_btc: float
+    settlement_usd: float
+    net_pnl_usd: float
+    net_pnl_btc: float
+    net_pnl_pct: float
+    cumulative_premium_pct: float
+    venue_fees_usd: float
+    venue_fees_btc: float
+    spread_slippage_usd: float
+    impact_usd: float
+    delivery_fee_usd: float
+    impact_iv_giveup: float
+    hedge_cost_usd: float = 0.0
+    hedge_cost_btc: float = 0.0
+    hedge_strategy: Literal["none", "static", "delta"] = "none"
+    cash_usd_start: float = 0.0
+    cash_usd_end: float = 0.0
+    btc_inventory_start: float = 0.0
+    btc_inventory_end: float = 0.0
+    collateral_usd_start: float = 0.0
+    collateral_usd_end: float = 0.0
+    realised_assignment: int = 0
+    unrealised_pnl_usd: float = 0.0
+    pending_decision_refs: list[str] = field(default_factory=list)
+    roll_event: str | None = None
+    close_premium_usd: float = 0.0
+    replacement_premium_usd: float = 0.0
+
+
+@dataclass(frozen=True)
+class EffectiveAcquisitionCost:
+    per_btc_usd: float
+    per_btc_btc: float
+    premium_component_usd: float
+    premium_provenance: Provenance
+    fee_component_usd: float
+    fee_provenance: Provenance
+    seller_discount_component_usd: float
+    seller_discount_provenance: Provenance
+    impact_component_usd: float
+    impact_provenance: Provenance
+    spread_slippage_component_usd: float = 0.0
+    delivery_fee_component_usd: float = 0.0
+    provenance: Provenance = Provenance.CALCULATED
+
+
+@dataclass(frozen=True)
+class BacktestResult:
+    strategy_id: str
+    strategy_kind: str = ""
+    business_label: str = ""
+    start_date: datetime = field(default_factory=lambda: datetime.min)
+    end_date: datetime = field(default_factory=lambda: datetime.min)
+    cycles: list[BacktestCycle] = field(default_factory=list)
+    total_pnl_usd: float = 0.0
+    total_pnl_btc: float = 0.0
+    total_pnl_pct: float = 0.0
+    total_premium_usd: float = 0.0
+    total_premium_btc: float = 0.0
+    total_fees_usd: float = 0.0
+    total_fees_btc: float = 0.0
+    effective_acquisition_cost: EffectiveAcquisitionCost | None = None
+    itm_frequency: float = 0.0
+    touch_frequency: float = 0.0
+    max_drawdown_pct: float = 0.0
+    sharpe_ratio: float | None = None
+    delta_vs_assignment: list[dict[str, float]] = field(default_factory=list)
+    oos_window: tuple[datetime, datetime] | None = None
+    provenance: Provenance = Provenance.CALCULATED
+    pending_decision_refs: list[str] = field(default_factory=list)
+    daily_snapshots: list[LedgerSnapshot] = field(default_factory=list)
+
+
+def _validate_inputs(
+    dates: list[datetime],
+    spot_prices: np.ndarray,
+    iv_history: np.ndarray | None = None,
+) -> None:
+    if len(dates) < 2:
+        raise DataError("Need at least 2 dates for backtest")
+    if len(spot_prices) != len(dates):
+        raise DataError(f"Mismatched spot ({len(spot_prices)}) vs dates ({len(dates)})")
+    if iv_history is not None and len(iv_history) != len(dates):
+        raise DataError(f"Mismatched IV ({len(iv_history)}) vs dates ({len(dates)})")
+    for i in range(1, len(dates)):
+        if dates[i] <= dates[i - 1]:
+            raise DataError(f"Non-monotonic timestamps at index {i}: {dates[i-1]} -> {dates[i]}")
+    if dates[0].tzinfo is None or dates[0].utcoffset() is None:
+        raise DataError("Timestamps must be timezone-aware UTC")
+    if float(np.min(spot_prices)) <= 0:
+        raise DataError("Spot prices must be positive")
+    if iv_history is not None and float(np.min(iv_history)) < 0:
+        raise DataError("IV must be non-negative")
+
+
+def _spot_legs(strategy: Strategy) -> list[Leg]:
+    return [leg for leg in strategy.legs if leg.product == "spot"]
+
+
+def _cash_legs(strategy: Strategy) -> list[Leg]:
+    return [leg for leg in strategy.legs if leg.product == "cash"]
+
+
+def _option_legs(strategy: Strategy) -> list[Leg]:
+    return [leg for leg in strategy.legs if leg.option_type is not None]
+
+
+def _btc_held(strategy: Strategy) -> float:
+    return sum(leg.quantity for leg in strategy.legs if leg.product == "spot" and leg.side == "LONG")
+
+
+def _cash_collateral(strategy: Strategy) -> float:
+    return sum(leg.quantity for leg in strategy.legs if leg.product == "cash")
+
+
+def _total_option_qty(strategy: Strategy) -> float:
+    return sum(leg.quantity for leg in strategy.legs if leg.option_type is not None)
+
+
+def _settlement_holder(leg: Leg, spot: float, delivery_price: float | None = None) -> tuple[float, float]:
+    """Returns (settlement_usd, settlement_btc) for the long holder."""
+    if leg.product == "spot" or leg.settlement is None:
+        return spot - (leg.entry_spot or 0.0), 0.0
+    K = leg.strike or 0.0
+    settlement = leg.settlement
+    if (settlement.venue == Venue.DERIBIT
+            and settlement.settlement_mechanism == SettlementMechanism.CASH
+            and settlement.settlement_currency == SettlementCurrency.BTC):
+        dp = delivery_price if delivery_price is not None else spot
+        if leg.option_type == "call":
+            btc = settlement_inverse_call_holder(dp, K)
+        else:
+            btc = settlement_inverse_put_holder(dp, K)
+        usd = btc * dp
+        return usd, btc
+    usd = float(max(spot - K, 0.0)) if leg.option_type == "call" else float(max(K - spot, 0.0))
+    return usd, 0.0
+
+
+def _is_itm(leg: Leg, spot: float) -> bool:
+    K = leg.strike or 0.0
+    if leg.option_type == "call":
+        return spot > K
+    if leg.option_type == "put":
+        return spot < K
+    return False
+
+
+def _option_price(leg: Leg, spot: float, iv: float, r: float, T: float) -> float:
+    """Price one option leg per contract in the quoted currency."""
+    K = leg.strike or 0.0
+    opt_type = leg.option_type or "call"
+    if (leg.settlement is not None
+            and leg.settlement.venue == Venue.DERIBIT
+            and leg.settlement.settlement_currency == SettlementCurrency.BTC):
+        return price_inverse_btc(spot, K, r, iv, T, opt_type)
+    return bs_price(spot, K, r, iv, T, opt_type)
+
+
+def _option_premium_currency(leg: Leg) -> str:
+    """Return the quoted currency symbol for the option's premium."""
+    if leg.settlement is None:
+        return "USD"
+    if leg.settlement.settlement_currency == SettlementCurrency.BTC:
+        return "BTC"
+    return "USD"
+
+
+def _option_delta(leg: Leg, spot: float, iv: float, r: float, T: float) -> float:
+    """Compute option delta from leg."""
+    K = leg.strike or 0.0
+    opt_type = leg.option_type or "call"
+    sign = -1.0 if leg.side == "SHORT" else 1.0
+    if (leg.settlement is not None
+            and leg.settlement.venue == Venue.DERIBIT
+            and leg.settlement.settlement_currency == SettlementCurrency.BTC):
+        from pricing.inverse import greeks_inverse_btc
+        return sign * leg.quantity * greeks_inverse_btc(spot, K, r, iv, T, opt_type).delta
+    return sign * leg.quantity * bs_greeks(spot, K, r, iv, T, opt_type).delta
+
+
+def backtest_strategy(
+    strategy: Strategy,
+    dates: list[datetime],
+    spot_prices: np.ndarray,
+    iv_history: np.ndarray | None = None,
+    risk_free_rate: float = 0.04,
+    dte_days: int = 30,
+    strike_pct_above: float = 0.15,
+    overlay_ratio: float = 1.0,
+    roll_policy: RollPolicy | None = None,
+    seed: int = 42,
+    fee_breakdown: FeeBreakdown | None = None,
+    adv_btc: float | None = None,
+    spread_bps: float = 2.0,
+    seller_discount_pct: float = 0.025,
+) -> BacktestResult:
+    """Leg-driven cycle backtest consuming chronological historical data.
+
+    Executes each strategy from its actual option legs—not a synthetic call.
+    CSP reserves/releases/consumes collateral and updates BTC inventory on assignment.
+    Roll/close events are processed per roll_policy.
+    """
+    _validate_inputs(dates, spot_prices, iv_history)
+
+    if roll_policy is None:
+        roll_policy = RollPolicy(policy_type="expiry")
+    if adv_btc is None:
+        adv_btc = _total_option_qty(strategy) * 5.0 if _total_option_qty(strategy) > 0 else 25_000.0
+    if fee_breakdown is None:
+        fee_breakdown = FeeBreakdown()
+
+    btc_held = _btc_held(strategy)
+    cash_collateral_req = _cash_collateral(strategy)
+    opt_legs = _option_legs(strategy)
+    total_opt_qty = _total_option_qty(strategy)
+
+    initial_spot = float(spot_prices[0])
+    strategy_notional = max(
+        btc_held * initial_spot,
+        cash_collateral_req,
+        total_opt_qty * initial_spot,
+        1.0,
+    )
+    iv_provenance = Provenance.MODEL_RECONSTRUCTED
+
+    cash_usd = -(btc_held * initial_spot) if btc_held > 0 else 0.0
+    cash_usd -= cash_collateral_req
+    btc_inventory = btc_held
+    collateral_usd = cash_collateral_req
+    realised_pnl_total = 0.0
+
+    cycles: list[BacktestCycle] = []
+    snapshots: list[LedgerSnapshot] = []
+
+    total_premium_received_usd = 0.0
+    total_premium_received_btc = 0.0
+    total_fees_usd = 0.0
+    total_fees_btc = 0.0
+    total_payout_usd = 0.0
+    cumulative_premium_pct = 0.0
+    max_cumulative_pnl = -1e12
+    max_drawdown_pct = 0.0
+
+    n_days = len(dates)
+    day_idx = 0
+    cycle_idx = 0
+    prev_cash_usd = cash_usd
+    prev_btc_inv = btc_inventory
+    prev_collateral = collateral_usd
+
+    while day_idx < n_days:
+        cycle_start_idx = day_idx
+        cycle_start_date = dates[cycle_start_idx]
+        entry_spot_v = float(spot_prices[cycle_start_idx])
+        entry_iv_v = float(iv_history[cycle_start_idx]) if iv_history is not None else 0.45
+
+        T = dte_days / 365.0
+
+        premium_received_usd = 0.0
+        premium_received_btc = 0.0
+        premium_pct_of_spot = 0.0
+        delta_at_entry = 0.0
+        strike_for_report = 0.0
+
+        close_premium_usd = 0.0
+        replacement_premium_usd = 0.0
+        roll_event: str | None = None
+
+        iv_giveup_total = 0.0
+        impact_bps_total = 0.0
+        spread_slippage_usd_cycle = 0.0
+        impact_usd_cycle = 0.0
+
+        venue_fees_usd_cycle = 0.0
+        venue_fees_btc_cycle = 0.0
+        delivery_fee_usd_cycle = 0.0
+        delivery_fee_btc_cycle = 0.0
+
+        for leg in opt_legs:
+            if leg.strike is None:
+                continue
+            K = leg.strike
+            q = leg.quantity
+
+            premium_per_ct = _option_price(leg, entry_spot_v, entry_iv_v, risk_free_rate, T)
+            prem_currency = _option_premium_currency(leg)
+            prem_sign = 1.0 if leg.side == "SHORT" else -1.0
+
+            if prem_currency == "BTC":
+                btc_prem = premium_per_ct * q
+                usd_prem = btc_prem * entry_spot_v
+                premium_received_btc += prem_sign * btc_prem
+                premium_received_usd += prem_sign * usd_prem
+            else:
+                usd_prem = premium_per_ct * q
+                premium_received_usd += prem_sign * usd_prem
+                premium_received_btc += prem_sign * (usd_prem / entry_spot_v) if entry_spot_v > 0 else 0.0
+
+            premium_pct_of_spot += prem_sign * (premium_per_ct * q) / (entry_spot_v * q) / max(len(opt_legs), 1) if entry_spot_v > 0 and q > 0 else 0.0
+
+            leg_delta = _option_delta(leg, entry_spot_v, entry_iv_v, risk_free_rate, T)
+            delta_at_entry += leg_delta
+
+            strike_for_report = K
+
+            order_qty = leg.quantity
+            if order_qty > 0:
+                impact_config = KissellConfig(order_size_btc=float(order_qty), adv_btc=adv_btc, volatility=entry_iv_v)
+                impact_est = estimate_impact(impact_config)
+                iv_giveup_total = max(iv_giveup_total, impact_est.iv_giveup_vol_pts)
+                impact_bps_total = max(impact_bps_total, impact_est.market_impact_bp)
+                impact_usd_cycle += order_qty * entry_spot_v * impact_est.market_impact_bp / 10000.0
+
+            spread_slippage_usd_cycle += q * entry_spot_v * spread_bps / 10000.0
+
+            venue_trading_fee_btc = min(0.0003, 0.125 * premium_per_ct) * q if premium_per_ct > 0 else 0.0
+            venue_fees_btc_cycle += venue_trading_fee_btc
+            venue_fees_usd_cycle += venue_trading_fee_btc * entry_spot_v if entry_spot_v > 0 else 0.0
+
+        delta_at_entry += btc_held
+
+        expiry_idx = min(cycle_start_idx + dte_days, n_days - 1)
+        expiry_spot_v = float(spot_prices[expiry_idx])
+        delivery_price = expiry_spot_v
+
+        payout_usd = 0.0
+        payout_btc = 0.0
+        is_itm = False
+        realised_assignment = 0
+        btc_settlement = 0.0
+
+        for leg in opt_legs:
+            stl_usd, stl_btc = _settlement_holder(leg, expiry_spot_v, delivery_price)
+            if leg.side == "SHORT":
+                payout_usd += leg.quantity * (-stl_usd)
+                payout_btc += leg.quantity * (-stl_btc)
+            else:
+                payout_usd += leg.quantity * stl_usd
+                payout_btc += leg.quantity * stl_btc
+            if _is_itm(leg, expiry_spot_v):
+                is_itm = True
+                if leg.side == "SHORT":
+                    realised_assignment = 1
+
+            if (leg.settlement is not None
+                    and leg.settlement.settlement_currency == SettlementCurrency.BTC
+                    and leg.side == "SHORT"
+                    and _is_itm(leg, expiry_spot_v)):
+                delivery_fee_btc_cycle += abs(leg.quantity * stl_btc * 0.00015)
+
+        delivery_fee_usd_cycle = delivery_fee_btc_cycle * delivery_price
+
+        for leg in opt_legs:
+            if _is_itm(leg, expiry_spot_v):
+                _, stl_btc = _settlement_holder(leg, expiry_spot_v, delivery_price)
+                multiplier = -1.0 if leg.side == "SHORT" else 1.0
+                btc_settlement += multiplier * leg.quantity * stl_btc
+
+        btc_inventory += btc_settlement
+
+        for leg in opt_legs:
+            if leg.side == "SHORT" and leg.option_type == "put" and _is_itm(leg, expiry_spot_v):
+                assignment_btc = leg.quantity
+                consumed_collateral = assignment_btc * (leg.strike or 0.0)
+                if cash_collateral_req > 0 and collateral_usd > 0:
+                    consumed_from_reserve = min(collateral_usd, consumed_collateral)
+                    collateral_usd = max(0.0, collateral_usd - consumed_from_reserve)
+                    shortfall = consumed_collateral - consumed_from_reserve
+                    if shortfall > 0:
+                        cash_usd -= shortfall
+
+                if _option_premium_currency(leg) == "USD":
+                    btc_inventory += assignment_btc
+
+        if cash_collateral_req > 0:
+            all_options_otm = all(not _is_itm(leg, expiry_spot_v) for leg in opt_legs)
+            if all_options_otm:
+                cash_usd += collateral_usd
+                collateral_usd = 0.0
+
+        cash_usd += premium_received_usd
+        cash_usd -= venue_fees_usd_cycle
+        cash_usd -= delivery_fee_usd_cycle
+        cash_usd -= spread_slippage_usd_cycle
+        cash_usd -= impact_usd_cycle
+        cash_usd += payout_usd
+
+        total_fees_this_cycle = venue_fees_usd_cycle + delivery_fee_usd_cycle + spread_slippage_usd_cycle + impact_usd_cycle
+        total_fees_btc_this_cycle = venue_fees_btc_cycle + delivery_fee_btc_cycle
+
+        net_pnl_usd_cycle = premium_received_usd + payout_usd - total_fees_this_cycle
+        net_pnl_usd_cycle += prev_btc_inv * (expiry_spot_v - entry_spot_v)
+        net_pnl_btc_cycle = (premium_received_btc + payout_btc - total_fees_btc_this_cycle)
+
+        total_premium_received_usd += premium_received_usd
+        total_premium_received_btc += premium_received_btc
+        total_fees_usd += total_fees_this_cycle
+        total_fees_btc += total_fees_btc_this_cycle
+        total_payout_usd += payout_usd
+        cumulative_premium_pct += premium_pct_of_spot * 100.0
+
+        realised_pnl_total += net_pnl_usd_cycle
+
+        spot_pnl = btc_held * (expiry_spot_v - initial_spot)
+        unrealised = spot_pnl + total_premium_received_usd - total_fees_usd
+        cumul = realised_pnl_total + unrealised
+        if cumul > max_cumulative_pnl:
+            max_cumulative_pnl = cumul
+        dd = max_cumulative_pnl - cumul
+        if dd > max_drawdown_pct:
+            max_drawdown_pct = dd / strategy_notional
+
+        cycle_pct = (net_pnl_usd_cycle / strategy_notional) * 100.0 if strategy_notional > 0 else 0.0
+
+        cycles.append(BacktestCycle(
+            cycle_num=cycle_idx,
+            start_date=cycle_start_date,
+            end_date=dates[expiry_idx],
+            dte=float(dte_days),
+            entry_spot=entry_spot_v,
+            strike=strike_for_report,
+            delta_at_entry=delta_at_entry,
+            entry_iv=entry_iv_v,
+            premium_received_pct=premium_pct_of_spot * 100.0,
+            premium_received_usd=premium_received_usd,
+            premium_received_btc=premium_received_btc,
+            premium_provenance=iv_provenance,
+            expiry_spot=expiry_spot_v,
+            expiry_delivery_price=delivery_price,
+            is_itm=is_itm,
+            settlement_btc=payout_btc,
+            settlement_usd=payout_usd,
+            net_pnl_usd=net_pnl_usd_cycle,
+            net_pnl_btc=net_pnl_btc_cycle,
+            net_pnl_pct=cycle_pct,
+            cumulative_premium_pct=cumulative_premium_pct,
+            venue_fees_usd=venue_fees_usd_cycle,
+            venue_fees_btc=venue_fees_btc_cycle,
+            spread_slippage_usd=spread_slippage_usd_cycle,
+            impact_usd=impact_usd_cycle,
+            delivery_fee_usd=delivery_fee_usd_cycle,
+            impact_iv_giveup=iv_giveup_total,
+            cash_usd_start=prev_cash_usd,
+            cash_usd_end=cash_usd,
+            btc_inventory_start=prev_btc_inv,
+            btc_inventory_end=btc_inventory,
+            collateral_usd_start=prev_collateral,
+            collateral_usd_end=collateral_usd,
+            realised_assignment=realised_assignment,
+            unrealised_pnl_usd=unrealised,
+            hedge_strategy="none",
+            roll_event=roll_event,
+            close_premium_usd=close_premium_usd,
+            replacement_premium_usd=replacement_premium_usd,
+            pending_decision_refs=["D-1", "D-3", "D-9"],
+        ))
+
+        prev_cash_usd = cash_usd
+        prev_btc_inv = btc_inventory
+        prev_collateral = collateral_usd
+
+        day_idx = expiry_idx + 1
+        cycle_idx += 1
+
+    total_pnl_usd = sum(c.net_pnl_usd for c in cycles)
+    total_pnl_btc = sum(c.net_pnl_btc for c in cycles)
+    total_pnl_pct = (total_pnl_usd / strategy_notional) * 100.0 if strategy_notional > 0 else 0.0
+
+    itm_count = sum(1 for c in cycles if c.is_itm)
+    itm_frequency = itm_count / len(cycles) if cycles else 0.0
+    touch_frequency = 0.0
+    if len(cycles) > 0:
+        touch_frequency = sum(
+            1 for c in cycles
+            if np.any(spot_prices[max(0, int((c.start_date - dates[0]).total_seconds() / 86400)):
+                                    min(len(spot_prices), int((c.end_date - dates[0]).total_seconds() / 86400) + 1)] >= c.strike)
+        ) / len(cycles)
+
+    returns = [c.net_pnl_pct / 100.0 for c in cycles]
+    sharpe = None
+    if returns and len(returns) >= 3:
+        std_r = float(np.std(returns))
+        if std_r > 1e-9:
+            sharpe = float(np.mean(returns)) / std_r
+
+    delta_vs_assignment: list[dict[str, float]] = []
+    for c in cycles:
+        delta_vs_assignment.append({
+            "delta_at_entry": c.delta_at_entry,
+            "realised_assignment": float(c.realised_assignment),
+        })
+
+    if btc_held > 0:
+        acq_denominator = btc_held
+        baseline = initial_spot * btc_held
+    elif cash_collateral_req > 0:
+        acq_denominator = max(total_opt_qty, 1.0)
+        baseline = cash_collateral_req
+    else:
+        acq_denominator = max(total_opt_qty, 1.0)
+        baseline = initial_spot * acq_denominator
+
+    seller_discount = initial_spot * seller_discount_pct * acq_denominator
+    total_impact_usd = sum(c.impact_usd for c in cycles)
+    eff_cost_usd = (
+        baseline
+        + total_fees_usd
+        - total_premium_received_usd
+        - total_payout_usd
+        - seller_discount
+    ) / acq_denominator
+
+    eff_acq = EffectiveAcquisitionCost(
+        per_btc_usd=eff_cost_usd,
+        per_btc_btc=eff_cost_usd / initial_spot if initial_spot > 0 else 0.0,
+        premium_component_usd=total_premium_received_usd,
+        premium_provenance=iv_provenance,
+        fee_component_usd=total_fees_usd,
+        fee_provenance=Provenance.ASSUMED,
+        seller_discount_component_usd=seller_discount,
+        seller_discount_provenance=Provenance.BUSINESS_REQUIREMENT,
+        impact_component_usd=total_impact_usd,
+        impact_provenance=Provenance.ASSUMED,
+        spread_slippage_component_usd=sum(c.spread_slippage_usd for c in cycles),
+        delivery_fee_component_usd=sum(c.delivery_fee_usd for c in cycles),
+        provenance=Provenance.CALCULATED,
+    )
+
+    return BacktestResult(
+        strategy_id=strategy.strategy_id,
+        strategy_kind=str(strategy.canonical) if strategy.canonical else "",
+        business_label=strategy.business_label if strategy.business_label else "",
+        start_date=dates[0] if dates else datetime.min,
+        end_date=dates[-1] if dates else datetime.min,
+        cycles=cycles,
+        total_pnl_usd=total_pnl_usd,
+        total_pnl_btc=total_pnl_btc,
+        total_pnl_pct=total_pnl_pct,
+        total_premium_usd=total_premium_received_usd,
+        total_premium_btc=total_premium_received_btc,
+        total_fees_usd=total_fees_usd,
+        total_fees_btc=total_fees_btc,
+        effective_acquisition_cost=eff_acq,
+        itm_frequency=itm_frequency,
+        touch_frequency=touch_frequency,
+        max_drawdown_pct=max_drawdown_pct,
+        sharpe_ratio=sharpe,
+        delta_vs_assignment=delta_vs_assignment,
+        oos_window=None,
+        provenance=Provenance.CALCULATED,
+        pending_decision_refs=["D-1", "D-3", "D-9"],
+        daily_snapshots=snapshots,
+    )
+
+
+def backtest_covered_call_overlay(
+    strategy: Strategy,
+    start_date: datetime,
+    end_date: datetime,
+    start_spot: float,
+    annual_vol: float = 0.45,
+    risk_free_rate: float = 0.04,
+    dte_days: int = 30,
+    strike_pct_above: float = 0.15,
+    overlay_ratio: float = 1.0,
+    roll_policy: RollPolicy | None = None,
+    annual_drift: float = 0.10,
+    seed: int = 42,
+    dvol_history: np.ndarray | None = None,
+) -> BacktestResult:
+    """Legacy wrapper — delegates to backtest_strategy with synthetic GBM data."""
+    n_days = max((end_date - start_date).days, 1)
+    rng = np.random.default_rng(seed)
+    dt = 1.0 / 365.0
+    z = rng.normal(size=n_days)
+    returns = (annual_drift - 0.5 * annual_vol ** 2) * dt + annual_vol * np.sqrt(dt) * z
+    path = start_spot * np.exp(np.cumsum(returns))
+    spot_path = np.insert(path, 0, start_spot)
+    dates = [start_date + timedelta(days=i) for i in range(n_days + 1)]
+
+    if dvol_history is None:
+        iv_rng = np.random.default_rng(seed + 1000)
+        mr = 5.0
+        vol_of_vol = 0.30
+        iv_path = np.zeros(n_days + 1)
+        iv_path[0] = annual_vol
+        for i in range(n_days):
+            z2 = iv_rng.normal()
+            drift_iv = mr * (annual_vol - iv_path[i]) * dt
+            diff_iv = vol_of_vol * max(iv_path[i], 0.01) * np.sqrt(dt) * z2
+            iv_path[i + 1] = max(iv_path[i] + drift_iv + diff_iv, 0.05)
+        dvol_history = iv_path
+
+    return backtest_strategy(
+        strategy=strategy,
+        dates=dates,
+        spot_prices=spot_path,
+        iv_history=dvol_history,
+        risk_free_rate=risk_free_rate,
+        dte_days=dte_days,
+        strike_pct_above=strike_pct_above,
+        overlay_ratio=overlay_ratio,
+        roll_policy=roll_policy,
+        seed=seed,
+    )
+
+
+def backtest_unhedged(
+    strategy: Strategy,
+    start_date: datetime,
+    end_date: datetime,
+    start_spot: float,
+    annual_vol: float = 0.45,
+    annual_drift: float = 0.10,
+    seed: int = 42,
+) -> BacktestResult:
+    """Backtest unhedged BTC acquisition baseline. Legacy wrapper."""
+    n_days = max((end_date - start_date).days, 1)
+    rng = np.random.default_rng(seed)
+    dt = 1.0 / 365.0
+    z = rng.normal(size=n_days)
+    returns = (annual_drift - 0.5 * annual_vol ** 2) * dt + annual_vol * np.sqrt(dt) * z
+    path = start_spot * np.exp(np.cumsum(returns))
+    spot_path = np.insert(path, 0, start_spot)
+    dates = [start_date + timedelta(days=i) for i in range(n_days + 1)]
+
+    btc_held = _btc_held(strategy)
+    spot_at_end = float(spot_path[-1])
+    pnl_usd = btc_held * (spot_at_end - start_spot)
+    pnl_pct = (pnl_usd / (btc_held * start_spot)) * 100.0 if btc_held > 0 and start_spot > 0 else 0.0
+
+    seller_discount = start_spot * 0.025 * btc_held if btc_held > 0 else 0.0
+    eff_cost = EffectiveAcquisitionCost(
+        per_btc_usd=start_spot * (1.0 - 0.025) if btc_held > 0 else start_spot,
+        per_btc_btc=0.0,
+        premium_component_usd=0.0,
+        premium_provenance=Provenance.BUSINESS_REQUIREMENT,
+        fee_component_usd=0.0,
+        fee_provenance=Provenance.ASSUMED,
+        seller_discount_component_usd=seller_discount,
+        seller_discount_provenance=Provenance.BUSINESS_REQUIREMENT,
+        impact_component_usd=0.0,
+        impact_provenance=Provenance.ASSUMED,
+    )
+
+    return BacktestResult(
+        strategy_id=strategy.strategy_id,
+        strategy_kind=str(strategy.canonical) if strategy.canonical else "",
+        business_label=strategy.business_label if strategy.business_label else "",
+        start_date=dates[0],
+        end_date=dates[-1],
+        cycles=[],
+        total_pnl_usd=pnl_usd,
+        total_pnl_btc=pnl_usd / start_spot if start_spot > 0 else 0.0,
+        total_pnl_pct=pnl_pct,
+        total_premium_usd=0.0,
+        total_premium_btc=0.0,
+        total_fees_usd=0.0,
+        total_fees_btc=0.0,
+        effective_acquisition_cost=eff_cost,
+        provenance=Provenance.CALCULATED,
+    )
+
+
+def backtest_no_lookahead(
+    strategy: Strategy,
+    dates: list[datetime],
+    spot_prices: np.ndarray,
+    iv_history: np.ndarray | None = None,
+    risk_free_rate: float = 0.04,
+    dte_days: int = 30,
+    strike_pct_above: float = 0.15,
+    overlay_ratio: float = 1.0,
+) -> BacktestResult:
+    """Run backtest and verify no look-ahead bias by mutation test."""
+    result_original = backtest_strategy(
+        strategy=strategy,
+        dates=dates,
+        spot_prices=spot_prices,
+        iv_history=iv_history,
+        risk_free_rate=risk_free_rate,
+        dte_days=dte_days,
+        strike_pct_above=strike_pct_above,
+        overlay_ratio=overlay_ratio,
+    )
+
+    split_idx = len(spot_prices) // 2
+    modified_spot = spot_prices.copy()
+    modified_spot[split_idx:] += 50000.0
+    modified_iv = iv_history.copy() if iv_history is not None else None
+    if modified_iv is not None:
+        modified_iv[split_idx:] += 0.20
+
+    result_modified = backtest_strategy(
+        strategy=strategy,
+        dates=dates,
+        spot_prices=modified_spot,
+        iv_history=modified_iv,
+        risk_free_rate=risk_free_rate,
+        dte_days=dte_days,
+        strike_pct_above=strike_pct_above,
+        overlay_ratio=overlay_ratio,
+    )
+
+    cycles_before = split_idx // max(dte_days, 1)
+    if len(result_original.cycles) >= 2 and len(result_modified.cycles) >= 2:
+        for i in range(min(cycles_before, len(result_original.cycles))):
+            assert result_original.cycles[i].premium_received_usd == result_modified.cycles[i].premium_received_usd, \
+                f"Look-ahead detected: cycle {i} premium changed by future data mutation"
+            assert result_original.cycles[i].entry_spot == result_modified.cycles[i].entry_spot, \
+                f"Look-ahead detected: cycle {i} entry_spot changed by future data"
+
+    return result_original
+[0m
+<think>
+Now let me look at the actual runner to understand how backtests are run with the data.
+</think>
+
+</think>
+[0m$ [0mcat research/runner.py
+"""Research runner — orchestrates the full pipeline.
+
+Executes: historical backtests, OOS/walk-forward, regimes, Monte Carlo,
+stress, and execution sensitivity.
+
+Full mode fetches real BTC spot from Massive (MASSIVE_API_KEY).
+Smoke/test mode uses synthetic GBM paths.
+Never silently substitute a provider in full mode.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import pathlib
+import sys
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import numpy as np
+import yaml
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from config.models import Provenance
+from execution.waterfall import WaterfallSensitivity, waterfall_sensitivity
+from research.manifest import DataManifest, DataSourceRecord, RunManifest
+from research.reporting import (
+    build_comparison_table,
+    generate_decision_pending,
+    generate_presentation_summary,
+)
+from strategy.backtest import backtest_strategy, backtest_unhedged
+from strategy.definitions import build_all_mandate_strategies
+from strategy.monte_carlo import MonteCarloConfig, run_monte_carlo
+from strategy.regimes import (
+    compute_oos_validation,
+    run_regime_analysis,
+    split_train_test,
+)
+from strategy.stress import run_stress_tests
+from vol.history import (
+    CryptoDataDownloadProvider,
+    MassiveSpotProvider,
+)
+
+logger = logging.getLogger("research")
+
+
+def _load_config(config_path: str) -> dict[str, Any]:
+    with open(config_path) as f:
+        raw = yaml.safe_load(f)
+    if isinstance(raw, dict):
+        return raw
+    return {}
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _sha256_file(filepath: str) -> str:
+    h = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _generate_gbm_spot_path(
+    spot: float,
+    sigma: float,
+    start_date: datetime,
+    end_date: datetime,
+    seed: int = 42,
+) -> tuple[np.ndarray, list[datetime]]:
+    n_days = max((end_date - start_date).days, 1)
+    rng = np.random.default_rng(seed)
+    dt_val = 1.0 / 365.0
+    z = rng.normal(size=n_days)
+    returns = (0.10 - 0.5 * sigma ** 2) * dt_val + sigma * np.sqrt(dt_val) * z
+    spot_path = spot * np.exp(np.cumsum(np.insert(returns, 0, 0.0)))
+    dates = [start_date + timedelta(days=i) for i in range(n_days + 1)]
+    return spot_path, dates
+
+
+def _validate_results(
+    manifest: RunManifest,
+    data_manifest: DataManifest | None,
+    output_dir: str,
+    run_id: str,
+    mc_enabled: bool = True,
+    stress_enabled: bool = True,
+) -> list[str]:
+    failures: list[str] = []
+
+    if not manifest.data_sources:
+        failures.append("data_sources is empty for a completed run")
+
+    if data_manifest is None:
+        failures.append("data_manifest.json was not produced")
+    elif data_manifest.observation_count <= 0:
+        failures.append("observation_count must be positive")
+    elif data_manifest.provenance.upper().startswith("SIMULATED") and data_manifest.actual_provider not in ("synthetic", "smoke"):
+        failures.append("historical provenance cannot be SIMULATED in full mode")
+
+    required_files = [
+        "backtest_results.parquet",
+        "oos_results.parquet",
+        "regime_results.parquet",
+        "strategy_comparison.csv",
+        "research_report.md",
+        "presentation_summary.md",
+    ]
+    if mc_enabled:
+        required_files.append("monte_carlo_results.parquet")
+    if stress_enabled:
+        required_files.append("stress_results.parquet")
+    required_files.append("execution_sensitivity.parquet")
+
+    for fn in required_files:
+        fpath = os.path.join(output_dir, fn)
+        if not os.path.exists(fpath):
+            failures.append(f"required output {fn} is missing")
+        elif os.path.getsize(fpath) == 0:
+            failures.append(f"required output {fn} is empty")
+
+    comparison_path = os.path.join(output_dir, "strategy_comparison.csv")
+    if os.path.exists(comparison_path) and os.path.getsize(comparison_path) > 0:
+        with open(comparison_path) as f:
+            import csv
+            reader = list(csv.DictReader(f))
+            for row in reader:
+                sid = row.get("strategy_id", "")
+                if mc_enabled:
+                    var95 = row.get("var_95_loss", "0.0")
+                    es975 = row.get("es_975_loss", "0.0")
+                    prob_loss = row.get("probability_of_loss", "0")
+                    if var95 == "0.0" and es975 == "0.0" and prob_loss in ("0.0", "0"):
+                        failures.append(f"risk metrics all zero for {sid}")
+                try:
+                    eac = float(row.get("effective_acquisition_cost", "0"))
+                    if eac < 0:
+                        failures.append(f"negative effective acquisition cost for {sid}")
+                except (ValueError, TypeError):
+                    pass
+                try:
+                    tpp = float(row.get("total_pnl_pct", "0"))
+                    if abs(tpp) > 500.0:
+                        failures.append(f"implausible total_pnl_pct {tpp} for {sid}")
+                except (ValueError, TypeError):
+                    pass
+                for k in ("total_pnl_pct", "effective_acquisition_cost", "sharpe_ratio", "var_95_loss", "es_975_loss"):
+                    val = row.get(k, "0")
+                    if val in ("nan", "NaN", "inf", "-inf", "Infinity", "-Infinity"):
+                        failures.append(f"NaN or infinite result in {k} for {sid}")
+
+    return failures
+
+
+def _write_run_status(
+    output_dir: str,
+    run_id: str,
+    status: str,
+    failures: list[str] | None = None,
+) -> None:
+    payload: dict[str, Any] = {
+        "status": status,
+        "run_id": run_id,
+        "completed_at": datetime.now(UTC).isoformat(),
+    }
+    if failures:
+        payload["validation_failures"] = failures
+    with open(os.path.join(output_dir, "run_status.json"), "w") as f:
+        json.dump(payload, f, indent=2)
+
+
+def run_research(
+    config_path: str,
+    output_dir: str,
+    resume: bool = False,
+    test_mode: bool = False,
+) -> int:
+    """Run the full research pipeline.
+
+    Args:
+        config_path: Path to YAML configuration file.
+        output_dir: Output directory for research results.
+        resume: If True, attempt to resume from checkpoint.
+        test_mode: If True, use synthetic GBM data (for smoke tests only).
+
+    Returns 0 on success, non-zero on failure.
+    """
+    config = _load_config(config_path)
+    run_id = os.path.basename(output_dir.rstrip("/"))
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "logs"), exist_ok=True)
+
+    manifest = RunManifest(
+        run_id=run_id,
+        started_at=datetime.now(UTC),
+        config_path=config_path,
+        config_checksum=_sha256(json.dumps(config, sort_keys=True).encode()),
+        output_dir=output_dir,
+    )
+
+    config_str = json.dumps(config, sort_keys=True, indent=2)
+    resolved_config_path = os.path.join(output_dir, "resolved_config.yaml")
+    with open(resolved_config_path, "w") as f:
+        f.write(config_str)
+
+    mandate = config["mandate"]
+    qty = mandate["btc_quantity"]
+    spot = mandate["reference_spot_usd"]
+
+    strategies = build_all_mandate_strategies(quantity=float(qty), entry_spot=float(spot))
+    enabled_list = config.get("strategies", {}).get("enabled", [s.strategy_id for s in strategies])
+    if enabled_list:
+        strategies = [s for s in strategies if s.strategy_id in enabled_list]
+    manifest.strategy_count = len(strategies)
+
+    bt_config = config["backtest"]
+    start_date = datetime.fromisoformat(bt_config["window_start"]).replace(tzinfo=UTC)
+    end_date = datetime.fromisoformat(bt_config["window_end"]).replace(tzinfo=UTC)
+    dte = bt_config["dte_days"]
+    r = bt_config["risk_free_rate"]
+    sigma = bt_config["volatility"]
+    strike_pct = bt_config["strike_pct_above"]
+
+    ds_config = config.get("data_sources", {})
+    primary_spot = ds_config.get("primary_spot", "massive")
+    allow_fallback = ds_config.get("allow_cdd_fallback", False)
+    exec_cfg = config.get("execution", {})
+    run_mode = exec_cfg.get("run_mode", "full" if not test_mode else "smoke")
+
+    data_manifest: DataManifest | None = None
+    spot_path: np.ndarray
+    dates: list[datetime]
+    iv_history: np.ndarray
+
+    if run_mode == "smoke" or test_mode:
+        logger.info("SMOKE/TEST MODE — using synthetic GBM spot data")
+        spot_path, dates = _generate_gbm_spot_path(
+            spot=spot, sigma=sigma, start_date=start_date, end_date=end_date, seed=42,
+        )
+        iv_history = np.full_like(spot_path, sigma)
+
+        data_manifest = DataManifest(
+            actual_provider="synthetic",
+            endpoint="gbm-rng-seed-42",
+            requested_start=start_date,
+            requested_end=end_date,
+            actual_start=dates[0],
+            actual_end=dates[-1],
+            observation_count=len(dates),
+            retrieval_timestamp=datetime.now(UTC),
+            checksum_sha256="",
+            provenance="SIMULATED",
+            fallback_used=False,
+        )
+
+        ds_record = DataSourceRecord(
+            source="synthetic",
+            endpoint="gbm-rng-seed-42",
+            retrieval_date=datetime.now(UTC),
+            record_count=len(dates),
+            checksum_sha256="",
+            provenance=Provenance.SIMULATED,
+            notes="smoke/test mode",
+        )
+        manifest.data_sources.append(ds_record)
+    else:
+        logger.info(f"FULL MODE — fetching from {primary_spot}")
+        api_key = os.environ.get("MASSIVE_API_KEY", "")
+        cache_dir = pathlib.Path(output_dir) / "cache"
+        massive = MassiveSpotProvider(api_key=api_key if api_key else None, cache_dir=cache_dir)
+
+        bars: list[Any] = []
+        provider_used = ""
+        fallback_was_used = False
+        fetch_error: str | None = None
+        cache_path: str = ""
+
+        try:
+            bars = massive.fetch_bars(start=start_date, end=end_date)
+            provider_used = "massive"
+            if cache_dir.exists():
+                cache_files = sorted(cache_dir.glob("massive_*.json"))
+                if cache_files:
+                    cache_path = str(cache_files[-1])
+        except Exception as exc:
+            fetch_error = str(exc)
+            logger.warning(f"Massive fetch failed: {fetch_error}")
+
+        if not bars and allow_fallback and fetch_error is not None:
+            logger.info("Attempting CDD fallback")
+            cdd = CryptoDataDownloadProvider()
+            try:
+                bars = cdd.fetch_bars(start=start_date, end=end_date)
+                provider_used = "cryptodatadownload"
+                fallback_was_used = True
+            except Exception as exc2:
+                fetch_error = str(exc2)
+                logger.error(f"CDD fallback also failed: {fetch_error}")
+
+        if not bars:
+            msg = f"No data returned from {primary_spot} for {start_date}-{end_date}"
+            if fetch_error:
+                msg += f" ({fetch_error})"
+            logger.error(msg)
+            _write_run_status(output_dir, run_id, "failed", [msg])
+            return 1
+
+        if fallback_was_used and not allow_fallback:
+            msg = "CDD fallback used but allow_cdd_fallback is disabled"
+            logger.error(msg)
+            _write_run_status(output_dir, run_id, "failed", [msg])
+            return 1
+
+        if not fallback_was_used and not api_key:
+            msg = "MASSIVE_API_KEY not set in full mode"
+            logger.error(msg)
+            _write_run_status(output_dir, run_id, "failed", [msg])
+            return 1
+
+        bars.sort(key=lambda b: b.timestamp)
+        dates_bar = [b.timestamp for b in bars]
+        close_prices = np.array([b.close for b in bars], dtype=np.float64)
+
+        if not fallback_was_used:
+            provider_used = getattr(bars[0], "origin", "massive")
+            if provider_used != "massive":
+                fallback_was_used = True
+
+        spot_path = close_prices
+        dates = dates_bar
+        iv_history = np.full_like(spot_path, sigma)
+
+        provenance_str = Provenance.OBSERVED.value
+        if fallback_was_used:
+            provenance_str = f"{Provenance.OBSERVED.value} (fallback: {provider_used})"
+        if any(getattr(b, "provenance", Provenance.OBSERVED) == Provenance.SIMULATED for b in bars):
+            provenance_str = Provenance.SIMULATED.value
+
+        tmp_csv = os.path.join(output_dir, "_spot_data_dump.csv")
+        with open(tmp_csv, "w") as f:
+            f.write("timestamp,close\n")
+            for i in range(len(dates)):
+                f.write(f"{dates[i].isoformat()},{spot_path[i]}\n")
+        csv_checksum = _sha256_file(tmp_csv)
+
+        data_manifest = DataManifest(
+            actual_provider=provider_used,
+            endpoint=ds_config.get("primary_spot_endpoint", MassiveSpotProvider.ENDPOINT_PATH),
+            requested_start=start_date,
+            requested_end=end_date,
+            actual_start=dates[0],
+            actual_end=dates[-1],
+            observation_count=len(bars),
+            retrieval_timestamp=datetime.now(UTC),
+            checksum_sha256=csv_checksum,
+            provenance=provenance_str,
+            fallback_used=fallback_was_used,
+            fallback_provider="cryptodatadownload" if fallback_was_used else "",
+            cache_path=cache_path,
+        )
+
+        ds_record = DataSourceRecord(
+            source=provider_used,
+            endpoint=data_manifest.endpoint,
+            retrieval_date=data_manifest.retrieval_timestamp if data_manifest.retrieval_timestamp is not None else datetime.now(UTC),
+            record_count=data_manifest.observation_count,
+            checksum_sha256=csv_checksum,
+            provenance=(
+                Provenance.OBSERVED if not fallback_was_used
+                else Provenance.MODEL_RECONSTRUCTED
+            ),
+            notes="fallback used" if fallback_was_used else "",
+        )
+        manifest.data_sources.append(ds_record)
+
+    n_days_raw = len(dates)
+    logger.info(f"Running backtests for {len(strategies)} strategies, {n_days_raw} days of data")
+
+    backtest_results: dict[str, Any] = {}
+    for s in strategies:
+        if (
+            (s.canonical and str(s.canonical) in ("unhedged_baseline", "Unhedged BTC Acquisition"))
+            or s.strategy_id == "unhedged_baseline"
+        ):
+            result = backtest_unhedged(s, start_date, end_date, spot, seed=42)
+        else:
+            result = backtest_strategy(
+                s, dates, spot_path, iv_history,
+                risk_free_rate=r, dte_days=dte,
+                strike_pct_above=strike_pct,
+                seed=42,
+            )
+        backtest_results[s.strategy_id] = result
+        manifest.total_cycles += len(getattr(result, "cycles", []))
+
+    logger.info("Running OOS validation")
+    oos_config = config["oos_validation"]
+    train_start = datetime.fromisoformat(oos_config["train_start"]).replace(tzinfo=UTC)
+    train_end = datetime.fromisoformat(oos_config["train_end"]).replace(tzinfo=UTC)
+    test_start = datetime.fromisoformat(oos_config["test_start"]).replace(tzinfo=UTC)
+    test_end = datetime.fromisoformat(oos_config["test_end"]).replace(tzinfo=UTC)
+    cscv_s = oos_config["cscv_s"]
+    cscv_n = oos_config["cscv_n"]
+
+    all_dates = dates
+    _train_idx, _test_idx = split_train_test(all_dates, train_ratio=0.70)
+
+    oos_results: dict[str, Any] = {}
+    for s in strategies:
+        bt = backtest_results.get(s.strategy_id)
+        if bt is None:
+            continue
+        returns_train = [
+            c.net_pnl_pct / 100.0
+            for c in getattr(bt, "cycles", [])
+            if c.start_date <= train_end
+        ]
+        returns_test = [
+            c.net_pnl_pct / 100.0
+            for c in getattr(bt, "cycles", [])
+            if c.start_date >= test_start
+        ]
+        train_sharpe = (
+            float(np.mean(returns_train)) / float(np.std(returns_train))
+            if len(returns_train) > 1 and float(np.std(returns_train)) > 1e-9
+            else None
+        )
+        test_sharpe = (
+            float(np.mean(returns_test)) / float(np.std(returns_test))
+            if len(returns_test) > 1 and float(np.std(returns_test)) > 1e-9
+            else None
+        )
+
+        oos = compute_oos_validation(
+            train_result={
+                "sharpe": train_sharpe,
+                "returns": returns_train,
+                "train_period": (train_start, train_end),
+                "test_period": (test_start, test_end),
+            },
+            test_result={
+                "sharpe": test_sharpe,
+                "returns": returns_test,
+                "test_period": (test_start, test_end),
+                "train_period": (train_start, train_end),
+            },
+            cscv_s=cscv_s,
+            cscv_n=cscv_n,
+        )
+        oos_results[s.strategy_id] = oos
+
+    logger.info("Running regime analysis")
+    regime_cfg = config["regimes"]
+    regime_results: list[Any] = []
+    if regime_cfg.get("enabled", True):
+        regime_results = run_regime_analysis(
+            strategies, all_dates, spot_path,
+            window_days=regime_cfg["window_days"],
+        )
+
+    mc_results: dict[str, Any] = {}
+    mc_cfg = config["monte_carlo"]
+    mc_enabled = mc_cfg.get("enabled", True)
+    if mc_enabled:
+        logger.info(f"Running Monte Carlo with {mc_cfg['n_paths']} paths")
+        for s in strategies:
+            for model in mc_cfg.get("models", ["GBM"]):
+                mc_config = MonteCarloConfig(
+                    n_paths=mc_cfg["n_paths"],
+                    horizon_years=mc_cfg["horizon_years"],
+                    initial_spot=float(spot),
+                    drift=mc_cfg["drift"],
+                    volatility=sigma,
+                    model=model,
+                    seed=mc_cfg["seed"],
+                    use_antithetic=mc_cfg.get("use_antithetic", True),
+                )
+                if model == "Merton" and "merton_params" in mc_cfg:
+                    mp = mc_cfg["merton_params"]
+                    mc_config = MonteCarloConfig(
+                        n_paths=mc_cfg["n_paths"],
+                        horizon_years=mc_cfg["horizon_years"],
+                        initial_spot=float(spot),
+                        drift=mc_cfg["drift"],
+                        volatility=sigma,
+                        model=model,
+                        seed=mc_cfg["seed"],
+                        use_antithetic=mc_cfg.get("use_antithetic", True),
+                        jump_intensity=mp["jump_intensity"],
+                        jump_mean=mp["jump_mean"],
+                        jump_std=mp["jump_std"],
+                    )
+                mc_result = run_monte_carlo(s, mc_config)
+                mc_results[f"{s.strategy_id}_{model}"] = mc_result
+                mc_results[s.strategy_id] = mc_result
+                manifest.total_paths_mc += mc_cfg["n_paths"]
+
+    stress_results: dict[str, Any] = {}
+    stress_cfg = config["stress"]
+    if stress_cfg.get("enabled", True):
+        logger.info("Running stress tests")
+        stress_results_list = run_stress_tests(strategies, start_spot=float(spot))
+        for rst in stress_results_list:
+            stress_results[rst.strategy_id] = rst
+
+    logger.info("Running execution sensitivity")
+    es_cfg = config.get("execution_sensitivity", {})
+    if es_cfg.get("enabled", True):
+        sens = WaterfallSensitivity(
+            spot_offsets_pct=es_cfg.get("spot_offsets_pct", [-10, -5, -1, 0, 1, 5, 10]),
+            fee_bases=es_cfg.get("fee_bases", ["reference_notional", "executed_volume"]),
+        )
+        waterfall_sensitivity(None, sens)
+
+    logger.info("Generating reports")
+    comparison_rows = build_comparison_table(
+        dict(backtest_results),
+        oos_results,
+        mc_results,
+        stress_results,
+    )
+
+    import csv
+    comparison_path = os.path.join(output_dir, "strategy_comparison.csv")
+    if comparison_rows:
+        with open(comparison_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=comparison_rows[0].keys())
+            writer.writeheader()
+            writer.writerows(comparison_rows)
+
+    generate_presentation_summary(
+        comparison_rows,
+        os.path.join(output_dir, "presentation_summary.md"),
+    )
+
+    generate_decision_pending(
+        os.path.join(output_dir, "decision_pending.json"),
+    )
+
+    import pandas as pd  # type: ignore[import-untyped]
+
+    bt_records: list[dict[str, Any]] = []
+    for sid, bt in backtest_results.items():
+        for c in getattr(bt, "cycles", []):
+            bt_records.append({
+                "strategy_id": sid,
+                "cycle_num": c.cycle_num,
+                "start_date": c.start_date.isoformat(),
+                "end_date": c.end_date.isoformat(),
+                "entry_spot": c.entry_spot,
+                "strike": c.strike,
+                "expiry_spot": c.expiry_spot,
+                "is_itm": c.is_itm,
+                "net_pnl_usd": c.net_pnl_usd,
+                "net_pnl_pct": c.net_pnl_pct,
+                "premium_received_usd": c.premium_received_usd,
+                "premium_received_btc": c.premium_received_btc,
+                "total_fees_usd": c.venue_fees_usd + c.delivery_fee_usd + c.spread_slippage_usd + c.impact_usd,
+                "realised_assignment": c.realised_assignment,
+                "cash_usd_end": c.cash_usd_end,
+                "btc_inventory_end": c.btc_inventory_end,
+            })
+    if bt_records:
+        pd.DataFrame(bt_records).to_parquet(os.path.join(output_dir, "backtest_results.parquet"), index=False)
+    else:
+        pd.DataFrame([{"strategy_id": sid, "note": "no_cycles"} for sid in backtest_results]).to_parquet(
+            os.path.join(output_dir, "backtest_results.parquet"), index=False)
+
+    oos_records: list[dict[str, Any]] = []
+    for sid, oos in oos_results.items():
+        oos_records.append({
+            "strategy_id": sid,
+            "pbo_estimate": getattr(oos, "pbo_estimate", oos.get("pbo_estimate") if hasattr(oos, "get") else None),
+            "deflated_sharpe_ratio": getattr(oos, "deflated_sharpe_ratio", oos.get("deflated_sharpe_ratio") if hasattr(oos, "get") else None),
+        })
+    if oos_records:
+        pd.DataFrame(oos_records).to_parquet(os.path.join(output_dir, "oos_results.parquet"), index=False)
+
+    regime_records: list[dict[str, Any]] = []
+    for rr in regime_results:
+        if hasattr(rr, "__dict__"):
+            regime_records.append({k: v for k, v in rr.__dict__.items() if not k.startswith("_")})
+        elif isinstance(rr, dict):
+            regime_records.append(rr)
+    if regime_records:
+        pd.DataFrame(regime_records).to_parquet(os.path.join(output_dir, "regime_results.parquet"), index=False)
+    else:
+        pd.DataFrame([{"status": "regime_analysis_ran_no_results"}]).to_parquet(os.path.join(output_dir, "regime_results.parquet"), index=False)
+
+    mc_records: list[dict[str, Any]] = []
+    for key, mc in mc_results.items():
+        if "_GBM" in key or "_Merton" in key:
+            continue
+        rec = {
+            "strategy_id": getattr(mc, "strategy_id", ""),
+            "n_paths": getattr(mc, "n_paths", 0),
+            "model": getattr(mc, "model", ""),
+            "expected_pnl": getattr(mc, "expected_pnl", 0.0),
+            "var_95": getattr(mc, "var_95", 0.0),
+            "var_99": getattr(mc, "var_99", 0.0),
+            "es_975": getattr(mc, "es_975", 0.0),
+            "es_99": getattr(mc, "es_99", 0.0),
+            "var_95_pnl": getattr(mc, "var_95_pnl", 0.0),
+            "es_975_pnl": getattr(mc, "es_975_pnl", 0.0),
+            "probability_of_loss": getattr(mc, "probability_of_loss", 0.0),
+            "itm_probability": getattr(mc, "itm_probability", 0.0),
+        }
+        mc_records.append(rec)
+    if mc_records:
+        pd.DataFrame(mc_records).to_parquet(os.path.join(output_dir, "monte_carlo_results.parquet"), index=False)
+    else:
+        pd.DataFrame([{"note": "monte_carlo_disabled"}]).to_parquet(os.path.join(output_dir, "monte_carlo_results.parquet"), index=False)
+
+    ss_records: list[dict[str, Any]] = []
+    for sid, ss in stress_results.items():
+        for s in getattr(ss, "scenario_results", []):
+            ss_records.append({"strategy_id": sid, **s})
+    if ss_records:
+        pd.DataFrame(ss_records).to_parquet(os.path.join(output_dir, "stress_results.parquet"), index=False)
+    else:
+        pd.DataFrame([{"note": "stress_disabled"}]).to_parquet(os.path.join(output_dir, "stress_results.parquet"), index=False)
+
+    es_df = pd.DataFrame([{
+        "spot_offsets_pct": str(es_cfg.get("spot_offsets_pct", [])),
+        "fee_bases": str(es_cfg.get("fee_bases", [])),
+    }])
+    es_df.to_parquet(os.path.join(output_dir, "execution_sensitivity.parquet"), index=False)
+
+    research_report_lines = [
+        "# BTC 30k Strategy Research Report",
+        f"*Run: {run_id}*",
+        f"*Generated: {datetime.now(UTC).isoformat()}*",
+        "",
+        "## Data Source",
+    ]
+    if data_manifest is not None:
+        research_report_lines.extend([
+            f"- Provider: {data_manifest.actual_provider}",
+            f"- Observation count: {data_manifest.observation_count}",
+            f"- Date range: {data_manifest.actual_start} to {data_manifest.actual_end}",
+            f"- Provenance: {data_manifest.provenance}",
+            f"- Fallback used: {data_manifest.fallback_used}",
+        ])
+    research_report_lines.extend([
+        "",
+        f"## Strategies: {len(strategies)}",
+        f"## Total backtest cycles: {manifest.total_cycles}",
+        f"## Total MC paths: {manifest.total_paths_mc}",
+        "",
+        "## Strategy Comparison",
+        "",
+    ])
+    for row in comparison_rows:
+        sid = row.get("strategy_id", "")
+        pnl = row.get("total_pnl_pct", 0.0)
+        sharpe = row.get("sharpe_ratio")
+        eac = row.get("effective_acquisition_cost", 0)
+        research_report_lines.append(f"- **{sid}**: P&L {pnl:.2f}%, " + (f"Sharpe {sharpe:.3f}, " if sharpe else "") + f"Eff. Acq. ${eac:,.0f}/BTC")
+    research_report_lines.extend([
+        "",
+        "*No strategy is described as best, optimal, preferred, recommended, safest or winner.*",
+        "*This document does not constitute an investment recommendation.*",
+    ])
+    with open(os.path.join(output_dir, "research_report.md"), "w") as f:
+        f.write("\n".join(research_report_lines))
+
+    if data_manifest is not None:
+        dm_path = os.path.join(output_dir, "data_manifest.json")
+        dm_payload: dict[str, Any] = {
+            "actual_provider": data_manifest.actual_provider,
+            "endpoint": data_manifest.endpoint,
+            "requested_start": data_manifest.requested_start.isoformat() if data_manifest.requested_start else None,
+            "requested_end": data_manifest.requested_end.isoformat() if data_manifest.requested_end else None,
+            "actual_start": data_manifest.actual_start.isoformat() if data_manifest.actual_start else None,
+            "actual_end": data_manifest.actual_end.isoformat() if data_manifest.actual_end else None,
+            "observation_count": data_manifest.observation_count,
+            "retrieval_timestamp": data_manifest.retrieval_timestamp.isoformat() if data_manifest.retrieval_timestamp else None,
+            "checksum": data_manifest.checksum_sha256,
+            "provenance": data_manifest.provenance,
+            "fallback_used": data_manifest.fallback_used,
+            "fallback_provider": data_manifest.fallback_provider,
+            "cache_path": data_manifest.cache_path,
+            "notes": data_manifest.notes,
+        }
+        with open(dm_path, "w") as f:
+            json.dump(dm_payload, f, indent=2)
+
+    mc_cfg_enabled = config.get("monte_carlo", {}).get("enabled", True)
+    stress_cfg_enabled = config.get("stress", {}).get("enabled", True)
+    validation_failures = _validate_results(
+        manifest, data_manifest, output_dir, run_id,
+        mc_enabled=mc_cfg_enabled,
+        stress_enabled=stress_cfg_enabled,
+    )
+
+    if validation_failures:
+        manifest.status = "failed"
+        manifest.errors = [{"code": "VALIDATION_GATE", "detail": f} for f in validation_failures]
+        logger.error(f"Validation gates failed: {validation_failures}")
+    else:
+        manifest.status = "completed"
+
+    manifest.completed_at = datetime.now(UTC)
+
+    with open(os.path.join(output_dir, "run_manifest.json"), "w") as f:
+        json.dump(manifest.to_dict(), f, indent=2, default=str)
+
+    _write_run_status(
+        output_dir,
+        run_id,
+        manifest.status,
+        validation_failures if validation_failures else None,
+    )
+
+    checksums_data = hashlib.sha256()
+    for root, _dirs, files in os.walk(output_dir):
+        for fn in sorted(files):
+            fpath = os.path.join(root, fn)
+            with open(fpath, "rb") as fh:
+                checksums_data.update(fh.read())
+    with open(os.path.join(output_dir, "checksums.sha256"), "w") as fh_checksum:
+        fh_checksum.write(f"{checksums_data.hexdigest()}  {run_id}\n")
+
+    logger.info(f"Research run {run_id} {manifest.status}. Output: {output_dir}")
+    return 0 if manifest.status == "completed" else 1
+[0m
+<think>
+Now I understand the runner. Let me look at the backtest_results.parquet for the most recent run to verify what's in there
+</think>
+
+.
+[0m$ [0mpython3 -c "
+import pandas as pd
+bt = pd.read_parquet('results/research/empirical-baseline-fixed-20260729T005016Z/backtest_results.parquet')
+print('cols:', list(bt.columns))
+print('shape:', bt.shape)
+print('strategy_id counts:')
+print(bt['strategy_id'].value_counts())
+print()
+# Look at unhedged_baseline specifically
+uh = bt[bt['strategy_id'] == 'unhedged_baseline']
+print('unhedged rows:')
+print(uh.head(5).to_string())
+print('unhedged net_pnl_usd sum:', uh['net_pnl_usd'].sum())
+print('unhedged total fees:', uh['total_fees_usd'].sum())
+print('unhedged premium:', uh['premium_received_usd'].sum())
+print()
+cc = bt[bt['strategy_id'] == 'covered_call']
+print('covered_call rows:', len(cc))
+print('covered_call net_pnl_usd sum:', cc['net_pnl_usd'].sum())
+print('covered_call premium sum:', cc['premium_received_usd'].sum())
+print('covered_call total fees sum:', cc['total_fees_usd'].sum())
+"
+
+cols: ['strategy_id', 'cycle_num', 'start_date', 'end_date', 'entry_spot', 'strike', 'expiry_spot', 'is_itm', 'net_pnl_usd', 'net_pnl_pct', 'premium_received_usd', 'premium_received_btc', 'total_fees_usd', 'realised_assignment', 'cash_usd_end', 'btc_inventory_end']
+shape: (168, 16)
+strategy_id counts:
+strategy_id
+covered_call               24
+cash_secured_put           24
+long_btc_plus_short_put    24
+collar                     24
+call_spread                24
+partial_overlay            24
+strike_ladder              24
+Name: count, dtype: int64
+
+unhedged rows:
+Empty DataFrame
+Columns: [strategy_id, cycle_num, start_date, end_date, entry_spot, strike, expiry_spot, is_itm, net_pnl_usd, net_pnl_pct, premium_received_usd, premium_received_btc, total_fees_usd, realised_assignment, cash_usd_end, btc_inventory_end]
+Index: []
+unhedged net_pnl_usd sum: 0.0
+unhedged total fees: 0.0
+unhedged premium: 0.0
+
+covered_call rows: 24
+covered_call net_pnl_usd sum: 225561807.3869961
+covered_call premium sum: 11341760164.843735
+covered_call total fees sum: 184449457.45673752
+[0m
+[0m$ [0mpython3 -c "
+import pandas as pd
+bt = pd.read_parquet('results/research/empirical-baseline-fixed-20260729T005016Z/backtest_results.parquet')
+# Look at covered_call cycles in detail
+cc = bt[bt['strategy_id'] == 'covered_call'].sort_values('cycle_num')
+print(cc[['cycle_num', 'start_date', 'end_date', 'entry_spot', 'strike', 'expiry_spot', 'is_itm', 'net_pnl_usd', 'premium_received_usd', 'total_fees_usd', 'btc_inventory_end']].to_string())
+"
+
+cycle_num                 start_date                   end_date  entry_spot   strike  expiry_spot  is_itm   net_pnl_usd  premium_received_usd  total_fees_usd  btc_inventory_end
+0           0  2024-07-29T00:00:00+00:00  2024-08-28T00:00:00+00:00    66771.45  75000.0     59045.88   False -2.089789e+08          2.869035e+07    5.902134e+06            30000.0
+1           1  2024-08-29T00:00:00+00:00  2024-09-28T00:00:00+00:00    59385.50  75000.0     65858.99   False  1.927819e+08          3.826481e+06    5.249267e+06            30000.0
+2           2  2024-09-29T00:00:00+00:00  2024-10-29T00:00:00+00:00    65600.01  75000.0     72724.35   False  2.299506e+08          2.201902e+07    5.798587e+06            30000.0
+3           3  2024-10-30T00:00:00+00:00  2024-11-29T00:00:00+00:00    72322.91  75000.0     97490.56    True  1.546231e+08          8.070321e+07    6.392845e+06            30000.0
+4           4  2024-11-30T00:00:00+00:00  2024-12-30T00:00:00+00:00    96465.42  75000.0     92620.71    True  1.825036e+06          6.543145e+08    8.526876e+06            30000.0
+5           5  2024-12-31T00:00:00+00:00  2025-01-30T00:00:00+00:00    93354.22  75000.0    104742.64    True  4.722885e+06          5.636014e+08    8.251867e+06            30000.0
+6           6  2025-01-31T00:00:00+00:00  2025-03-02T00:00:00+00:00   102411.26  75000.0     94265.48    True -8.528296e+05          8.305374e+08    9.052447e+06            30000.0
+7           7  2025-03-03T00:00:00+00:00  2025-04-02T00:00:00+00:00    86161.10  75000.0     82490.08    True  2.101955e+07          3.634686e+08    7.616045e+06            30000.0
+8           8  2025-04-03T00:00:00+00:00  2025-05-03T00:00:00+00:00    83174.33  75000.0     95861.33    True  3.493886e+07          2.875208e+08    7.352035e+06            30000.0
+9           9  2025-05-04T00:00:00+00:00  2025-06-03T00:00:00+00:00    94272.55  75000.0    105447.82    True  3.703767e+06          5.902133e+08    8.333041e+06            30000.0
+10         10  2025-06-04T00:00:00+00:00  2025-07-04T00:00:00+00:00   104753.38  75000.0    108028.60    True -1.397787e+06          9.004631e+08    9.259474e+06            30000.0
+11         11  2025-07-05T00:00:00+00:00  2025-08-04T00:00:00+00:00   108246.65  75000.0    115051.85    True -1.974206e+06          1.004994e+09    9.568255e+06            30000.0
+12         12  2025-08-05T00:00:00+00:00  2025-09-04T00:00:00+00:00   114180.00  75000.0    110720.79    True -2.659207e+06          1.182834e+09    1.009272e+07            30000.0
+13         13  2025-09-05T00:00:00+00:00  2025-10-05T00:00:00+00:00   110670.02  75000.0    123520.79    True -2.281351e+06          1.077602e+09    9.782464e+06            30000.0
+14         14  2025-10-06T00:00:00+00:00  2025-11-05T00:00:00+00:00   124720.09  75000.0    103869.00    True -3.636205e+06          1.498991e+09    1.102439e+07            30000.0
+15         15  2025-11-06T00:00:00+00:00  2025-12-06T00:00:00+00:00   101290.50  75000.0     89267.97    True -5.210104e+05          7.971474e+08    8.953379e+06            30000.0
+16         16  2025-12-07T00:00:00+00:00  2026-01-06T00:00:00+00:00    90402.29  75000.0     93722.01    True  9.286695e+06          4.793463e+08    7.990937e+06            30000.0
+17         17  2026-01-07T00:00:00+00:00  2026-02-06T00:00:00+00:00    91279.73  75000.0     70527.70   False -1.264771e+08          5.041523e+08    8.068497e+06            30000.0
+18         18  2026-02-07T00:00:00+00:00  2026-03-09T00:00:00+00:00    69244.74  75000.0     68432.17   False  1.692443e+07          4.742229e+07    6.120756e+06            30000.0
+19         19  2026-03-10T00:00:00+00:00  2026-04-09T00:00:00+00:00    69960.83  75000.0     71798.01   False  1.030667e+08          5.413539e+07    6.184053e+06            30000.0
+20         20  2026-04-10T00:00:00+00:00  2026-05-10T00:00:00+00:00    72997.88  75000.0     82199.99    True  1.431865e+08          8.957540e+07    6.452507e+06            30000.0
+21         21  2026-05-11T00:00:00+00:00  2026-06-10T00:00:00+00:00    81727.06  75000.0     61449.46   False -3.625426e+08          2.530095e+08    7.224107e+06            30000.0
+22         22  2026-06-11T00:00:00+00:00  2026-07-11T00:00:00+00:00    63563.42  75000.0     63773.04   False  1.395202e+07          1.328198e+07    5.618567e+06            30000.0
+23         23  2026-07-12T00:00:00+00:00  2026-07-27T00:00:00+00:00    63740.32  75000.0     63694.43   False  6.900863e+06          1.391177e+07    5.634203e+06            30000.0
+[0m
+[0m$ [0mpython3 -c "
+import pandas as pd
+bt = pd.read_parquet('results/research/empirical-baseline-fixed-20260729T005016Z/backtest_results.parquet')
+print('=== Cash Secured Put ===')
+csp = bt[bt['strategy_id'] == 'cash_secured_put'].sort_values('cycle_num')
+print(csp[['cycle_num', 'start_date', 'end_date', 'entry_spot', 'strike', 'expiry_spot', 'is_itm', 'net_pnl_usd', 'premium_received_usd', 'total_fees_usd', 'btc_inventory_end', 'cash_usd_end', 'realised_assignment']].to_string())
+"
+
+=== Cash Secured Put ===
+    cycle_num                 start_date                   end_date  entry_spot   strike  expiry_spot  is_itm   net_pnl_usd  premium_received_usd  total_fees_usd  btc_inventory_end  cash_usd_end  realised_assignment
+24          0  2024-07-29T00:00:00+00:00  2024-08-28T00:00:00+00:00    66771.45  58500.0     59045.88   False  1.232912e+07          1.823126e+07    5.902134e+06                0.0  1.232912e+07                    0
+25          1  2024-08-29T00:00:00+00:00  2024-09-28T00:00:00+00:00    59385.50  58500.0     65858.99   False  7.029843e+07          7.554770e+07    5.249267e+06                0.0  8.262755e+07                    0
+26          2  2024-09-29T00:00:00+00:00  2024-10-29T00:00:00+00:00    65600.01  58500.0     72724.35   False  1.762720e+07          2.342578e+07    5.798587e+06                0.0  1.002548e+08                    0
+27          3  2024-10-30T00:00:00+00:00  2024-11-29T00:00:00+00:00    72322.91  58500.0     97490.56   False -1.453055e+06          4.939790e+06    6.392845e+06                0.0  9.880170e+07                    0
+28          4  2024-11-30T00:00:00+00:00  2024-12-30T00:00:00+00:00    96465.42  58500.0     92620.71   False -8.523698e+06          3.177488e+03    8.526876e+06                0.0  9.027800e+07                    0
+29          5  2024-12-31T00:00:00+00:00  2025-01-30T00:00:00+00:00    93354.22  58500.0    104742.64   False -8.242716e+06          9.151580e+03    8.251867e+06                0.0  8.203528e+07                    0
+30          6  2025-01-31T00:00:00+00:00  2025-03-02T00:00:00+00:00   102411.26  58500.0     94265.48   False -9.052051e+06          3.960230e+02    9.052447e+06                0.0  7.298323e+07                    0
+31          7  2025-03-03T00:00:00+00:00  2025-04-02T00:00:00+00:00    86161.10  58500.0     82490.08   False -7.520853e+06          9.519210e+04    7.616045e+06                0.0  6.546238e+07                    0
+32          8  2025-04-03T00:00:00+00:00  2025-05-03T00:00:00+00:00    83174.33  58500.0     95861.33   False -7.112693e+06          2.393426e+05    7.352035e+06                0.0  5.834969e+07                    0
+33          9  2025-05-04T00:00:00+00:00  2025-06-03T00:00:00+00:00    94272.55  58500.0    105447.82   False -8.326327e+06          6.714125e+03    8.333041e+06                0.0  5.002336e+07                    0
+34         10  2025-06-04T00:00:00+00:00  2025-07-04T00:00:00+00:00   104753.38  58500.0    108028.60   False -9.259303e+06          1.711402e+02    9.259474e+06                0.0  4.076406e+07                    0
+35         11  2025-07-05T00:00:00+00:00  2025-08-04T00:00:00+00:00   108246.65  58500.0    115051.85   False -9.245615e+06          4.815878e+01    9.245663e+06                0.0  3.151844e+07                    0
+36         12  2025-08-05T00:00:00+00:00  2025-09-04T00:00:00+00:00   114180.00  58500.0    110720.79   False -9.141858e+06          5.378247e+00    9.141863e+06                0.0  2.237658e+07                    0
+37         13  2025-09-05T00:00:00+00:00  2025-10-05T00:00:00+00:00   110670.02  58500.0    123520.79   False -9.060000e+06          1.977667e+01    9.060019e+06                0.0  1.331658e+07                    0
+38         14  2025-10-06T00:00:00+00:00  2025-11-05T00:00:00+00:00   124720.09  58500.0    103869.00   False -9.903475e+06          1.002753e-01    9.903475e+06                0.0  3.413108e+06                    0
+39         15  2025-11-06T00:00:00+00:00  2025-12-06T00:00:00+00:00   101290.50  58500.0     89267.97   False -8.952790e+06          5.896067e+02    8.953379e+06                0.0 -5.539681e+06                    0
+40         16  2025-12-07T00:00:00+00:00  2026-01-06T00:00:00+00:00    90402.29  58500.0     93722.01   False -7.966552e+06          2.438463e+04    7.990937e+06                0.0 -1.350623e+07                    0
+41         17  2026-01-07T00:00:00+00:00  2026-02-06T00:00:00+00:00    91279.73  58500.0     70527.70   False -8.050227e+06          1.826926e+04    8.068497e+06                0.0 -2.155646e+07                    0
+42         18  2026-02-07T00:00:00+00:00  2026-03-09T00:00:00+00:00    69244.74  58500.0     68432.17   False  4.308738e+06          1.042949e+07    6.120756e+06                0.0 -1.724772e+07                    0
+43         19  2026-03-10T00:00:00+00:00  2026-04-09T00:00:00+00:00    69960.83  58500.0     71798.01   False  2.625227e+06          8.809280e+06    6.184053e+06                0.0 -1.462250e+07                    0
+44         20  2026-04-10T00:00:00+00:00  2026-05-10T00:00:00+00:00    72997.88  58500.0     82199.99   False -2.289847e+06          4.162661e+06    6.452507e+06                0.0 -1.691234e+07                    0
+45         21  2026-05-11T00:00:00+00:00  2026-06-10T00:00:00+00:00    81727.06  58500.0     61449.46   False -6.854520e+06          3.695869e+05    7.224107e+06                0.0 -2.376686e+07                    0
+46         22  2026-06-11T00:00:00+00:00  2026-07-11T00:00:00+00:00    63563.42  58500.0     63773.04   False  2.981310e+07          3.543167e+07    5.618567e+06                0.0  6.046242e+06                    0
+47         23  2026-07-12T00:00:00+00:00  2026-07-27T00:00:00+00:00    63740.32  58500.0     63694.43   False  2.858546e+07          3.421966e+07    5.634203e+06                0.0  3.463170e+07                    0
+[0m
+[0m$ [0mpython3 -c "
+import pandas as pd
+bt = pd.read_parquet('results/research/empirical-baseline-fixed-20260729T005016Z/backtest_results.parquet')
+print('=== Long BTC + Short Put ===')
+lb = bt[bt['strategy_id'] == 'long_btc_plus_short_put'].sort_values('cycle_num')
+print(lb[['cycle_num', 'start_date', 'end_date', 'entry_spot', 'strike', 'expiry_spot', 'is_itm', 'net_pnl_usd', 'premium_received_usd', 'total_fees_usd', 'btc_inventory_end', 'cash_usd_end', 'realised_assignment']].to_string())
+"
+
+=== Long BTC + Short Put ===
+    cycle_num                 start_date                   end_date  entry_spot   strike  expiry_spot  is_itm   net_pnl_usd  premium_received_usd  total_fees_usd  btc_inventory_end  cash_usd_end  realised_assignment
+48          0  2024-07-29T00:00:00+00:00  2024-08-28T00:00:00+00:00    66771.45  58500.0     59045.88   False -2.194380e+08          1.823126e+07    5.902134e+06            30000.0 -1.990814e+09                    0
+49          1  2024-08-29T00:00:00+00:00  2024-09-28T00:00:00+00:00    59385.50  58500.0     65858.99   False  2.645031e+08          7.554770e+07    5.249267e+06            30000.0 -1.920516e+09                    0
+50          2  2024-09-29T00:00:00+00:00  2024-10-29T00:00:00+00:00    65600.01  58500.0     72724.35   False  2.313574e+08          2.342578e+07    5.798587e+06            30000.0 -1.902889e+09                    0
+51          3  2024-10-30T00:00:00+00:00  2024-11-29T00:00:00+00:00    72322.91  58500.0     97490.56   False  7.535764e+08          4.939790e+06    6.392845e+06            30000.0 -1.904342e+09                    0
+52          4  2024-11-30T00:00:00+00:00  2024-12-30T00:00:00+00:00    96465.42  58500.0     92620.71   False -1.238650e+08          3.177488e+03    8.526876e+06            30000.0 -1.912866e+09                    0
+53          5  2024-12-31T00:00:00+00:00  2025-01-30T00:00:00+00:00    93354.22  58500.0    104742.64   False  3.334099e+08          9.151580e+03    8.251867e+06            30000.0 -1.921108e+09                    0
+54          6  2025-01-31T00:00:00+00:00  2025-03-02T00:00:00+00:00   102411.26  58500.0     94265.48   False -2.534255e+08          3.960230e+02    9.052447e+06            30000.0 -1.930160e+09                    0
+55          7  2025-03-03T00:00:00+00:00  2025-04-02T00:00:00+00:00    86161.10  58500.0     82490.08   False -1.176515e+08          9.519210e+04    7.616045e+06            30000.0 -1.937681e+09                    0
+56          8  2025-04-03T00:00:00+00:00  2025-05-03T00:00:00+00:00    83174.33  58500.0     95861.33   False  3.734973e+08          2.393426e+05    7.352035e+06            30000.0 -1.944794e+09                    0
+57          9  2025-05-04T00:00:00+00:00  2025-06-03T00:00:00+00:00    94272.55  58500.0    105447.82   False  3.269318e+08          6.714125e+03    8.333041e+06            30000.0 -1.953120e+09                    0
+58         10  2025-06-04T00:00:00+00:00  2025-07-04T00:00:00+00:00   104753.38  58500.0    108028.60   False  8.899730e+07          1.711402e+02    9.259474e+06            30000.0 -1.962379e+09                    0
+59         11  2025-07-05T00:00:00+00:00  2025-08-04T00:00:00+00:00   108246.65  58500.0    115051.85   False  1.949104e+08          4.815878e+01    9.245663e+06            30000.0 -1.971625e+09                    0
+60         12  2025-08-05T00:00:00+00:00  2025-09-04T00:00:00+00:00   114180.00  58500.0    110720.79   False -1.129182e+08          5.378247e+00    9.141863e+06            30000.0 -1.980767e+09                    0
+61         13  2025-09-05T00:00:00+00:00  2025-10-05T00:00:00+00:00   110670.02  58500.0    123520.79   False  3.764631e+08          1.977667e+01    9.060019e+06            30000.0 -1.989827e+09                    0
+62         14  2025-10-06T00:00:00+00:00  2025-11-05T00:00:00+00:00   124720.09  58500.0    103869.00   False -6.354362e+08          1.002753e-01    9.903475e+06            30000.0 -1.999730e+09                    0
+63         15  2025-11-06T00:00:00+00:00  2025-12-06T00:00:00+00:00   101290.50  58500.0     89267.97   False -3.696287e+08          5.896067e+02    8.953379e+06            30000.0 -2.008683e+09                    0
+64         16  2025-12-07T00:00:00+00:00  2026-01-06T00:00:00+00:00    90402.29  58500.0     93722.01   False  9.162505e+07          2.438463e+04    7.990937e+06            30000.0 -2.016650e+09                    0
+65         17  2026-01-07T00:00:00+00:00  2026-02-06T00:00:00+00:00    91279.73  58500.0     70527.70   False -6.306111e+08          1.826926e+04    8.068497e+06            30000.0 -2.024700e+09                    0
+66         18  2026-02-07T00:00:00+00:00  2026-03-09T00:00:00+00:00    69244.74  58500.0     68432.17   False -2.006836e+07          1.042949e+07    6.120756e+06            30000.0 -2.020391e+09                    0
+67         19  2026-03-10T00:00:00+00:00  2026-04-09T00:00:00+00:00    69960.83  58500.0     71798.01   False  5.774063e+07          8.809280e+06    6.184053e+06            30000.0 -2.017766e+09                    0
+68         20  2026-04-10T00:00:00+00:00  2026-05-10T00:00:00+00:00    72997.88  58500.0     82199.99   False  2.737735e+08          4.162661e+06    6.452507e+06            30000.0 -2.020056e+09                    0
+69         21  2026-05-11T00:00:00+00:00  2026-06-10T00:00:00+00:00    81727.06  58500.0     61449.46   False -6.151825e+08          3.695869e+05    7.224107e+06            30000.0 -2.026910e+09                    0
+70         22  2026-06-11T00:00:00+00:00  2026-07-11T00:00:00+00:00    63563.42  58500.0     63773.04   False  3.610170e+07          3.543167e+07    5.618567e+06            30000.0 -1.997097e+09                    0
+71         23  2026-07-12T00:00:00+00:00  2026-07-27T00:00:00+00:00    63740.32  58500.0     63694.43   False  2.720876e+07          3.421966e+07    5.634203e+06            30000.0 -1.968512e+09                    0
+[0m
+[0m$ [0mcat research/reporting.py
+"""Research reporting — produces machine-readable and presentation-ready outputs.
+
+Generates:
+  - strategy_comparison.csv
+  - research_report.md
+  - presentation_summary.md
+  - decision_pending.json
+
+Never describes a strategy as best, optimal, preferred, recommended,
+safest or winner. Does not produce a final investment recommendation.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
+
+@dataclass
+class StrategyComparisonRow:
+    strategy_id: str
+    strategy_kind: str
+    business_label: str
+    total_pnl_pct: float
+    itm_frequency: float
+    touch_frequency: float
+    max_drawdown_pct: float
+    sharpe_ratio: float | None
+    effective_acquisition_cost: float
+    premium_income_pct: float
+    pbo_estimate: float | None
+    deflated_sharpe_ratio: float | None
+    var_95_loss: float
+    es_975_loss: float
+    highest_pnl_stress: float
+    lowest_pnl_stress: float
+
+
+def build_comparison_table(
+    backtest_results: dict[str, Any],
+    oos_results: dict[str, Any],
+    mc_results: dict[str, Any],
+    stress_results: dict[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for sid in backtest_results:
+        bt = backtest_results[sid]
+        oos = oos_results.get(sid, {})
+        mc = mc_results.get(sid, mc_results.get(f"{sid}_GBM", {}))
+        ss = stress_results.get(sid, {})
+
+        row = {
+            "strategy_id": sid,
+            "strategy_kind": getattr(bt, "strategy_kind", str(bt.get("canonical", "")) if hasattr(bt, "get") else ""),
+            "business_label": getattr(bt, "business_label", ""),
+            "total_pnl_pct": getattr(bt, "total_pnl_pct", 0.0),
+            "itm_frequency": getattr(bt, "itm_frequency", 0.0),
+            "touch_frequency": getattr(bt, "touch_frequency", 0.0),
+            "max_drawdown_pct": getattr(bt, "max_drawdown_pct", 0.0),
+            "sharpe_ratio": getattr(bt, "sharpe_ratio", None),
+            "total_premium_usd": getattr(bt, "total_premium_usd", 0.0),
+        }
+        if hasattr(bt, "effective_acquisition_cost") and bt.effective_acquisition_cost is not None:
+            row["effective_acquisition_cost"] = bt.effective_acquisition_cost.per_btc_usd
+        else:
+            row["effective_acquisition_cost"] = 0.0
+
+        row["pbo_estimate"] = getattr(oos, "pbo_estimate", oos.get("pbo_estimate") if hasattr(oos, "get") else None)
+        row["deflated_sharpe_ratio"] = getattr(oos, "deflated_sharpe_ratio", oos.get("deflated_sharpe_ratio") if hasattr(oos, "get") else None)
+        row["var_95_loss"] = getattr(mc, "var_95", mc.get("var_95", 0.0) if hasattr(mc, "get") else 0.0)
+        row["es_975_loss"] = getattr(mc, "es_975", mc.get("es_975", 0.0) if hasattr(mc, "get") else 0.0)
+        row["probability_of_loss"] = getattr(mc, "probability_of_loss", mc.get("probability_of_loss", 0.0) if hasattr(mc, "get") else 0.0)
+
+        stress_summary = getattr(ss, "scenario_results", ss.get("scenario_results", []) if hasattr(ss, "get") else [])
+        if stress_summary:
+            row["highest_pnl_stress"] = getattr(ss, "highest_pnl_scenario_pnl", max(s.get("strategy_pnl_usd", 0) for s in stress_summary if "strategy_pnl_usd" in s) if stress_summary else 0.0)
+            row["lowest_pnl_stress"] = getattr(ss, "lowest_pnl_scenario_pnl", min(s.get("strategy_pnl_usd", 0) for s in stress_summary if "strategy_pnl_usd" in s) if stress_summary else 0.0)
+        else:
+            row["highest_pnl_stress"] = 0.0
+            row["lowest_pnl_stress"] = 0.0
+
+        rows.append(row)
+    return rows
+
+
+def generate_presentation_summary(
+    comparison_rows: list[dict[str, Any]],
+    output_path: str,
+) -> str:
+    """Generate a factual presentation summary — no investment recommendations."""
+    now = datetime.now(UTC).isoformat()
+
+    lines = [
+        "# BTC 30k Strategy Research — Presentation Summary",
+        f"*Generated: {now}*",
+        "",
+        "## Research Scope",
+        "",
+        f"Strategies analysed: {len(comparison_rows)}",
+        "",
+        "## Key Observations",
+        "",
+    ]
+
+    for row in comparison_rows:
+        sid = row.get("strategy_id", "unknown")
+        kind = row.get("strategy_kind", "")
+        pnl = row.get("total_pnl_pct", 0.0)
+        itm = row.get("itm_frequency", 0.0)
+        sharpe = row.get("sharpe_ratio")
+        pbo = row.get("pbo_estimate")
+
+        lines.append(f"### {sid} ({kind})")
+        lines.append(f"- Total P&L: {pnl:.2f}%")
+        lines.append(f"- ITM frequency: {itm:.1%}")
+        if sharpe is not None:
+            lines.append(f"- Sharpe ratio: {sharpe:.3f}")
+        if pbo is not None:
+            lines.append(f"- PBO estimate: {pbo:.3f}")
+        lines.append(f"- Effective acquisition cost: ${row.get('effective_acquisition_cost', 0):,.0f} per BTC")
+        lines.append("")
+
+    lines.append("## Pending Decisions")
+    lines.append("- D-1: Fee base (reference_notional vs executed_volume) — unresolved")
+    lines.append("- D-3: Primary venue (Deribit vs CME vs OTC) — unresolved")
+    lines.append("- D-9: Delta-hedge model specification — unresolved")
+    lines.append("")
+
+    lines.append("## Data Attribution")
+    lines.append("- Primary spot source: Massive")
+    lines.append("- Option data: Deribit (observed) / model-reconstructed where missing")
+    lines.append("- Fallback: CryptoDataDownload (explicitly enabled)")
+    lines.append("- Monte Carlo and stress paths: simulated")
+    lines.append("")
+
+    lines.append("*No strategy is described as best, optimal, preferred, recommended, safest or winner.*")
+    lines.append("*This document does not constitute an investment recommendation.*")
+
+    content = "\n".join(lines)
+    with open(output_path, "w") as f:
+        f.write(content)
+    return content
+
+
+def generate_decision_pending(output_path: str) -> dict[str, Any]:
+    decisions = {
+        "D-1": {
+            "owner": "Mandate issuer",
+            "impact": "$243,750 swing on $9.75M fee",
+            "description": "Whether 0.5% Asymmetrica fee is charged on reference_notional or executed_volume",
+            "variants_implemented": ["reference_notional", "executed_volume"],
+            "status": "pending",
+        },
+        "D-3": {
+            "owner": "Mandate issuer",
+            "impact": "Determines settlement mechanics, margin, instrument-type modelling",
+            "description": "Primary execution venue (Deribit, CME, OTC)",
+            "variants_explored": ["Deribit inverse", "CME options on futures", "OTC"],
+            "status": "pending",
+        },
+        "D-9": {
+            "owner": "Mandate issuer",
+            "impact": "A3 cannot compute delta-hedge P&L until resolved",
+            "description": "Delta-hedge rebalance frequency, model, and cost assumptions",
+            "status": "pending",
+            "warning_emitted": "W-HEDGE-MODEL-UNSPECIFIED",
+        },
+    }
+    import json
+    with open(output_path, "w") as f:
+        json.dump(decisions, f, indent=2)
+    return decisions
+[0m
+<think>
+Let me analyze the key discrepancies. The key concern from this review:
+
+1. **Massive spot data**: I computed start=$66,771.45, end=$63,694.43, return=-4.608%.
+2. **Reported unhedged P&L**: -56.20%.
+
+These are vastly different. Let me look at how the unhedged strategy gets computed.
+
+Looking at the runner code:
+```python
+if (
+    (s.canonical and str(s.canonical) in ("unhedged_baseline", "Unhedged BTC Acquisition"))
+    or s.strategy_id == "unhedged_baseline"
+):
+    result = backtest_unhedged(s, start_date, end_date, spot, seed=42)
+```
+
+It uses `start_spot=spot=reference_spot_usd=65000`. So the backtest_unhedged uses the REFERENCE spot of 65000, NOT the actual first observed spot (66771.45). And:
+
+```python
+def backtest_unhedged(...):
+    btc_held = _btc_held(strategy)
+    spot_at_end = float(spot_path[-1])
+    pnl_usd = btc_held * (spot_at_end - start_spot)
+    pnl_pct = (pnl_usd / (btc_held * start_spot)) * 100.0 if btc_held > 0 and start_spot > 0 else 0.0
+```
+
+So for unhedged_baseline:
+- start_spot = 65000 (reference_spot_usd from mandate, NOT first observed)
+- spot_at_end = 63694.43 (last observed)
+- pnl_usd = 30000 * (63694.43 - 65000) = -3,916,671
+- pnl_pct = -3916671/(30000*65000) * 100 = -3916671/1950000000 * 100 = -0.2009%
+
+But the report claims unhedged_baseline: P&L -56.20%!
+
+This is a major discrepancy. Let me look at the reporting/comparison module to see where -56.20% comes from.
+</think>
+
+Let me trace the unhedged_baseline P&L value -56.20%.
+[0m$ [0mpython3 -c "
+import pandas as pd
+import numpy as np
+# Recompute unhedged_baseline P&L the way the code does
+qty = 30000.0
+spot_start = 65000.0  # reference_spot_usd
+# Last observed spot
+spot_end = 63694.43
+pnl_usd = qty * (spot_end - spot_start)
+notional = qty * spot_start
+pnl_pct = pnl_usd / notional * 100.0
+print(f'unhedged_baseline (computed from code logic): pnl_usd = {pnl_usd:.2f}, pnl_pct = {pnl_pct:.4f}%')
+print()
+# Try the MC path for unhedged_baseline - that's the -56.20%?
+mc = pd.read_parquet('results/research/empirical-baseline-fixed-20260729T005016Z/monte_carlo_results.parquet')
+print('Monte Carlo results:')
+print(mc.to_string())
+"
+
+unhedged_baseline (computed from code logic): pnl_usd = -39167100.00, pnl_pct = -2.0086%
+
+Monte Carlo results:
+               strategy_id  n_paths   model  expected_pnl        var_95        var_99        es_975         es_99    var_95_pnl    es_975_pnl  probability_of_loss  itm_probability
+0        unhedged_baseline    50000  Merton  1.548915e+07  3.956701e+08  5.491915e+08  5.514905e+08  6.252719e+08 -3.956701e+08 -5.514905e+08              0.49746          0.00000
+1             covered_call    50000  Merton  3.759187e+07  3.506701e+08  5.041915e+08  5.064905e+08  5.802719e+08 -3.506701e+08 -5.064905e+08              0.42974          0.14194
+2         cash_secured_put    50000  Merton  1.611095e+07  1.556701e+08  3.091915e+08  3.114905e+08  3.852719e+08 -1.556701e+08 -3.114905e+08              0.16622          0.21652
+3  long_btc_plus_short_put    50000  Merton  3.160010e+07  5.513403e+08  8.583831e+08  8.629810e+08  1.010544e+09 -5.513403e+08 -8.629810e+08              0.42974          0.21652
+4                   collar    50000  Merton  1.365146e+07  2.910000e+08  2.910000e+08  2.910000e+08  2.910000e+08 -2.910000e+08 -2.910000e+08              0.48434          0.14194
+5              call_spread    50000  Merton  6.906561e+06  1.524786e+08  2.730000e+08  2.708693e+08  2.730000e+08 -1.524786e+08 -2.708693e+08              0.12264          0.14194
+6          partial_overlay    50000  Merton  2.654051e+07  3.731701e+08  5.266915e+08  5.289905e+08  6.027719e+08 -3.731701e+08 -5.289905e+08              0.46410          0.14194
+7            strike_ladder    50000  Merton  3.050579e+07  3.566701e+08  5.101915e+08  5.124905e+08  5.862719e+08 -3.566701e+08 -5.124905e+08              0.43850          0.14774
+[0m
+<think>
+OK so the Monte Carlo uses Merton model and gives these values. Note all values are positive numbers like "var_95_loss": 395670135.44 — but the comparison says unhedged_baseline has total_pnl_pct = -56.20%.
+
+Where does the -56.20% come from?
+
+Let me look at the runner code more carefully and the strategy_comparison output. The total_pnl_pct is from `getattr(bt, "total_pnl_pct", 0.0)`. For unhedged_baseline, the result comes from `backtest_unhedged`.
+
+In backtest_unhedged:
+```python
+pnl_usd = btc_held * (spot_at_end - start_spot)
+```
+where:
+- start_spot = 65000 (the parameter)
+- spot_path[-1] = 63694.43 (last observed spot)
+
+So pnl_usd = 30000 * (63694.43 - 65000) = -39,167,100
+pnl_pct = -39167100 / (30000 * 65000) * 100 = -2.0086%
+
+That gives -2.01%, not -56.20%.
+
+Where does -56.20% come from? Let me look at the strategy_comparison.csv more carefully and search the codebase.</think>
+
+
+Let me trace where the -56.20% comes from for unhedged_baseline.
+</think>
+
+.
+[0m$ [0mgrep -rn "56.20\|56\.2\|0\.5620" --include='*.py' --include='*.md' --include='*.csv' --include='*.json' --include='*.parquet' . 2>/dev/null | head -30
+...output truncated...
+
+Full output saved to: /home/heimdall/.local/share/opencode/tool-output/tool_fad260bfc001GimbKKB44WV0K3
+
+./results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-503/research_report.md:18:- **unhedged_baseline**: P&L -56.20%, Eff. Acq. $63,375/BTC
+./results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-503/presentation_summary.md:11:- Total P&L: -56.20%
+[0m
+[0m$ [0mpython3 -c "
+import pandas as pd
+# Re-load the comparison
+df = pd.read_csv('results/research/empirical-baseline-fixed-20260729T005016Z/strategy_comparison.csv')
+print(df.columns.tolist())
+print()
+print(df[['strategy_id', 'total_pnl_pct', 'total_premium_usd', 'effective_acquisition_cost']].to_string())
+"
+
+['strategy_id', 'strategy_kind', 'business_label', 'total_pnl_pct', 'itm_frequency', 'touch_frequency', 'max_drawdown_pct', 'sharpe_ratio', 'total_premium_usd', 'effective_acquisition_cost', 'pbo_estimate', 'deflated_sharpe_ratio', 'var_95_loss', 'es_975_loss', 'probability_of_loss', 'highest_pnl_stress', 'lowest_pnl_stress']
+
+               strategy_id  total_pnl_pct  total_premium_usd  effective_acquisition_cost
+0        unhedged_baseline     -56.198194       0.000000e+00                63375.000000
+1             covered_call      11.260392       1.134176e+10                67491.426837
+2         cash_secured_put       1.728868       2.159643e+08                55676.323717
+3  long_btc_plus_short_put      16.567530       2.159643e+08                63947.773717
+4                   collar       1.214913       1.125411e+10                73387.723771
+5              call_spread     -10.757924       4.188895e+09                72285.385860
+6          partial_overlay      13.049527       5.670880e+09                66296.795294
+7            strike_ladder      14.833059       1.146110e+10                65105.905453
+[0m
+<think>
+The values are stored. But where is the -56.20% computed from? Let me look at the strategy_comparison CSV values more carefully and compare with the code.
+
+Looking at the comparison:
+- unhedged_baseline: -56.198194% 
+
+Where does this come from? Let me run backtest_unhedged with the actual inputs to verify.
+
+Actually, looking at the runner code:
+```python
+for s in strategies:
+    if (
+        (s.canonical and str(s.canonical) in ("unhedged_baseline", "Unhedged BTC Acquisition"))
+        or s.strategy_id == "unhedged_baseline"
+    ):
+        result = backtest_unhedged(s, start_date, end_date, spot, seed=42)
+```
+
+But `s.canonical` is `StrategyKind.BESPOKE` from `build_unhedged_baseline`. So the first check fails because the canonical kind would be "BESPOKE". But `s.strategy_id == "unhedged_baseline"` is True. So we go into the unhedged branch.
+
+In `backtest_unhedged`:
+```python
+def backtest_unhedged(
+    strategy: Strategy,
+    start_date: datetime,
+    end_date: datetime,
+    start_spot: float,
+    annual_vol: float = 0.45,
+    annual_drift: float = 0.10,
+    seed: int = 42,
+) -> BacktestResult:
+    n_days = max((end_date - start_date).days, 1)
+    rng = np.random.default_rng(seed)
+    dt = 1.0 / 365.0
+    z = rng.normal(size=n_days)
+    returns = (annual_drift - 0.5 * annual_vol ** 2) * dt + annual_vol * np.sqrt(dt) * z
+    path = start_spot * np.exp(np.cumsum(returns))
+    spot_path = np.insert(path, 0, start_spot)
+    dates = [start_date + timedelta(days=i) for i in range(n_days + 1)]
+
+    btc_held = _btc_held(strategy)
+    spot_at_end = float(spot_path[-1])
+    pnl_usd = btc_held * (spot_at_end - start_spot)
+    pnl_pct = (pnl_usd / (btc_held * start_spot)) * 100.0 if btc_held > 0 and start_spot > 0 else 0.0
+```
+
+So `start_spot=65000` and `spot_path` is computed synthetically using GBM with `seed=42`, drift=0.10, vol=0.45.
+
+So the -56.20% comes from a SYNTHETIC GBM path using `seed=42`, NOT from the actual Massive data! 
+
+Let me verify this.The
+</think>
+
+-56.20% comes from a synthetic GBM path with seed=42, NOT from the actual Massive data! Let me verify.
+[0m$ [0mpython3 -c "
+import numpy as np
+from datetime import datetime, timedelta, UTC
+start_spot = 65000.0
+start_date = datetime.fromisoformat('2023-01-01').replace(tzinfo=UTC)
+end_date = datetime.fromisoformat('2026-07-27').replace(tzinfo=UTC)
+n_days = max((end_date - start_date).days, 1)
+rng = np.random.default_rng(42)
+dt = 1.0 / 365.0
+z = rng.normal(size=n_days)
+returns = (0.10 - 0.5 * 0.45 ** 2) * dt + 0.45 * np.sqrt(dt) * z
+path = start_spot * np.exp(np.cumsum(returns))
+spot_path = np.insert(path, 0, start_spot)
+spot_at_end = float(spot_path[-1])
+pnl_usd = 30000.0 * (spot_at_end - start_spot)
+pnl_pct = pnl_usd / (30000.0 * start_spot) * 100.0
+print(f'n_days={n_days}')
+print(f'spot_path len={len(spot_path)}')
+print(f'spot_at_end={spot_at_end:.4f}')
+print(f'pnl_usd={pnl_usd:.4f}')
+print(f'pnl_pct={pnl_pct:.6f}%')
+print()
+# Also check effective acquisition cost
+seller_discount = start_spot * 0.025 * 30000
+print(f'seller_discount={seller_discount:.2f}')
+eff_cost = start_spot * (1.0 - 0.025) if 30000 > 0 else start_spot
+print(f'eff_cost_per_btc = {eff_cost}')
+"
+
+n_days=1303
+spot_path len=1304
+spot_at_end=28471.1739
+pnl_usd=-1095864783.3267
+pnl_pct=-56.198194%
+
+seller_discount=48750000.00
+eff_cost_per_btc = 63375.0
+[0m
+[0m$ [0mcat results/research/empirical-baseline-fixed-20260729T005016Z/data_manifest.json
+{
+  "actual_provider": "massive",
+  "endpoint": "/v2/aggs/ticker/{ticker}/range/1/day/{from_}/{to}",
+  "requested_start": "2023-01-01T00:00:00+00:00",
+  "requested_end": "2026-07-27T00:00:00+00:00",
+  "actual_start": "2024-07-29T00:00:00+00:00",
+  "actual_end": "2026-07-27T00:00:00+00:00",
+  "observation_count": 729,
+  "retrieval_timestamp": "2026-07-29T00:50:18.028020+00:00",
+  "checksum": "4879bfbb6b181d0429975f6cb5eb085709ba875c23e79e4c8c8ad1cd8258e263",
+  "provenance": "observed",
+  "fallback_used": false,
+  "fallback_provider": "",
+  "cache_path": "results/research/empirical-baseline-fixed-20260729T005016Z/cache/massive_2023-01-01_2026-07-27_59576938996d.json",
+  "notes": ""
+}
+[0m
+<think>
+Confirmed! The unhedged_baseline P&L of -56.20% comes from a SYNTHETIC GBM path with seed=42, NOT from the actual Massive observed data.
+
+So the runner uses the REAL Massive spot data for option strategies (covered_call, csp, etc.) but uses a SYNTHETIC GBM path for unhedged_baseline!
+
+This is a critical inconsistency because:
+- The Massive data shows the BTC return over 2024-07-29 to 2026-07-27 was -4.608%
+- But the unhedged baseline shows -56.20% based on a synthetic path
+
+Additionally, the effective acquisition cost of $63,375 is hardcoded (start_spot * 0.975 = 65000 * 0.975 = 63,375) and doesn't reflect actual market price evolution.
+
+Also, the data_manifest for the run shows:
+- actual_provider: "massive"
+- observation_count: 729
+- Date range: 2024-07-29 to 2026-07-27
+
+This is a BLOCKING finding because the unhedged_baseline is mislabeled as historical when it is actually synthetic.
+
+Let me also examine the start date discrepancy. The data shows the actual data starts 2024-07-29, but the config window is 2023-01-01. So the Massive provider returned less data than requested. Let me check the window.
+
+Also let me check the data manifest more carefully.Let
+</think>
+
+me examine the start date discrepancy and data manifest.
+<think>
+Now I see:
+- Requested: 2023-01-01 to 2026-07-27 (3.5 years = ~1279 days)
+- Actual: 2024-07-29 to 2026-07-27 (729 days = 2 years)
+- observation_count: 729
+
+So the Massive data only returned 2 years of data instead of the requested 3.5 years. This means the backtest results are for a different period than the config specifies.
+
+The cycle_num 0 starts at 2024-07-29 (the first observed day), not 2023-01-01. This is a known issue.
+
+Let me look at more of the data and continue with other findings. Let me look at the OOS validation, execution sensitivity, and Monte Carlo outputs.</think>
+
+
+Now I see:
+- Requested: 2023-01-01 to 2026-07-27 (3.5 years = ~1279 days)
+- Actual: 2024-07-29 to 2026-07-27 (729 days = 2 years)
+- observation_count: 729
+
+So the Massive data only returned 2 years of data instead of the requested 3.5 years. This means the backtest results are for a different period than the config specifies.
+
+The cycle_num 0 starts at 2024-07-29 (the first observed day), not 2023-01-01. This is a known issue.
+
+Let me look at more of the data and continue with other findings. Let me look at the OOS validation, execution sensitivity, and Monte Carlo outputs.
+</think>

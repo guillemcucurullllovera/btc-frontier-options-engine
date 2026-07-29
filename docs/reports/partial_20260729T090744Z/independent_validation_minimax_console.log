@@ -1,0 +1,19 @@
+[0m
+> build · MiniMax-M3
+[0m
+[0m# [0mTodos
+[•] Inventory required evidence and resolve current run directories
+[ ] Independently recompute spot, ledgers, returns, drawdowns, regimes, and premiums
+[ ] Inspect OOS, execution sensitivity, Monte Carlo, and report run provenance
+[ ] Cross-check stress tables, synthesis claims, and unsupported presentation content
+[ ] Write machine-readable findings JSON and validation report
+[ ] Validate report/JSON and run required repository checks
+[0m
+<think>
+**Defining report access and task partitioning**
+</think>
+[0m• [0mRecompute ledger economics[90m General Agent[0m
+[0m• [0mInspect validation implementations[90m General Agent[0m
+[0m• [0mAudit stress and claims[90m General Agent[0m
+[0m→ [0mRead .[90m [limit=200, offset=1][0m
+[0m✱ [0mGlob ".latest_research*"[90m in . · 9 matches[0m

@@ -1,0 +1,323 @@
+{
+  "review_status": "INSUFFICIENT_EVIDENCE",
+  "review_date": "2026-07-29",
+  "reviewer_role": "independent_senior_quantitative_validation_reviewer",
+  "blocking_findings": ["V-001", "V-002", "V-003"],
+  "findings": [
+    {
+      "id": "V-001",
+      "severity": "BLOCKING",
+      "title": "Unhedged baseline uses synthetic GBM data, not observed Massive spot",
+      "files": ["research/runner.py:388-393", "strategy/backtest.py:694-748"],
+      "affected_outputs": ["strategy_comparison.csv:total_pnl_pct", "strategy_comparison.csv:effective_acquisition_cost"],
+      "expected": "Unhedged P&L derived from observed _spot_data_dump.csv (start=$66,771.45, end=$63,694.43, return=-4.61%)",
+      "observed": "Unhedged P&L from GBM rng(seed=42) over 1303 days (start=$65,000, end=$28,471.17, return=-56.20%). Unhedged uses backtest_unhedged() which generates synthetic paths; all other strategies use backtest_strategy() with observed data.",
+      "calculated": null,
+      "root_cause": "Runner at line 388 dispatches unhedged to backtest_unhedged(s, start_date, end_date, spot, seed=42) which ignores observed spot_path. The reference_spot_usd=65000 is used as the starting point for a synthetic GBM simulation.",
+      "repair": "Route unhedged through backtest_strategy() with zero option legs, using the same spot_path, iv_history, and dates as all other strategies. Remove or deprecate backtest_unhedged().",
+      "acceptance_test": "After repair, unhedged total_pnl_pct must equal the observed buy-and-hold return from _spot_data_dump.csv (approximately -4.61%, not -56.20%)."
+    },
+    {
+      "id": "V-002",
+      "severity": "BLOCKING",
+      "title": "Unhedged max_drawdown 0% incompatible with -56.2% P&L",
+      "files": ["strategy/backtest.py:694-748", "strategy/backtest.py:BacktestResult dataclass"],
+      "affected_outputs": ["strategy_comparison.csv:max_drawdown_pct"],
+      "expected": "max_drawdown_pct >= |total_pnl_pct| for any strategy with negative return, by definition",
+      "observed": "max_drawdown_pct=0.0000 for unhedged_baseline with total_pnl_pct=-56.1982",
+      "calculated": null,
+      "root_cause": "backtest_unhedged() instantiates BacktestResult without computing drawdown — the field defaults to 0.0 from the dataclass. No drawdown computation exists in the unhedged code path.",
+      "repair": "Compute peak-to-trough drawdown from the spot path within backtest_unhedged(), or route through backtest_strategy() which already computes drawdown at lines 490-497.",
+      "acceptance_test": "After repair, unhedged max_drawdown_pct >= 56.2."
+    },
+    {
+      "id": "V-003",
+      "severity": "BLOCKING",
+      "title": "Asymmetric data sources in strategy comparison table",
+      "files": ["research/runner.py:388-401"],
+      "affected_outputs": ["strategy_comparison.csv (all rows)"],
+      "expected": "All strategies in a single comparison table derived from the same underlying data source",
+      "observed": "Unhedged derives from synthetic GBM (seed=42); 7 other strategies derive from observed Massive spot data. Both sources produce different market environments and cannot be meaningfully compared.",
+      "calculated": null,
+      "root_cause": "Same as V-001 — heterogeneous dispatch in the backtest loop.",
+      "repair": "Unify all strategies to use the same data source. Either all use observed data or all use synthetic data.",
+      "acceptance_test": "After repair, a single data provenance document covers all strategies in the comparison."
+    },
+    {
+      "id": "V-004",
+      "severity": "MAJOR",
+      "title": "Total premium includes intrinsic value from deep-ITM options, misrepresented as premium income",
+      "files": ["strategy/backtest.py:371-383", "strategy/backtest.py:467-482"],
+      "affected_outputs": ["backtest_results.parquet:premium_received_usd", "strategy_comparison.csv:total_premium_usd"],
+      "expected": "total_premium_usd reflects standalone option premium (time value) received by the strategy writer",
+      "observed": "premium_received_usd per cycle varies from $128/BTC (0.21%) to $49,966/BTC (40.06%). The high values correspond to cycles where the fixed $75,000 strike call is deep ITM at entry. The $11.34B total for covered call includes intrinsic value that must be repaid at settlement.",
+      "calculated": "For covered call cycle 4: BS price at entry ($96,465 spot, $75,000 strike, 30 DTE) ≈ $21,810/BTC. Of this, approximately $21,465 is intrinsic value ($96,465 - $75,000). Net time value is only ~$345/BTC. The report narrative treats the full $21,810/BTC as a 'premium buffer'.",
+      "root_cause": "_option_price() computes full BS price including intrinsic value. Fixed $75,000 strikes (from reference spot × 1.15) become deep ITM when spot rallies above $75,000. The premium_received_usd correctly reflects the BS fair price, but the STRATEGY narrative misinterprets it as standalone income.",
+      "repair": "Separate premium_received_usd into upfront_option_premium_usd (total BS price) and option_intrinsic_value_at_entry_usd. Report net_option_income_usd = upfront - settlement + fees as the net economic effect.",
+      "acceptance_test": "Verify that the net P&L contribution from option legs equals upfront premium + settlement payout (not just upfront premium). Ensure report narrative references net option income, not gross premium."
+    },
+    {
+      "id": "V-005",
+      "severity": "MAJOR",
+      "title": "Historical spot return misrepresented in report narrative",
+      "files": ["docs/reports/final_empirical_research_synthesis_deepseek.md"],
+      "affected_outputs": ["Report Sections 1.2, 2.3, 3.1, 4.1, 4.2"],
+      "expected": "Observed Massive spot return: (end_close - start_close) / start_close × 100 = (63694.43 - 66771.45) / 66771.45 × 100 = -4.61%",
+      "observed": "Report claims 'BTC declined 56% from the observation start' and 'The historical 56% spot decline.'",
+      "calculated": "-4.61% buy-and-hold from observed _spot_data_dump.csv; min was $53,950, max was $124,720; peak-to-trough decline was -56.74%",
+      "root_cause": "The -56.2% figure is the GBM-simulated unhedged P&L (V-001), not the observed spot return. The report conflates a simulated unhedged result with historical market observation.",
+      "repair": "Resolve V-001 first. Then replace all references to '56% decline' with the actual observed return (-4.61%). Distinguish peak-to-trough drawdown (-56.74%) from end-to-end return (-4.61%).",
+      "acceptance_test": "Report narrative references observed spot return (-4.61%) as the historical market return and clearly distinguishes it from simulated values."
+    },
+    {
+      "id": "V-006",
+      "severity": "MAJOR",
+      "title": "OOS validation metrics are null — insufficient cycles for CSCV",
+      "files": ["strategy/regimes.py:compute_oos_validation", "research/runner.py:416-585"],
+      "affected_outputs": ["oos_results.parquet:pbo_estimate, deflated_sharpe_ratio"],
+      "expected": "PBO, DSR, and CSCV computed per Bailey et al. (2015) with cscv_n=100",
+      "observed": "8 rows in oos_results.parquet — all with pbo_estimate=None, deflated_sharpe_ratio=None",
+      "calculated": null,
+      "root_cause": "CSCV requires len(all_returns) >= cscv_n (100). Each strategy has ≤24 backtest cycles. Unhedged has 0 cycles. The is_insufficient_data flag is set to True in the code but not recorded in the output parquet. The train/test window size is a secondary issue — even with full requested date range (1303 days), only ~43 cycles would exist at 30 DTE, still below 100.",
+      "repair": "Add is_insufficient_data and insufficient_data_reason fields to oos_results.parquet. Consider lowering cscv_n to the achievable number of cycles, or replace CSCV with a simpler train/test split comparison.",
+      "acceptance_test": "oos_results.parquet includes is_insufficient_data=True and a human-readable reason for all strategies."
+    },
+    {
+      "id": "V-007",
+      "severity": "MAJOR",
+      "title": "Execution sensitivity contains only configuration, no strategy results",
+      "files": ["research/runner.py:514-521", "research/runner.py:631-635"],
+      "affected_outputs": ["execution_sensitivity.parquet"],
+      "expected": "strategy × spot_offset × fee_base results (≥ 56 rows for 7 strategies × 7 offsets × 2 fee bases, or 112 rows including unhedged)",
+      "observed": "1 row with configuration values only: spot_offsets_pct=['-10.0','-5.0',...], fee_bases=['reference_notional','executed_volume']",
+      "calculated": null,
+      "root_cause": "waterfall_sensitivity(None, sens) is called at line 521 with None strategy and the result is discarded. The actual iteration over (strategy, spot_offset, fee_base) combinations is never performed. The parquet writer at lines 631-635 writes the raw config instead of computed results.",
+      "repair": "Iterate over all (strategy, spot_offset, fee_base) combinations, call waterfall_sensitivity with actual strategy and sensitivity config, collect results, and write to parquet. Required dimensions: strategy_id, spot_offset_pct, fee_base, effective_acquisition_cost, total_pnl_pct, fee_component_usd, impact_component_usd.",
+      "acceptance_test": "execution_sensitivity.parquet has ≥ 56 rows with non-configuration values for effective_acquisition_cost and total_pnl_pct per (strategy, spot_offset, fee_base) combination."
+    },
+    {
+      "id": "V-008",
+      "severity": "MODERATE",
+      "title": "MC aggregate metrics zero variance across seeds — expected but misdiagnosed",
+      "files": ["results/research/empirical-robustness-20260729T005618Z/robustness_summary.csv"],
+      "affected_outputs": ["robustness_summary.csv:total_pnl_pct_std, sharpe_ratio_std, etc."],
+      "expected": "Zero variance for deterministic (historical) fields; non-zero variance for simulated (MC) fields",
+      "observed": "total_pnl_pct_std=0.0, sharpe_ratio_std=0.0, total_premium_usd_std=0.0, effective_acquisition_cost_std=0.0 for all strategies. var_95_loss_std IS non-zero ($454k-$908k across strategies).",
+      "calculated": null,
+      "root_cause": "The zero-variance fields are historical backtest results that are identical for all runs because they share the same spot data. The MC component only affects tail-risk metrics. The synthesis report misdiagnoses this as a 'potential seed-isolation defect' when it is expected behavior for deterministic historical quantities.",
+      "repair": "Document the provenance split in robustness_summary.csv. Add a column distinguishing historical (deterministic) from simulated (random) fields. Remove the misleading 'seed-isolation defect' language from the report.",
+      "acceptance_test": "Robustness summary distinguishes deterministic historical fields from simulated Monte Carlo fields. Report narrative explains that zero variance in historical fields is expected."
+    },
+    {
+      "id": "V-009",
+      "severity": "MODERATE",
+      "title": "ITM frequency of 62.5% is with respect to fixed $75,000 strike, not dynamically 15%-OTM",
+      "files": ["strategy/backtest.py", "strategy/definitions.py"],
+      "affected_outputs": ["backtest_results.parquet:is_itm", "strategy_comparison.csv:itm_frequency"],
+      "expected": "ITM frequency measures whether the option expired ITM relative to its entry strike",
+      "observed": "All cycles use strike=$75,000 (reference spot $65,000 × 1.15). When spot reaches $124,720, a $75,000 strike call is 66% ITM at entry — not 15% OTM. The 62.5% ITM frequency reflects whether spot finished above $75,000 (a fixed level), not whether a dynamically 15%-OTM call finished ITM.",
+      "calculated": "If strikes were computed dynamically as entry_spot × 1.15 per cycle, the ITM frequency would differ because strikes would track the spot path.",
+      "root_cause": "Strategy definitions use static strikes computed from the reference spot. The backtest does not recompute strikes per cycle from the entry spot.",
+      "repair": "Either recompute strikes per cycle as entry_spot × (1 + strike_pct_above) or clearly document that the strike is a fixed $75,000 level from the reference configuration, not a dynamically-resetting 15%-OTM level.",
+      "acceptance_test": "Documentation clearly states whether strikes are static (derived from reference spot once) or dynamic (recomputed from each cycle's entry spot)."
+    },
+    {
+      "id": "V-010",
+      "severity": "MODERATE",
+      "title": "Collar total_premium_usd reflects gross call premium only, not net of put cost",
+      "files": ["strategy/comparison.csv", "research/runner.py:481"],
+      "affected_outputs": ["strategy_comparison.csv:total_premium_usd for collar"],
+      "expected": "total_premium_usd for collar = short call premium received - long put premium paid",
+      "observed": "total_premium_usd for collar = $11,254,109,847; for covered_call = $11,341,760,165. Nearly identical despite the collar having an additional long put leg that costs premium. The long put cost is embedded in net P&L but not in total_premium_usd.",
+      "calculated": null,
+      "root_cause": "total_premium_received_usd accumulates premium_received_usd at line 481. For the collar, premium_received_usd includes the signed sum of short call (positive) and long put (negative) premiums. However, the long put negative contribution is small relative to the short call and the accumulation logic may not correctly net them.",
+      "repair": "Add a net_premium_usd field that explicitly computes the signed sum across all option legs. Verify that collar net_premium < covered_call total_premium.",
+      "acceptance_test": "strategy_comparison.csv includes net_premium_usd column. For collar, net_premium_usd < total_premium_usd (reflecting the put cost)."
+    },
+    {
+      "id": "V-011",
+      "severity": "MODERATE",
+      "title": "Cycle count misstatement in report",
+      "files": ["docs/reports/final_empirical_research_synthesis_deepseek.md"],
+      "affected_outputs": ["Report Section 1.1, Section 4.1"],
+      "expected": "7 strategies (excluding unhedged) × 24 cycles = 168 total cycles",
+      "observed": "Report states '168 backtest cycles across 8 strategies × 21 cycles each'",
+      "calculated": "backtest_results.parquet: 168 rows, 7 unique strategy_ids, 24 rows per strategy. Unhedged has 0 cycles (not in backtest). 7 × 24 = 168.",
+      "root_cause": "Arithmetic error in report text. Unhedged has no option cycles but was counted in the total.",
+      "repair": "Correct to: '168 cycles across 7 option-overlay strategies × 24 cycles each (unhedged baseline has no option cycles).'",
+      "acceptance_test": "Report Section 1.1 states correct cycle count."
+    },
+    {
+      "id": "V-012",
+      "severity": "MINOR",
+      "title": "Effective acquisition cost not decomposed in comparison output",
+      "files": ["research/reporting.py:build_comparison_table", "strategy/backtest.py:EffectiveAcquisitionCost"],
+      "affected_outputs": ["strategy_comparison.csv:effective_acquisition_cost"],
+      "expected": "Per contracts.md §11.1, effective acquisition cost decomposed into premium, fee, seller discount, and impact components with provenance",
+      "observed": "Single scalar effective_acquisition_cost per strategy. EffectiveAcquisitionCost dataclass contains sub-components but they are not written to CSV.",
+      "calculated": null,
+      "root_cause": "build_comparison_table() extracts only per_btc_usd from the EffectiveAcquisitionCost object, not the individual components.",
+      "repair": "Add premium_component_usd, fee_component_usd, seller_discount_component_usd, impact_component_usd columns to strategy_comparison.csv.",
+      "acceptance_test": "strategy_comparison.csv includes per-component columns for effective acquisition cost decomposition."
+    },
+    {
+      "id": "V-013",
+      "severity": "MINOR",
+      "title": "Stress premium_contribution_pct is constant across all scenarios for a given strategy",
+      "files": ["strategy/stress.py"],
+      "affected_outputs": ["stress_results.parquet:premium_contribution_pct"],
+      "expected": "Premium contribution should vary by scenario (higher in high-vol, lower in low-vol) if recomputed under stress conditions",
+      "observed": "covered_call shows premium_contribution_pct = 1.0714% for ALL 10 scenarios (flash crash, breakout, sideways, etc.)",
+      "calculated": null,
+      "root_cause": "The stress module applies the single config-level premium estimate (BS ATM, 15% OTM, 30 DTE, 45% vol) to all scenarios without recomputing under the scenario-specific spot/vol conditions.",
+      "repair": "Either recompute premium under each scenario's spot/vol parameters or document that premium_contribution_pct is the baseline single-cycle estimate and not scenario-dependent.",
+      "acceptance_test": "Report narrative documents the provenance of stress premium_contribution_pct."
+    },
+    {
+      "id": "V-014",
+      "severity": "MINOR",
+      "title": "CSP regime P&L of +$45M is per-regime premium income, not total return",
+      "files": ["strategy/regimes.py", "docs/reports/final_empirical_research_synthesis_deepseek.md"],
+      "affected_outputs": ["regime_results.parquet:strategy_metrics.cash_secured_put.strategy_pnl_usd"],
+      "expected": "Per-regime CSP P&L reflects the change in strategy value over the regime period",
+      "observed": "CSP strategy_pnl_usd = $45,000,000 for all 22 regimes. This is the per-cycle premium income, not a regime-level P&L measure.",
+      "calculated": "With a $75,000 put strike and spot never below $53,950, the put never expires ITM. CSP income per regime = optional premium income = approximately $45M (per-regime premium accumulation).",
+      "root_cause": "The regime analysis payoff function for CSP returns the premium income without adjusting for the regime's duration or mark-to-market changes. The $45M is structurally correct as premium income but is described as 'P&L' in the report.",
+      "repair": "Document that CSP regime metric is per-regime premium income, not total regime P&L. Clarify that no BTC is held so there are no spot-related MTM changes.",
+      "acceptance_test": "Report labels CSP regime metric as 'premium income per regime' rather than 'P&L per regime.'"
+    }
+  ],
+  "verified_identities": [
+    {
+      "identity": "Observed spot return",
+      "formula": "(end_close / start_close - 1) × 100",
+      "expected": "-4.61%",
+      "observed": "start=$66,771.45, end=$63,694.43",
+      "match": true
+    },
+    {
+      "identity": "GBM unhedged P&L (seed=42)",
+      "formula": "pnl_usd / (btc_held × start_spot) × 100",
+      "expected": "-56.20%",
+      "observed": "-56.20% (reconstructed independently)",
+      "match": true
+    },
+    {
+      "identity": "Covered call P&L from cycle sum",
+      "formula": "Σ net_pnl_usd / strategy_notional × 100",
+      "expected": "11.26%",
+      "observed": "11.26% (225,561,807 / 2,003,143,500 × 100)",
+      "match": true
+    },
+    {
+      "identity": "Effective cost (unhedged)",
+      "formula": "65000 × (1 - 0.025)",
+      "expected": "$63,375",
+      "observed": "$63,375",
+      "match": true
+    },
+    {
+      "identity": "Backtest cycle count",
+      "formula": "7 strategies × 24 cycles",
+      "expected": "168",
+      "observed": "168 rows in backtest_results.parquet",
+      "match": true
+    }
+  ],
+  "unsupported_claims": [
+    "BTC declined 56% from the observation start — observed decline is -4.61%",
+    "Unhedged baseline lost 56.2% while option strategies recorded positive P&L — unhedged uses synthetic GBM, options use observed data",
+    "Total premium received of $11.34B is a standalone buffer — includes intrinsic value repaid at settlement",
+    "ITM frequency of 0 for unhedged — unhedged has no options; field is undefined",
+    "All 36 MC runs share identical computation path irrespective of seed — historical fields are deterministic by design",
+    "Model-reconstructed premium ~1.07% per cycle — per-cycle premium varies 0.21%-40.06% due to fixed strikes"
+  ],
+  "required_repairs": [
+    {
+      "priority": "P0",
+      "finding": "V-001",
+      "action": "Route unhedged through backtest_strategy() with zero option legs, using observed spot_path",
+      "files": ["research/runner.py:388-393"]
+    },
+    {
+      "priority": "P0",
+      "finding": "V-002",
+      "action": "Compute max_drawdown for unhedged strategy",
+      "files": ["strategy/backtest.py:694-748"]
+    },
+    {
+      "priority": "P0",
+      "finding": "V-004",
+      "action": "Separate upfront_premium_usd from option_settlement_cash_flow_usd",
+      "files": ["strategy/backtest.py:467-482"]
+    },
+    {
+      "priority": "P1",
+      "finding": "V-007",
+      "action": "Populate execution sensitivity with strategy × spot_offset × fee_base results",
+      "files": ["research/runner.py:514-521"]
+    },
+    {
+      "priority": "P1",
+      "finding": "V-006",
+      "action": "Add is_insufficient_data flag and reason to OOS output",
+      "files": ["research/runner.py:577-585"]
+    },
+    {
+      "priority": "P1",
+      "finding": "V-009",
+      "action": "Document or recompute strikes dynamically per-cycle",
+      "files": ["strategy/backtest.py:340-390", "strategy/definitions.py"]
+    },
+    {
+      "priority": "P2",
+      "finding": "V-010",
+      "action": "Add net_premium_usd column to comparison output",
+      "files": ["research/runner.py:481-484", "research/reporting.py"]
+    },
+    {
+      "priority": "P2",
+      "finding": "V-012",
+      "action": "Add acquisition cost sub-components to comparison CSV",
+      "files": ["research/reporting.py"]
+    },
+    {
+      "priority": "P2",
+      "finding": "V-011",
+      "action": "Correct cycle count in report",
+      "files": ["docs/reports/final_empirical_research_synthesis_deepseek.md"]
+    },
+    {
+      "priority": "P3",
+      "finding": "V-008",
+      "action": "Document provenance split between historical and simulated fields",
+      "files": ["research/runner.py"]
+    }
+  ],
+  "acceptance_tests": [
+    {
+      "findings": ["V-001", "V-003"],
+      "test": "Run all 8 strategies through backtest_strategy() using identical spot_path. Verify unhedged total_pnl_pct = observed buy-and-hold return (~-4.61%)."
+    },
+    {
+      "findings": ["V-002"],
+      "test": "Verify unhedged max_drawdown_pct > 0 and ≥ |total_pnl_pct|."
+    },
+    {
+      "findings": ["V-004"],
+      "test": "For any deep-ITM cycle, verify upfront premium is time value only. net_option_income = upfront + settlement correctly equals the economic contribution."
+    },
+    {
+      "findings": ["V-007"],
+      "test": "execution_sensitivity.parquet has ≥ 56 rows with strategy × spot_offset × fee_base combinations."
+    },
+    {
+      "findings": ["V-006"],
+      "test": "oos_results.parquet includes is_insufficient_data and reason fields."
+    },
+    {
+      "findings": ["V-005", "V-011"],
+      "test": "Report narrative uses observed return (-4.61%) and correct cycle count (7 × 24 = 168)."
+    }
+  ]
+}

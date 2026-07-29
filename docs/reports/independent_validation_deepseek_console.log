@@ -1,0 +1,1468 @@
+[0m
+> build · deepseek-v4-pro
+[0m
+[0m✱ [0mGlob "**/*.csv"[90m 0 matches[0m
+[0m✱ [0mGlob "**/contracts.md"[90m 2 matches[0m
+[0m✱ [0mGlob "**/.latest_research_*"[90m 9 matches[0m
+[0m✱ [0mGlob "**/config/research_nightly.yaml"[90m 2 matches[0m
+[0m✱ [0mGlob "docs/reports/**/*.md"[90m 26 matches[0m
+[0m→ [0mRead .latest_research_baseline
+[0m→ [0mRead .latest_research_robustness
+[0m→ [0mRead .latest_research_intensive
+[0m→ [0mRead .latest_research_suite
+[0m→ [0mRead .latest_research_run
+[0m• [0mFind research output dirs[90m Explore Agent[0m
+[0m→ [0mRead docs/reports/final_empirical_research_synthesis_deepseek.md
+[0m→ [0mRead config/research_nightly.yaml
+[0m✓ [0mFind research output dirs[90m Explore Agent[0m
+[0m→ [0mRead docs/reports/final_empirical_research_synthesis_deepseek.md[90m [offset=761][0m
+[0m✱ [0mGlob "research_output/**"[90m 0 matches[0m
+[0m✱ [0mGlob "runs/**"[90m 0 matches[0m
+[0m
+[0m$ [0mfind /home/heimdall/btc_proj/BTC_analysis/btc_engine -maxdepth 5 -type d -name "empirical-*" 2>/dev/null | head -20
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-intensive-20260729T003308Z
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-suite-20260729T003308Z
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-suite-20260729T000727Z
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-20260729T003308Z
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-20260729T000727Z
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-intensive-20260729T000727Z
+[0m
+[0m$ [0mfind /home/heimdall/btc_proj/BTC_analysis/btc_engine -maxdepth 5 -type d -name "*output*" -o -type d -name "*exports*" -o -type d -name "*data*" 2>/dev/null | head -20
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/docs/data
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/exports
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/private_reference_library/pillar_4_venue_standards/deribit/api/01_market_data
+[0m
+[0m$ [0mfind /home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z -type f | sort | head -50
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/backtest_results.parquet
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/cache/massive_2023-01-01_2026-07-27_59576938996d.json
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/checksums.sha256
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/data_manifest.json
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/decision_pending.json
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/execution_sensitivity.parquet
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/logs/research.log
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/monte_carlo_results.parquet
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/oos_results.parquet
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/presentation_summary.md
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/regime_results.parquet
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/research_report.md
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/resolved_config.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/run_manifest.json
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/run_status.json
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/strategy_comparison.csv
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/stress_results.parquet
+[0m
+[0m$ [0mfind /home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z -maxdepth 3 -type f | sort | head -50
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/all_strategy_results.csv
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-1009.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-101.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-1103.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-1201.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-211.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-307.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-401.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-503.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-601.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-701.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-809.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-1500000-seed-907.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-1009.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-101.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-1103.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-1201.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-211.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-307.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-401.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-503.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-601.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-701.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-809.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-3000000-seed-907.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-1009.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-101.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-1103.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-1201.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-211.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-307.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-401.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-503.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-601.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-701.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-809.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/configs/mc-500000-seed-907.yaml
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/logs/master.log
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/_spot_data_dump.csv
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/backtest_results.parquet
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/cache/massive_2023-01-01_2026-07-27_b3930062bdb3.json
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/checksums.sha256
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/data_manifest.json
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/decision_pending.json
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/execution_sensitivity.parquet
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/logs/research.log
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/monte_carlo_results.parquet
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/oos_results.parquet
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/presentation_summary.md
+/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z/mc-1500000-seed-1009/regime_results.parquet
+[0m
+[0m$ [0mhead -20 /home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv
+timestamp,close
+2024-07-29T00:00:00+00:00,66771.45
+2024-07-30T00:00:00+00:00,66169.68
+2024-07-31T00:00:00+00:00,64609.62
+2024-08-01T00:00:00+00:00,65288.18
+2024-08-02T00:00:00+00:00,61418.06
+2024-08-03T00:00:00+00:00,60674.93
+2024-08-04T00:00:00+00:00,58130.95
+2024-08-05T00:00:00+00:00,54029.12
+2024-08-06T00:00:00+00:00,56048.08
+2024-08-07T00:00:00+00:00,55148.1
+2024-08-08T00:00:00+00:00,61705.58
+2024-08-09T00:00:00+00:00,60862.13
+2024-08-10T00:00:00+00:00,60935.02
+2024-08-11T00:00:00+00:00,58722.49
+2024-08-12T00:00:00+00:00,59358.78
+2024-08-13T00:00:00+00:00,60603.19
+2024-08-14T00:00:00+00:00,58690.62
+2024-08-15T00:00:00+00:00,57543.61
+2024-08-16T00:00:00+00:00,58888.99
+[0m
+[0m$ [0mtail -20 /home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv
+2026-07-08T00:00:00+00:00,62284.0
+2026-07-09T00:00:00+00:00,63174.0
+2026-07-10T00:00:00+00:00,64128.49
+2026-07-11T00:00:00+00:00,63773.04
+2026-07-12T00:00:00+00:00,63740.32
+2026-07-13T00:00:00+00:00,62264.94
+2026-07-14T00:00:00+00:00,64988.64
+2026-07-15T00:00:00+00:00,64716.63
+2026-07-16T00:00:00+00:00,63770.6
+2026-07-17T00:00:00+00:00,63894.0
+2026-07-18T00:00:00+00:00,64796.36
+2026-07-19T00:00:00+00:00,64681.78
+2026-07-20T00:00:00+00:00,65213.05
+2026-07-21T00:00:00+00:00,66516.18
+2026-07-22T00:00:00+00:00,66086.61
+2026-07-23T00:00:00+00:00,65051.23
+2026-07-24T00:00:00+00:00,64083.32
+2026-07-25T00:00:00+00:00,64295.61
+2026-07-26T00:00:00+00:00,65341.07
+2026-07-27T00:00:00+00:00,63694.43
+[0m
+[0m$ [0mwc -l /home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv
+730 /home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv
+[0m
+[0m$ [0mcat /home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/strategy_comparison.csv
+strategy_id,strategy_kind,business_label,total_pnl_pct,itm_frequency,touch_frequency,max_drawdown_pct,sharpe_ratio,total_premium_usd,effective_acquisition_cost,pbo_estimate,deflated_sharpe_ratio,var_95_loss,es_975_loss,probability_of_loss,highest_pnl_stress,lowest_pnl_stress
+unhedged_baseline,bespoke,Unhedged BTC Acquisition,-56.198194016756155,0.0,0.0,0.0,,0.0,63375.0,,,395670135.44949055,551490490.6492633,0.49746,1830000000.0,-1050000000.0
+covered_call,covered_call,Covered Call (Long BTC + Short Call),11.260391848461984,0.625,0.7083333333333334,0.31706668443104935,0.07938256162258897,11341760164.843733,67491.42683710015,,,350670135.44949055,506490490.64926326,0.42974,345000000.0,-985912457.10127
+cash_secured_put,cash_secured_put,Cash-Secured Put,1.7288677024243193,0.0,1.0,0.06552006830878192,0.07814807273433048,215964345.71690118,55676.3237165096,,,155670135.44949055,311490490.6492633,0.16622,45000000.0,-1632855022.766432
+long_btc_plus_short_put,long_btc_plus_short_put,Long BTC + Short Put,16.56753003490326,0.0,1.0,1.7761847643672541,0.04054268653141057,215964345.71690118,63947.7737165096,,,551340270.8989811,862980981.2985266,0.42974,1875000000.0,-2682855022.766432
+collar,collar,Collar (Long BTC + Short Call + Long Put),1.2149129447285836,0.625,1.0,0.17724107274736553,0.017475435227027256,11254109847.413252,73387.72377113419,,,291000000.0,291000000.0,0.48434,462986132.07189465,-291000000.0
+call_spread,call_spread,Call Spread,-10.757924397862755,0.625,0.625,0.02341307806169425,-0.20137446103880058,4188895067.9425178,72285.38586035674,,,152478628.56284758,270869339.10570127,0.12264,43983088.37079912,-273000000.0
+partial_overlay,covered_call,Partial Covered Call Overlay,13.049527090470466,0.625,0.7083333333333334,0.4981254068068889,0.05148100096272162,5670880082.421866,66296.79529355008,,,373170135.44949055,528990490.64926326,0.4641,1087500000.0,-1017956228.550635
+strike_ladder,covered_call,Strike & Expiry Ladder,14.833058585600888,0.625,0.75,0.3036275565444077,0.10596687694939402,11461097413.207916,65105.90545304483,,,356670135.44949055,512490490.64926326,0.4385,331500000.0,-990954792.6720923
+[0m
+[0m$ [0mcat /home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/run_status.json
+{
+  "status": "completed",
+  "run_id": "empirical-baseline-fixed-20260729T005016Z",
+  "completed_at": "2026-07-29T00:50:34.599984+00:00"
+}
+[0m
+[0m$ [0mcat << 'PYEOF' > /tmp/validate_spot.py
+import csv
+from pathlib import Path
+from datetime import datetime
+
+path = Path("/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z/_spot_data_dump.csv")
+
+with open(path) as f:
+    reader = csv.DictReader(f)
+    rows = list(reader)
+
+timestamps = []
+closes = []
+for r in rows:
+    timestamps.append(r['timestamp'])
+    closes.append(float(r['close']))
+
+print(f"Total rows: {len(rows)}")
+print(f"Start: {timestamps[0]} close={closes[0]:.2f}")
+print(f"End:   {timestamps[-1]} close={closes[-1]:.2f}")
+print(f"Min: {min(closes):.2f} at idx {closes.index(min(closes))}")
+print(f"Max: {max(closes):.2f} at idx {closes.index(max(closes))}")
+
+# Buy-and-hold return from observed first to observed last
+start_close = closes[0]
+end_close = closes[-1]
+simple_ret = (end_close - start_close) / start_close * 100
+print(f"\nObserved buy-and-hold return (start→end): {simple_ret:.2f}%")
+
+# Return relative to reference spot 65000
+ref_spot = 65000.0
+ref_ret = (end_close - ref_spot) / ref_spot * 100
+print(f"Return from reference spot ($65,000)→end: {ref_ret:.2f}%")
+
+# Check if there are any values around 28000 (would give -56% from 65000)
+# Actually -56.2% from 65000 means end price around 28470
+# Or -56.2% from 66771 means end price around 29268
+print(f"\n65000 * (1 - 0.562) = {65000 * (1 - 0.562):.2f}")
+print(f"66771 * (1 - 0.562) = {66771 * (1 - 0.562):.2f}")
+
+# Let's see if the spot ever reaches ~28470
+for i, c in enumerate(closes):
+    if c < 30000:
+        print(f"  Spot below 30k at {timestamps[i]}: {c:.2f}")
+
+# Check average over the period
+print(f"\nMean close: {sum(closes)/len(closes):.2f}")
+
+# Check first few and last few observations to verify window
+print(f"\nFirst 5: {closes[:5]}")
+print(f"Last 5: {closes[-5:]}")
+PYEOF
+.venv/bin/python /tmp/validate_spot.py
+Total rows: 729
+Start: 2024-07-29T00:00:00+00:00 close=66771.45
+End:   2026-07-27T00:00:00+00:00 close=63694.43
+Min: 53950.01 at idx 39
+Max: 124720.09 at idx 434
+
+Observed buy-and-hold return (start→end): -4.61%
+Return from reference spot ($65,000)→end: -2.01%
+
+65000 * (1 - 0.562) = 28470.00
+66771 * (1 - 0.562) = 29245.70
+
+Mean close: 87480.19
+
+First 5: [66771.45, 66169.68, 64609.62, 65288.18, 61418.06]
+Last 5: [65051.23, 64083.32, 64295.61, 65341.07, 63694.43]
+[0m
+Now I can see the spot data and strategy comparison. Let me do the critical recomputations with Python.
+[0m$ [0mcat << 'PYEOF' > /tmp/validate_parquet.py
+import sys
+sys.path.insert(0, "/home/heimdall/btc_proj/BTC_analysis/btc_engine")
+import pandas as pd
+
+base = "/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z"
+
+# Read backtest results
+bt = pd.read_parquet(f"{base}/backtest_results.parquet")
+print("=== BACKTEST RESULTS ===")
+print(f"Shape: {bt.shape}")
+print(f"Columns: {list(bt.columns)}")
+print(f"\nFirst 5 rows:")
+print(bt.head(5).to_string())
+print(f"\nLast 5 rows:")
+print(bt.tail(5).to_string())
+print(f"\nUnique strategies: {bt['strategy_id'].unique() if 'strategy_id' in bt.columns else 'N/A'}")
+
+# Check OOS
+oos = pd.read_parquet(f"{base}/oos_results.parquet")
+print(f"\n=== OOS RESULTS ===")
+print(f"Shape: {oos.shape}")
+print(f"Columns: {list(oos.columns)}")
+
+# Check execution sensitivity
+es = pd.read_parquet(f"{base}/execution_sensitivity.parquet")
+print(f"\n=== EXECUTION SENSITIVITY ===")
+print(f"Shape: {es.shape}")
+print(f"Columns: {list(es.columns)}")
+if len(es) > 0:
+    print(es.to_string())
+
+# Check stress
+st = pd.read_parquet(f"{base}/stress_results.parquet")
+print(f"\n=== STRESS RESULTS ===")
+print(f"Shape: {st.shape}")
+print(f"Columns: {list(st.columns)}")
+for c in st.columns:
+    print(f"  {c}: {st[c].iloc[0] if len(st) > 0 else 'empty'}")
+
+# Check regime
+reg = pd.read_parquet(f"{base}/regime_results.parquet")
+print(f"\n=== REGIME RESULTS ===")
+print(f"Shape: {reg.shape}")
+print(f"Columns: {list(reg.columns)}")
+
+# Check MC
+mc = pd.read_parquet(f"{base}/monte_carlo_results.parquet")
+print(f"\n=== MC RESULTS ===")
+print(f"Shape: {mc.shape}")
+print(f"Columns: {list(mc.columns)}")
+
+PYEOF
+.venv/bin/python /tmp/validate_parquet.py
+=== BACKTEST RESULTS ===
+Shape: (168, 16)
+Columns: ['strategy_id', 'cycle_num', 'start_date', 'end_date', 'entry_spot', 'strike', 'expiry_spot', 'is_itm', 'net_pnl_usd', 'net_pnl_pct', 'premium_received_usd', 'premium_received_btc', 'total_fees_usd', 'realised_assignment', 'cash_usd_end', 'btc_inventory_end']
+
+First 5 rows:
+    strategy_id  cycle_num                 start_date                   end_date  entry_spot   strike  expiry_spot  is_itm   net_pnl_usd  net_pnl_pct  premium_received_usd  premium_received_btc  total_fees_usd  realised_assignment  cash_usd_end  btc_inventory_end
+0  covered_call          0  2024-07-29T00:00:00+00:00  2024-08-28T00:00:00+00:00    66771.45  75000.0     59045.88   False -2.089789e+08   -10.432547          2.869035e+07            429.679941    5.902134e+06                    0 -1.980355e+09            30000.0
+1  covered_call          1  2024-08-29T00:00:00+00:00  2024-09-28T00:00:00+00:00    59385.50  75000.0     65858.99   False  1.927819e+08     9.623969          3.826481e+06             64.434606    5.249267e+06                    0 -1.981778e+09            30000.0
+2  covered_call          2  2024-09-29T00:00:00+00:00  2024-10-29T00:00:00+00:00    65600.01  75000.0     72724.35   False  2.299506e+08    11.479489          2.201902e+07            335.655785    5.798587e+06                    0 -1.965558e+09            30000.0
+3  covered_call          3  2024-10-30T00:00:00+00:00  2024-11-29T00:00:00+00:00    72322.91  75000.0     97490.56    True  1.546231e+08     7.719021          8.070321e+07           1115.873386    6.392845e+06                    1 -2.565964e+09            30000.0
+4  covered_call          4  2024-11-30T00:00:00+00:00  2024-12-30T00:00:00+00:00    96465.42  75000.0     92620.71    True  1.825036e+06     0.091109          6.543145e+08           6782.891852    8.526876e+06                    1 -2.448798e+09            30000.0
+
+Last 5 rows:
+       strategy_id  cycle_num                 start_date                   end_date  entry_spot   strike  expiry_spot  is_itm   net_pnl_usd  net_pnl_pct  premium_received_usd  premium_received_btc  total_fees_usd  realised_assignment  cash_usd_end  btc_inventory_end
+163  strike_ladder         19  2026-03-10T00:00:00+00:00  2026-04-09T00:00:00+00:00    69960.83  74750.0     71798.01   False  1.073746e+08     5.360306          5.627313e+07            804.351925    4.013899e+06                    0 -2.143371e+09            30000.0
+164  strike_ladder         20  2026-04-10T00:00:00+00:00  2026-05-10T00:00:00+00:00    72997.88  74750.0     82199.99    True  1.409918e+08     7.038525          9.261630e+07           1268.753243    4.188145e+06                    1 -2.278442e+09            30000.0
+165  strike_ladder         21  2026-05-11T00:00:00+00:00  2026-06-10T00:00:00+00:00    81727.06  74750.0     61449.46   False -3.544845e+08   -17.696410          2.585325e+08           3163.364602    4.688969e+06                    0 -2.024599e+09            30000.0
+166  strike_ladder         22  2026-06-11T00:00:00+00:00  2026-07-11T00:00:00+00:00    63563.42  74750.0     63773.04   False  1.663652e+07     0.830521          1.399477e+07            220.170260    3.646857e+06                    0 -2.014251e+09            30000.0
+167  strike_ladder         23  2026-07-12T00:00:00+00:00  2026-07-27T00:00:00+00:00    63740.32  74750.0     63694.43   False  9.618529e+06     0.480172          1.465224e+07            229.873888    3.657006e+06                    0 -2.003256e+09            30000.0
+
+Unique strategies: <ArrowStringArray>
+[           'covered_call',        'cash_secured_put',
+ 'long_btc_plus_short_put',                  'collar',
+             'call_spread',         'partial_overlay',
+           'strike_ladder']
+Length: 7, dtype: str
+
+=== OOS RESULTS ===
+Shape: (8, 3)
+Columns: ['strategy_id', 'pbo_estimate', 'deflated_sharpe_ratio']
+
+=== EXECUTION SENSITIVITY ===
+Shape: (1, 2)
+Columns: ['spot_offsets_pct', 'fee_bases']
+                           spot_offsets_pct                                  fee_bases
+0  [-10.0, -5.0, -1.0, 0.0, 1.0, 5.0, 10.0]  ['reference_notional', 'executed_volume']
+
+=== STRESS RESULTS ===
+Shape: (80, 17)
+Columns: ['strategy_id', 'scenario_name', 'description', 'shock_type', 'start_spot', 'end_spot', 'start_vol', 'end_vol', 'strategy_pnl_usd', 'strategy_pnl_pct', 'vol_shock_contribution_usd', 'expiry_pnl_component_usd', 'premium_contribution_pct', 'itm_on_scenario', 'max_adverse_excursion_pct', 'venue_settlement_applied', 'provenance']
+  strategy_id: unhedged_baseline
+  scenario_name: 2025_breakout_to_126k
+  description: BTC surges to 126k (2025 ATH scenario)
+  shock_type: replay
+  start_spot: 65000.0
+  end_spot: 126000.0
+  start_vol: 0.45
+  end_vol: 0.55
+  strategy_pnl_usd: 1830000000.0
+  strategy_pnl_pct: 93.84615384615384
+  vol_shock_contribution_usd: 0.0
+  expiry_pnl_component_usd: 1830000000.0
+  premium_contribution_pct: 0.0
+  itm_on_scenario: False
+  max_adverse_excursion_pct: 97.00780865131841
+  venue_settlement_applied: True
+  provenance: calculated
+
+=== REGIME RESULTS ===
+Shape: (22, 9)
+Columns: ['regime_name', 'regime_label', 'regime_dates', 'annualised_return', 'annualised_vol', 'avg_dvol', 'trend_label', 'strategy_metrics', 'provenance']
+
+=== MC RESULTS ===
+Shape: (8, 12)
+Columns: ['strategy_id', 'n_paths', 'model', 'expected_pnl', 'var_95', 'var_99', 'es_975', 'es_99', 'var_95_pnl', 'es_975_pnl', 'probability_of_loss', 'itm_probability']
+[0m
+[0m$ [0mcat << 'PYEOF' > /tmp/validate_deep.py
+import sys
+sys.path.insert(0, "/home/heimdall/btc_proj/BTC_analysis/btc_engine")
+import pandas as pd
+import numpy as np
+
+base = "/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z"
+
+# 1. RECOMPUTE spot P&L for unhedged from spot data
+spots = pd.read_csv(f"{base}/_spot_data_dump.csv")
+start_close = spots['close'].iloc[0]
+end_close = spots['close'].iloc[-1]
+min_close = spots['close'].min()
+max_close = spots['close'].max()
+print(f"=== SPOT DATA RECOMPUTATION ===")
+print(f"Start: {start_close:.2f}")
+print(f"End: {end_close:.2f}")
+print(f"Min: {min_close:.2f}")
+print(f"Max: {max_close:.2f}")
+print(f"Observed buy-and-hold return: {((end_close / start_close) - 1) * 100:.2f}%")
+print(f"Return from reference $65k to end: {((end_close / 65000) - 1) * 100:.2f}%")
+
+# 2. OOS results - check if they have values
+oos = pd.read_parquet(f"{base}/oos_results.parquet")
+print(f"\n=== OOS RESULTS ===")
+for col in oos.columns:
+    print(f"  {col}: {oos[col].tolist()}")
+
+# 3. Regime details
+reg = pd.read_parquet(f"{base}/regime_results.parquet")
+print(f"\n=== REGIME DETAILS ===")
+print(f"Total regimes: {len(reg)}")
+print(reg[['regime_name', 'regime_label', 'annualised_return', 'annualised_vol']].to_string())
+
+# 4. Stress details
+stress = pd.read_parquet(f"{base}/stress_results.parquet")
+print(f"\n=== STRESS BY STRATEGY ===")
+for s in stress['strategy_id'].unique():
+    ss = stress[stress['strategy_id'] == s]
+    print(f"  {s}: {len(ss)} scenarios")
+    worst = ss.loc[ss['strategy_pnl_usd'].idxmin()]
+    best = ss.loc[ss['strategy_pnl_usd'].idxmax()]
+    print(f"    Best: {best['scenario_name']} = ${best['strategy_pnl_usd']:,.0f}")
+    print(f"    Worst: {worst['scenario_name']} = ${worst['strategy_pnl_usd']:,.0f}")
+
+# 5. Backtest cycle-level aggregation  
+bt = pd.read_parquet(f"{base}/backtest_results.parquet")
+print(f"\n=== BACKTEST CYCLE AGGREGATION ===")
+ref_notional = 30000 * 65000
+print(f"Reference notional: ${ref_notional:,.0f}")
+
+for s in bt['strategy_id'].unique():
+    sb = bt[bt['strategy_id'] == s]
+    sum_pnl = sb['net_pnl_usd'].sum()
+    sum_prem = sb['premium_received_usd'].sum()
+    sum_fees = sb['total_fees_usd'].sum()
+    pnl_pct = (sum_pnl / ref_notional) * 100
+    prem_pct = (sum_prem / ref_notional) * 100
+    fee_pct = (sum_fees / ref_notional) * 100
+    
+    # Compute spot delta from cycle entries/exits
+    spot_delta = ((sb['expiry_spot'] - sb['entry_spot']) * 30000).sum()
+    spot_delta_pct = (spot_delta / ref_notional) * 100
+    
+    print(f"\n  {s}:")
+    print(f"    Σ net_pnl: ${sum_pnl:,.0f} ({pnl_pct:.2f}%)")
+    print(f"    Σ premium: ${sum_prem:,.0f} ({prem_pct:.2f}%)")
+    print(f"    Σ fees: ${sum_fees:,.0f} ({fee_pct:.2f}%)")
+    print(f"    Σ spot Δ P&L: ${spot_delta:,.0f} ({spot_delta_pct:.2f}%)")
+    print(f"    Cycles: {len(sb)}, ITM count: {sb['is_itm'].sum()}")
+
+# 6. For unhedged, reconstruct what the strategy comparison says
+comp = pd.read_csv(f"{base}/strategy_comparison.csv")
+print(f"\n=== STRATEGY COMPARISON CSV ===")
+for _, row in comp.iterrows():
+    print(f"\n  {row['strategy_id']}:")
+    print(f"    total_pnl_pct: {row['total_pnl_pct']:.2f}%")
+    print(f"    total_premium_usd: ${row['total_premium_usd']:,.0f}")
+    print(f"    effective_acquisition_cost: ${row['effective_acquisition_cost']:,.2f}")
+    print(f"    max_drawdown_pct: {row['max_drawdown_pct']:.4f}%")
+    print(f"    sharpe_ratio: {row['sharpe_ratio']}")
+    print(f"    itm_frequency: {row['itm_frequency']}")
+    print(f"    var_95_loss: ${row['var_95_loss']:,.0f}")
+    print(f"    es_975_loss: ${row['es_975_loss']:,.0f}")
+
+# 7. Verify the unhedged P&L by computing actually
+# If unhedged buys at reference 65k and settles at end:
+unhedged_pnl = (end_close - 65000) * 30000
+unhedged_pnl_pct = (unhedged_pnl / ref_notional) * 100
+print(f"\n=== UNHEDGED P&L RECOMPUTATION ===")
+print(f"Buy at $65k, sell at end ${end_close:.2f}:")
+print(f"  30,000 * ({end_close:.2f} - 65,000) = ${unhedged_pnl:,.0f}")
+print(f"  Pct: {unhedged_pnl_pct:.2f}%")
+
+# If unhedged buys at observed start 66771 and sells at end:
+unhedged_pnl2 = (end_close - start_close) * 30000
+unhedged_pnl2_pct = (unhedged_pnl2 / (start_close * 30000)) * 100
+print(f"\nBuy at obs start ${start_close:.2f}, sell at end ${end_close:.2f}:")
+print(f"  30,000 * ({end_close:.2f} - {start_close:.2f}) = ${unhedged_pnl2:,.0f}")
+print(f"  Pct of start value: {unhedged_pnl2_pct:.2f}%")
+
+# What denominator gives -56.2% if delta is from 65k to some point?
+# -0.562 = (end_price - 65000) / 65000, end_price = 65000 * 0.438 = 28470
+# But the observed end is 63694. Let's check what combination gives -56.2%
+# Maybe it's the SUM of all cycle P&L percentages:
+# Let me check if all cycles combined give -56.2%
+all_cycles_delta = 0
+for s in bt['strategy_id'].unique():
+    sb = bt[bt['strategy_id'] == s]
+    delta = ((sb['expiry_spot'] - sb['entry_spot']) * 30000).sum()
+    all_cycles_delta += delta
+print(f"\nSum of all cycle spot deltas: ${all_cycles_delta:,.0f}")
+print(f"Pct of ref notional: {all_cycles_delta/ref_notional*100:.2f}%")
+
+# Check if the unhedged spot delta IS the delta from all cycles summed somehow
+PYEOF
+.venv/bin/python /tmp/validate_deep.py
+=== SPOT DATA RECOMPUTATION ===
+Start: 66771.45
+End: 63694.43
+Min: 53950.01
+Max: 124720.09
+Observed buy-and-hold return: -4.61%
+Return from reference $65k to end: -2.01%
+
+=== OOS RESULTS ===
+  strategy_id: ['unhedged_baseline', 'covered_call', 'cash_secured_put', 'long_btc_plus_short_put', 'collar', 'call_spread', 'partial_overlay', 'strike_ladder']
+  pbo_estimate: [None, None, None, None, None, None, None, None]
+  deflated_sharpe_ratio: [None, None, None, None, None, None, None, None]
+
+=== REGIME DETAILS ===
+Total regimes: 22
+                   regime_name regime_label  annualised_return  annualised_vol
+0   sideways_20240730_20241027     sideways           0.109920        0.512626
+1   high_vol_20240829_20241126     high_vol           2.247470        0.478186
+2       bull_20240928_20241226         bull           1.856338        0.497494
+3       bull_20241028_20250125         bull           2.041577        0.508520
+4   sideways_20241127_20250224     sideways          -0.189789        0.410924
+5   high_vol_20241227_20250326     high_vol          -0.316730        0.515014
+6       bear_20250126_20250425         bear          -0.313729        0.556007
+7       bull_20250225_20250525         bull           0.947457        0.550938
+8       bull_20250327_20250624         bull           0.889818        0.425403
+9       bull_20250426_20250724         bull           1.028042        0.312565
+10      bull_20250526_20250823         bull           0.221778        0.302768
+11      bull_20250625_20250922         bull           0.203772        0.279082
+12      bear_20250725_20251022         bear          -0.348259        0.347873
+13      bear_20250824_20251121         bear          -1.026713        0.391876
+14      bear_20250923_20251221         bear          -0.855878        0.434789
+15      bear_20251023_20260120         bear          -0.811037        0.391703
+16  high_vol_20251122_20260219     high_vol          -0.857585        0.552831
+17      bear_20251222_20260321         bear          -0.913298        0.581676
+18      bear_20260121_20260420         bear          -0.619496        0.608012
+19      bull_20260220_20260520         bull           0.572574        0.411878
+20      bear_20260322_20260619         bear          -0.264144        0.384909
+21      bear_20260421_20260719         bear          -0.626691        0.347620
+
+=== STRESS BY STRATEGY ===
+  unhedged_baseline: 10 scenarios
+    Best: 2025_breakout_to_126k = $1,830,000,000
+    Worst: flash_crash_to_30k = $-1,050,000,000
+  covered_call: 10 scenarios
+    Best: 2025_breakout_to_126k = $345,000,000
+    Worst: flash_crash_to_30k = $-985,912,457
+  cash_secured_put: 10 scenarios
+    Best: 2025_breakout_to_126k = $45,000,000
+    Worst: flash_crash_to_30k = $-1,632,855,023
+  long_btc_plus_short_put: 10 scenarios
+    Best: 2025_breakout_to_126k = $1,875,000,000
+    Worst: flash_crash_to_30k = $-2,682,855,023
+  collar: 10 scenarios
+    Best: flash_crash_to_30k = $462,986,132
+    Worst: liquidity_shock = $-291,000,000
+  call_spread: 10 scenarios
+    Best: flash_crash_to_30k = $43,983,088
+    Worst: 2025_breakout_to_126k = $-273,000,000
+  partial_overlay: 10 scenarios
+    Best: 2025_breakout_to_126k = $1,087,500,000
+    Worst: flash_crash_to_30k = $-1,017,956,229
+  strike_ladder: 10 scenarios
+    Best: 2025_breakout_to_126k = $331,500,000
+    Worst: flash_crash_to_30k = $-990,954,793
+
+=== BACKTEST CYCLE AGGREGATION ===
+Reference notional: $1,950,000,000
+
+  covered_call:
+    Σ net_pnl: $225,561,807 (11.57%)
+    Σ premium: $11,341,760,165 (581.63%)
+    Σ fees: $184,449,457 (9.46%)
+    Σ spot Δ P&L: $297,239,700 (15.24%)
+    Cycles: 24, ITM count: 15
+
+  cash_secured_put:
+    Σ net_pnl: $34,631,701 (1.78%)
+    Σ premium: $215,964,346 (11.08%)
+    Σ fees: $181,332,645 (9.30%)
+    Σ spot Δ P&L: $297,239,700 (15.24%)
+    Cycles: 24, ITM count: 0
+
+  long_btc_plus_short_put:
+    Σ net_pnl: $331,871,401 (17.02%)
+    Σ premium: $215,964,346 (11.08%)
+    Σ fees: $181,332,645 (9.30%)
+    Σ spot Δ P&L: $297,239,700 (15.24%)
+    Cycles: 24, ITM count: 0
+
+  collar:
+    Σ net_pnl: $48,672,899 (2.50%)
+    Σ premium: $11,254,109,847 (577.13%)
+    Σ fees: $273,688,048 (14.04%)
+    Σ spot Δ P&L: $297,239,700 (15.24%)
+    Cycles: 24, ITM count: 15
+
+  call_spread:
+    Σ net_pnl: $-430,993,327 (-22.10%)
+    Σ premium: $4,188,895,068 (214.82%)
+    Σ fees: $279,186,295 (14.32%)
+    Σ spot Δ P&L: $297,239,700 (15.24%)
+    Cycles: 24, ITM count: 15
+
+  partial_overlay:
+    Σ net_pnl: $261,400,754 (13.41%)
+    Σ premium: $5,670,880,082 (290.81%)
+    Σ fees: $92,224,729 (4.73%)
+    Σ spot Δ P&L: $297,239,700 (15.24%)
+    Cycles: 24, ITM count: 15
+
+  strike_ladder:
+    Σ net_pnl: $297,127,449 (15.24%)
+    Σ premium: $11,461,097,413 (587.75%)
+    Σ fees: $119,721,064 (6.14%)
+    Σ spot Δ P&L: $297,239,700 (15.24%)
+    Cycles: 24, ITM count: 15
+
+=== STRATEGY COMPARISON CSV ===
+
+  unhedged_baseline:
+    total_pnl_pct: -56.20%
+    total_premium_usd: $0
+    effective_acquisition_cost: $63,375.00
+    max_drawdown_pct: 0.0000%
+    sharpe_ratio: nan
+    itm_frequency: 0.0
+    var_95_loss: $395,670,135
+    es_975_loss: $551,490,491
+
+  covered_call:
+    total_pnl_pct: 11.26%
+    total_premium_usd: $11,341,760,165
+    effective_acquisition_cost: $67,491.43
+    max_drawdown_pct: 0.3171%
+    sharpe_ratio: 0.0793825616225889
+    itm_frequency: 0.625
+    var_95_loss: $350,670,135
+    es_975_loss: $506,490,491
+
+  cash_secured_put:
+    total_pnl_pct: 1.73%
+    total_premium_usd: $215,964,346
+    effective_acquisition_cost: $55,676.32
+    max_drawdown_pct: 0.0655%
+    sharpe_ratio: 0.0781480727343304
+    itm_frequency: 0.0
+    var_95_loss: $155,670,135
+    es_975_loss: $311,490,491
+
+  long_btc_plus_short_put:
+    total_pnl_pct: 16.57%
+    total_premium_usd: $215,964,346
+    effective_acquisition_cost: $63,947.77
+    max_drawdown_pct: 1.7762%
+    sharpe_ratio: 0.0405426865314105
+    itm_frequency: 0.0
+    var_95_loss: $551,340,271
+    es_975_loss: $862,980,981
+
+  collar:
+    total_pnl_pct: 1.21%
+    total_premium_usd: $11,254,109,847
+    effective_acquisition_cost: $73,387.72
+    max_drawdown_pct: 0.1772%
+    sharpe_ratio: 0.0174754352270272
+    itm_frequency: 0.625
+    var_95_loss: $291,000,000
+    es_975_loss: $291,000,000
+
+  call_spread:
+    total_pnl_pct: -10.76%
+    total_premium_usd: $4,188,895,068
+    effective_acquisition_cost: $72,285.39
+    max_drawdown_pct: 0.0234%
+    sharpe_ratio: -0.2013744610388005
+    itm_frequency: 0.625
+    var_95_loss: $152,478,629
+    es_975_loss: $270,869,339
+
+  partial_overlay:
+    total_pnl_pct: 13.05%
+    total_premium_usd: $5,670,880,082
+    effective_acquisition_cost: $66,296.80
+    max_drawdown_pct: 0.4981%
+    sharpe_ratio: 0.0514810009627216
+    itm_frequency: 0.625
+    var_95_loss: $373,170,135
+    es_975_loss: $528,990,491
+
+  strike_ladder:
+    total_pnl_pct: 14.83%
+    total_premium_usd: $11,461,097,413
+    effective_acquisition_cost: $65,105.91
+    max_drawdown_pct: 0.3036%
+    sharpe_ratio: 0.105966876949394
+    itm_frequency: 0.625
+    var_95_loss: $356,670,135
+    es_975_loss: $512,490,491
+
+=== UNHEDGED P&L RECOMPUTATION ===
+Buy at $65k, sell at end $63694.43:
+  30,000 * (63694.43 - 65,000) = $-39,167,100
+  Pct: -2.01%
+
+Buy at obs start $66771.45, sell at end $63694.43:
+  30,000 * (63694.43 - 66771.45) = $-92,310,600
+  Pct of start value: -4.61%
+
+Sum of all cycle spot deltas: $2,080,677,900
+Pct of ref notional: 106.70%
+[0m
+[0m$ [0mcat << 'PYEOF' > /tmp/validate_oos.py
+import sys
+sys.path.insert(0, "/home/heimdall/btc_proj/BTC_analysis/btc_engine")
+import pandas as pd
+import numpy as np
+
+# Check OOS for all strategies
+base = "/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z"
+oos = pd.read_parquet(f"{base}/oos_results.parquet")
+print("=== OOS RESULTS (full) ===")
+print(oos.to_string())
+
+# Check if pbo_estimate and deflated_sharpe_ratio have actual numeric values
+print(f"\npbo_estimate is null: {oos['pbo_estimate'].isna().all()}")
+print(f"deflated_sharpe_ratio is null: {oos['deflated_sharpe_ratio'].isna().all()}")
+print(f"\npbo_estimate dtype: {oos['pbo_estimate'].dtype}")
+print(f"deflated_sharpe_ratio dtype: {oos['deflated_sharpe_ratio'].dtype}")
+
+# Check the robustness summary
+base2 = "/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-robustness-20260729T005618Z"
+rs = pd.read_csv(f"{base2}/robustness_summary.csv")
+print(f"\n=== ROBUSTNESS SUMMARY ===")
+print(f"Shape: {rs.shape}")
+print(f"Columns: {list(rs.columns)}")
+print(rs.to_string())
+
+# Check all_strategy_results
+ar = pd.read_csv(f"{base2}/all_strategy_results.csv")
+print(f"\n=== ALL STRATEGY RESULTS ===")
+print(f"Shape: {ar.shape}")
+print(f"Columns: {list(ar.columns)}")
+
+# Check for variance in key metrics
+for col in ['total_pnl_pct', 'sharpe_ratio', 'var_95_loss']:
+    if col in ar.columns:
+        grouped = ar.groupby('strategy_id')[col].std()
+        print(f"\n{col} std per strategy:")
+        print(grouped)
+        if grouped.sum() == 0:
+            print(f"  → ZERO VARIANCE across all runs for {col}")
+
+PYEOF
+.venv/bin/python /tmp/validate_oos.py
+=== OOS RESULTS (full) ===
+               strategy_id pbo_estimate deflated_sharpe_ratio
+0        unhedged_baseline         None                  None
+1             covered_call         None                  None
+2         cash_secured_put         None                  None
+3  long_btc_plus_short_put         None                  None
+4                   collar         None                  None
+5              call_spread         None                  None
+6          partial_overlay         None                  None
+7            strike_ladder         None                  None
+
+pbo_estimate is null: True
+deflated_sharpe_ratio is null: True
+
+pbo_estimate dtype: object
+deflated_sharpe_ratio dtype: object
+
+=== ROBUSTNESS SUMMARY ===
+Shape: (8, 71)
+Columns: ['strategy_id', 'total_pnl_pct_mean', 'total_pnl_pct_std', 'total_pnl_pct_min', 'total_pnl_pct_median', 'total_pnl_pct_max', 'itm_frequency_mean', 'itm_frequency_std', 'itm_frequency_min', 'itm_frequency_median', 'itm_frequency_max', 'touch_frequency_mean', 'touch_frequency_std', 'touch_frequency_min', 'touch_frequency_median', 'touch_frequency_max', 'max_drawdown_pct_mean', 'max_drawdown_pct_std', 'max_drawdown_pct_min', 'max_drawdown_pct_median', 'max_drawdown_pct_max', 'sharpe_ratio_mean', 'sharpe_ratio_std', 'sharpe_ratio_min', 'sharpe_ratio_median', 'sharpe_ratio_max', 'total_premium_usd_mean', 'total_premium_usd_std', 'total_premium_usd_min', 'total_premium_usd_median', 'total_premium_usd_max', 'effective_acquisition_cost_mean', 'effective_acquisition_cost_std', 'effective_acquisition_cost_min', 'effective_acquisition_cost_median', 'effective_acquisition_cost_max', 'pbo_estimate_mean', 'pbo_estimate_std', 'pbo_estimate_min', 'pbo_estimate_median', 'pbo_estimate_max', 'deflated_sharpe_ratio_mean', 'deflated_sharpe_ratio_std', 'deflated_sharpe_ratio_min', 'deflated_sharpe_ratio_median', 'deflated_sharpe_ratio_max', 'var_95_loss_mean', 'var_95_loss_std', 'var_95_loss_min', 'var_95_loss_median', 'var_95_loss_max', 'es_975_loss_mean', 'es_975_loss_std', 'es_975_loss_min', 'es_975_loss_median', 'es_975_loss_max', 'probability_of_loss_mean', 'probability_of_loss_std', 'probability_of_loss_min', 'probability_of_loss_median', 'probability_of_loss_max', 'highest_pnl_stress_mean', 'highest_pnl_stress_std', 'highest_pnl_stress_min', 'highest_pnl_stress_median', 'highest_pnl_stress_max', 'lowest_pnl_stress_mean', 'lowest_pnl_stress_std', 'lowest_pnl_stress_min', 'lowest_pnl_stress_median', 'lowest_pnl_stress_max']
+               strategy_id  total_pnl_pct_mean  total_pnl_pct_std  total_pnl_pct_min  total_pnl_pct_median  total_pnl_pct_max  itm_frequency_mean  itm_frequency_std  itm_frequency_min  itm_frequency_median  itm_frequency_max  touch_frequency_mean  touch_frequency_std  touch_frequency_min  touch_frequency_median  touch_frequency_max  max_drawdown_pct_mean  max_drawdown_pct_std  max_drawdown_pct_min  max_drawdown_pct_median  max_drawdown_pct_max  sharpe_ratio_mean  sharpe_ratio_std  sharpe_ratio_min  sharpe_ratio_median  sharpe_ratio_max  total_premium_usd_mean  total_premium_usd_std  total_premium_usd_min  total_premium_usd_median  total_premium_usd_max  effective_acquisition_cost_mean  effective_acquisition_cost_std  effective_acquisition_cost_min  effective_acquisition_cost_median  effective_acquisition_cost_max  pbo_estimate_mean  pbo_estimate_std  pbo_estimate_min  pbo_estimate_median  pbo_estimate_max  deflated_sharpe_ratio_mean  deflated_sharpe_ratio_std  deflated_sharpe_ratio_min  deflated_sharpe_ratio_median  deflated_sharpe_ratio_max  var_95_loss_mean  var_95_loss_std  var_95_loss_min  var_95_loss_median  var_95_loss_max  es_975_loss_mean  es_975_loss_std  es_975_loss_min  es_975_loss_median  es_975_loss_max  probability_of_loss_mean  probability_of_loss_std  probability_of_loss_min  probability_of_loss_median  probability_of_loss_max  highest_pnl_stress_mean  highest_pnl_stress_std  highest_pnl_stress_min  highest_pnl_stress_median  highest_pnl_stress_max  lowest_pnl_stress_mean  lowest_pnl_stress_std  lowest_pnl_stress_min  lowest_pnl_stress_median  lowest_pnl_stress_max
+0              call_spread          -10.757924                0.0         -10.757924            -10.757924         -10.757924               0.625                0.0              0.625                 0.625              0.625              0.625000                  0.0             0.625000                0.625000             0.625000               0.023413                   0.0              0.023413                 0.023413              0.023413          -0.201374               0.0         -0.201374            -0.201374         -0.201374            4.188895e+09                    0.0           4.188895e+09              4.188895e+09           4.188895e+09                     72285.385860                             0.0                    72285.385860                       72285.385860                    72285.385860                NaN               NaN               NaN                  NaN               NaN                         NaN                        NaN                        NaN                           NaN                        NaN      1.523210e+08    607690.541381     1.509213e+08        1.524165e+08     1.536540e+08      2.721425e+08     6.024752e+04     2.719517e+08        2.721395e+08     2.722495e+08                  0.123269                 0.000358                 0.122074                    0.123264                 0.123960             4.398309e+07                     0.0            4.398309e+07               4.398309e+07            4.398309e+07           -2.730000e+08                    0.0          -2.730000e+08             -2.730000e+08          -2.730000e+08
+1         cash_secured_put            1.728868                0.0           1.728868              1.728868           1.728868               0.000                0.0              0.000                 0.000              0.000              1.000000                  0.0             1.000000                1.000000             1.000000               0.065520                   0.0              0.065520                 0.065520              0.065520           0.078148               0.0          0.078148             0.078148          0.078148            2.159643e+08                    0.0           2.159643e+08              2.159643e+08           2.159643e+08                     55676.323717                             0.0                    55676.323717                       55676.323717                    55676.323717                NaN               NaN               NaN                  NaN               NaN                         NaN                        NaN                        NaN                           NaN                        NaN      1.568464e+08    453854.848469     1.557441e+08        1.568081e+08     1.580450e+08      3.161830e+08     7.871751e+05     3.149173e+08        3.161716e+08     3.181862e+08                  0.165936                 0.000369                 0.164910                    0.165949                 0.166692             4.500000e+07                     0.0            4.500000e+07               4.500000e+07            4.500000e+07           -1.632855e+09                    0.0          -1.632855e+09             -1.632855e+09          -1.632855e+09
+2                   collar            1.214913                0.0           1.214913              1.214913           1.214913               0.625                0.0              0.625                 0.625              0.625              1.000000                  0.0             1.000000                1.000000             1.000000               0.177241                   0.0              0.177241                 0.177241              0.177241           0.017475               0.0          0.017475             0.017475          0.017475            1.125411e+10                    0.0           1.125411e+10              1.125411e+10           1.125411e+10                     73387.723771                             0.0                    73387.723771                       73387.723771                    73387.723771                NaN               NaN               NaN                  NaN               NaN                         NaN                        NaN                        NaN                           NaN                        NaN      2.910000e+08         0.000000     2.910000e+08        2.910000e+08     2.910000e+08      2.910000e+08     0.000000e+00     2.910000e+08        2.910000e+08     2.910000e+08                  0.484324                 0.000238                 0.483892                    0.484304                 0.484934             4.629861e+08                     0.0            4.629861e+08               4.629861e+08            4.629861e+08           -2.910000e+08                    0.0          -2.910000e+08             -2.910000e+08          -2.910000e+08
+3             covered_call           11.260392                0.0          11.260392             11.260392          11.260392               0.625                0.0              0.625                 0.625              0.625              0.708333                  0.0             0.708333                0.708333             0.708333               0.317067                   0.0              0.317067                 0.317067              0.317067           0.079383               0.0          0.079383             0.079383          0.079383            1.134176e+10                    0.0           1.134176e+10              1.134176e+10           1.134176e+10                     67491.426837                             0.0                    67491.426837                       67491.426837                    67491.426837                NaN               NaN               NaN                  NaN               NaN                         NaN                        NaN                        NaN                           NaN                        NaN      3.518464e+08    453854.848469     3.507441e+08        3.518081e+08     3.530450e+08      5.111830e+08     7.871751e+05     5.099173e+08        5.111716e+08     5.131862e+08                  0.429037                 0.000301                 0.428340                    0.429038                 0.429814             3.450000e+08                     0.0            3.450000e+08               3.450000e+08            3.450000e+08           -9.859125e+08                    0.0          -9.859125e+08             -9.859125e+08          -9.859125e+08
+4  long_btc_plus_short_put           16.567530                0.0          16.567530             16.567530          16.567530               0.000                0.0              0.000                 0.000              0.000              1.000000                  0.0             1.000000                1.000000             1.000000               1.776185                   0.0              1.776185                 1.776185              1.776185           0.040543               0.0          0.040543             0.040543          0.040543            2.159643e+08                    0.0           2.159643e+08              2.159643e+08           2.159643e+08                     63947.773717                             0.0                    63947.773717                       63947.773717                    63947.773717                NaN               NaN               NaN                  NaN               NaN                         NaN                        NaN                        NaN                           NaN                        NaN      5.536928e+08    907709.696938     5.514881e+08        5.536163e+08     5.560901e+08      8.723659e+08     1.574350e+06     8.698347e+08        8.723431e+08     8.763725e+08                  0.429037                 0.000301                 0.428340                    0.429038                 0.429814             1.875000e+09                     0.0            1.875000e+09               1.875000e+09            1.875000e+09           -2.682855e+09                    0.0          -2.682855e+09             -2.682855e+09          -2.682855e+09
+5          partial_overlay           13.049527                0.0          13.049527             13.049527          13.049527               0.625                0.0              0.625                 0.625              0.625              0.708333                  0.0             0.708333                0.708333             0.708333               0.498125                   0.0              0.498125                 0.498125              0.498125           0.051481               0.0          0.051481             0.051481          0.051481            5.670880e+09                    0.0           5.670880e+09              5.670880e+09           5.670880e+09                     66296.795294                             0.0                    66296.795294                       66296.795294                    66296.795294                NaN               NaN               NaN                  NaN               NaN                         NaN                        NaN                        NaN                           NaN                        NaN      3.743464e+08    453854.848469     3.732441e+08        3.743081e+08     3.755450e+08      5.336830e+08     7.871751e+05     5.324173e+08        5.336716e+08     5.356862e+08                  0.463629                 0.000295                 0.463022                    0.463628                 0.464426             1.087500e+09                     0.0            1.087500e+09               1.087500e+09            1.087500e+09           -1.017956e+09                    0.0          -1.017956e+09             -1.017956e+09          -1.017956e+09
+6            strike_ladder           14.833059                0.0          14.833059             14.833059          14.833059               0.625                0.0              0.625                 0.625              0.625              0.750000                  0.0             0.750000                0.750000             0.750000               0.303628                   0.0              0.303628                 0.303628              0.303628           0.105967               0.0          0.105967             0.105967          0.105967            1.146110e+10                    0.0           1.146110e+10              1.146110e+10           1.146110e+10                     65105.905453                             0.0                    65105.905453                       65105.905453                    65105.905453                NaN               NaN               NaN                  NaN               NaN                         NaN                        NaN                        NaN                           NaN                        NaN      3.578464e+08    453854.848469     3.567441e+08        3.578081e+08     3.590450e+08      5.171830e+08     7.871751e+05     5.159173e+08        5.171716e+08     5.191862e+08                  0.438260                 0.000299                 0.437486                    0.438275                 0.438946             3.315000e+08                     0.0            3.315000e+08               3.315000e+08            3.315000e+08           -9.909548e+08                    0.0          -9.909548e+08             -9.909548e+08          -9.909548e+08
+7        unhedged_baseline          -56.198194                0.0         -56.198194            -56.198194         -56.198194               0.000                0.0              0.000                 0.000              0.000              0.000000                  0.0             0.000000                0.000000             0.000000               0.000000                   0.0              0.000000                 0.000000              0.000000                NaN               NaN               NaN                  NaN               NaN            0.000000e+00                    0.0           0.000000e+00              0.000000e+00           0.000000e+00                     63375.000000                             0.0                    63375.000000                       63375.000000                    63375.000000                NaN               NaN               NaN                  NaN               NaN                         NaN                        NaN                        NaN                           NaN                        NaN      3.968464e+08    453854.848469     3.957441e+08        3.968081e+08     3.980450e+08      5.561830e+08     7.871751e+05     5.549173e+08        5.561716e+08     5.581862e+08                  0.498060                 0.000211                 0.497594                    0.498069                 0.498676             1.830000e+09                     0.0            1.830000e+09               1.830000e+09            1.830000e+09           -1.050000e+09                    0.0          -1.050000e+09             -1.050000e+09          -1.050000e+09
+
+=== ALL STRATEGY RESULTS ===
+Shape: (288, 20)
+Columns: ['strategy_id', 'strategy_kind', 'business_label', 'total_pnl_pct', 'itm_frequency', 'touch_frequency', 'max_drawdown_pct', 'sharpe_ratio', 'total_premium_usd', 'effective_acquisition_cost', 'pbo_estimate', 'deflated_sharpe_ratio', 'var_95_loss', 'es_975_loss', 'probability_of_loss', 'highest_pnl_stress', 'lowest_pnl_stress', 'run_id', 'n_paths', 'seed']
+
+total_pnl_pct std per strategy:
+strategy_id
+call_spread                0.0
+cash_secured_put           0.0
+collar                     0.0
+covered_call               0.0
+long_btc_plus_short_put    0.0
+partial_overlay            0.0
+strike_ladder              0.0
+unhedged_baseline          0.0
+Name: total_pnl_pct, dtype: float64
+  → ZERO VARIANCE across all runs for total_pnl_pct
+
+sharpe_ratio std per strategy:
+strategy_id
+call_spread                0.0
+cash_secured_put           0.0
+collar                     0.0
+covered_call               0.0
+long_btc_plus_short_put    0.0
+partial_overlay            0.0
+strike_ladder              0.0
+unhedged_baseline          NaN
+Name: sharpe_ratio, dtype: float64
+  → ZERO VARIANCE across all runs for sharpe_ratio
+
+var_95_loss std per strategy:
+strategy_id
+call_spread                607690.541381
+cash_secured_put           453854.848469
+collar                          0.000000
+covered_call               453854.848469
+long_btc_plus_short_put    907709.696938
+partial_overlay            453854.848469
+strike_ladder              453854.848469
+unhedged_baseline          453854.848469
+Name: var_95_loss, dtype: float64
+[0m
+[0m$ [0mcat << 'PYEOF' > /tmp/validate_unhedged2.py
+import sys
+sys.path.insert(0, "/home/heimdall/btc_proj/BTC_analysis/btc_engine")
+import pandas as pd
+import numpy as np
+
+base = "/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z"
+
+# Read spot data
+spots = pd.read_csv(f"{base}/_spot_data_dump.csv")
+spots['timestamp'] = pd.to_datetime(spots['timestamp'])
+ref_notional = 30000 * 65000  # 1,950,000,000
+ref_spot = 65000
+
+# Read backtest data
+bt = pd.read_parquet(f"{base}/backtest_results.parquet")
+
+# For each strategy with long BTC, compute: what would be the pure spot P&L
+# if we held 30k BTC from reference spot start to each cycle's end?
+# And sum across cycles?
+print("=== CHECKING P&L COMPUTATIONS ===")
+
+# APPROACH: Use the backtest cycle entry/exits to reconstruct
+# First, look at ONE strategy (covered_call) cycle by cycle
+
+sb = bt[bt['strategy_id'] == 'covered_call']
+print("Covered call cycles:")
+print(f"  Cycles: {len(sb)}")
+print(f"  First cycle: entry={sb.iloc[0]['entry_spot']:.2f}, expiry={sb.iloc[0]['expiry_spot']:.2f}, pnl={sb.iloc[0]['net_pnl_usd']:,.0f}, pnl_pct={sb.iloc[0]['net_pnl_pct']:.4f}%")
+
+# The BTC P&L for a cycle is (expiry_spot - entry_spot) * 30000
+# Sum this across all cycles:
+btc_cycle_pnl = ((sb['expiry_spot'] - sb['entry_spot']) * 30000).sum()
+btc_cycle_pnl_pct = btc_cycle_pnl / ref_notional * 100
+print(f"  Sum of BTC Δ P&L (cycle-wise): ${btc_cycle_pnl:,.0f} ({btc_cycle_pnl_pct:.2f}%)")
+
+# But this double-counts! Each cycle's entry ~= previous cycle's expiry
+# (not exactly due to calendar differences)
+# The actual continuous P&L should be close to first_entry→last_expiry
+first_entry = sb.iloc[0]['entry_spot']
+last_expiry = sb.iloc[-1]['expiry_spot']
+continuous_btc_pnl = (last_expiry - first_entry) * 30000
+continuous_btc_pnl_pct = continuous_btc_pnl / ref_notional * 100
+print(f"  Continuous BTC P&L (first_entry→last_expiry): ${continuous_btc_pnl:,.0f} ({continuous_btc_pnl_pct:.2f}%)")
+
+# Sum of per-cycle net_pnl_usd
+sum_net = sb['net_pnl_usd'].sum()
+sum_net_pct = sum_net / ref_notional * 100
+print(f"  Sum of net P&L: ${sum_net:,.0f} ({sum_net_pct:.2f}%)")
+print(f"  Strategy_comparison reports: +11.26%")
+
+# What is the difference between spot delta and net P&L?
+# Premium - fees
+prem = sb['premium_received_usd'].sum()
+fees = sb['total_fees_usd'].sum()
+print(f"  Premium: ${prem:,.0f}")
+print(f"  Fees: ${fees:,.0f}")
+print(f"  BTC Δ + Premium - Fees = {btc_cycle_pnl:,.0f} + {prem:,.0f} - {fees:,.0f} = {btc_cycle_pnl + prem - fees:,.0f}")
+print(f"  Actual net sum = {sum_net:,.0f}")
+
+# Now check: how is unhedged -56.2% computed?
+# The report says it buys at reference spot $65k and holds
+# But buy-and-hold from ref=65k to end=63694 gives -2.01%
+
+# What if unhedged buys at ref=65k and the "P&L" is 
+# computed from the sum of (expiry_spot - ref_spot) for each cycle?
+# Even though BTC is only bought once?
+sum_expiry_vs_ref = ((sb['expiry_spot'] - ref_spot) * 30000).sum()
+print(f"\n=== UNHEDGED P&L INVESTIGATION ===")
+print(f"Sum of (expiry - ref) * 30000 across 24 cycles: ${sum_expiry_vs_ref:,.0f}")
+print(f"  Pct: {sum_expiry_vs_ref/ref_notional*100:.2f}%")
+
+# What about using the STRATEGY-level computation?
+# Maybe unhedged P&L = (end_spot - ref_spot) * 30000 but with some other end spot?
+# Check individual cycle expiry spots
+for i in range(len(sb)):
+    c = sb.iloc[i]
+    spot_delta = (c['expiry_spot'] - c['entry_spot']) * 30000
+    print(f"  C{i:2d}: entry={c['entry_spot']:9.2f} expiry={c['expiry_spot']:9.2f} delta={spot_delta:15,.0f} net_pct={c['net_pnl_pct']:8.3f}%")
+
+# Check: what if the unhedged net P&L% is the sum of all per-cycle net_pnl_pct?
+sum_pct = sb['net_pnl_pct'].sum()
+print(f"\nSum of per-cycle net_pnl_pct: {sum_pct:.2f}%")
+# That gives only 3.84% ish, not -56.2%
+
+# MIN/MAX analysis
+print(f"\nSpot min: {spots['close'].min():.2f}")
+print(f"Spot max: {spots['close'].max():.2f}")
+print(f"Peak-to-trough: {(spots['close'].min() / spots['close'].max() - 1) * 100:.2f}%")
+print(f"Start-to-trough (66771→53950): {(53950/66771 - 1)*100:.2f}%")
+
+PYEOF
+.venv/bin/python /tmp/validate_unhedged2.py
+=== CHECKING P&L COMPUTATIONS ===
+Covered call cycles:
+  Cycles: 24
+  First cycle: entry=66771.45, expiry=59045.88, pnl=-208,978,881, pnl_pct=-10.4325%
+  Sum of BTC Δ P&L (cycle-wise): $297,239,700 (15.24%)
+  Continuous BTC P&L (first_entry→last_expiry): $-92,310,600 (-4.73%)
+  Sum of net P&L: $225,561,807 (11.57%)
+  Strategy_comparison reports: +11.26%
+  Premium: $11,341,760,165
+  Fees: $184,449,457
+  BTC Δ + Premium - Fees = 297,239,700 + 11,341,760,165 - 184,449,457 = 11,454,550,407
+  Actual net sum = 225,561,807
+
+=== UNHEDGED P&L INVESTIGATION ===
+Sum of (expiry - ref) * 30000 across 24 cycles: $16,098,109,500
+  Pct: 825.54%
+  C 0: entry= 66771.45 expiry= 59045.88 delta=   -231,767,100 net_pct= -10.433%
+  C 1: entry= 59385.50 expiry= 65858.99 delta=    194,204,700 net_pct=   9.624%
+  C 2: entry= 65600.01 expiry= 72724.35 delta=    213,730,200 net_pct=  11.479%
+  C 3: entry= 72322.91 expiry= 97490.56 delta=    755,029,500 net_pct=   7.719%
+  C 4: entry= 96465.42 expiry= 92620.71 delta=   -115,341,300 net_pct=   0.091%
+  C 5: entry= 93354.22 expiry=104742.64 delta=    341,652,600 net_pct=   0.236%
+  C 6: entry=102411.26 expiry= 94265.48 delta=   -244,373,400 net_pct=  -0.043%
+  C 7: entry= 86161.10 expiry= 82490.08 delta=   -110,130,600 net_pct=   1.049%
+  C 8: entry= 83174.33 expiry= 95861.33 delta=    380,610,000 net_pct=   1.744%
+  C 9: entry= 94272.55 expiry=105447.82 delta=    335,258,100 net_pct=   0.185%
+  C10: entry=104753.38 expiry=108028.60 delta=     98,256,600 net_pct=  -0.070%
+  C11: entry=108246.65 expiry=115051.85 delta=    204,156,000 net_pct=  -0.099%
+  C12: entry=114180.00 expiry=110720.79 delta=   -103,776,300 net_pct=  -0.133%
+  C13: entry=110670.02 expiry=123520.79 delta=    385,523,100 net_pct=  -0.114%
+  C14: entry=124720.09 expiry=103869.00 delta=   -625,532,700 net_pct=  -0.182%
+  C15: entry=101290.50 expiry= 89267.97 delta=   -360,675,900 net_pct=  -0.026%
+  C16: entry= 90402.29 expiry= 93722.01 delta=     99,591,600 net_pct=   0.464%
+  C17: entry= 91279.73 expiry= 70527.70 delta=   -622,560,900 net_pct=  -6.314%
+  C18: entry= 69244.74 expiry= 68432.17 delta=    -24,377,100 net_pct=   0.845%
+  C19: entry= 69960.83 expiry= 71798.01 delta=     55,115,400 net_pct=   5.145%
+  C20: entry= 72997.88 expiry= 82199.99 delta=    276,063,300 net_pct=   7.148%
+  C21: entry= 81727.06 expiry= 61449.46 delta=   -608,328,000 net_pct= -18.099%
+  C22: entry= 63563.42 expiry= 63773.04 delta=      6,288,600 net_pct=   0.697%
+  C23: entry= 63740.32 expiry= 63694.43 delta=     -1,376,700 net_pct=   0.345%
+
+Sum of per-cycle net_pnl_pct: 11.26%
+
+Spot min: 53950.01
+Spot max: 124720.09
+Peak-to-trough: -56.74%
+Start-to-trough (66771→53950): -19.20%
+[0m
+[0m$ [0mcat << 'PYEOF' > /tmp/validate_premium.py
+import sys
+sys.path.insert(0, "/home/heimdall/btc_proj/BTC_analysis/btc_engine")
+import pandas as pd
+import numpy as np
+
+base = "/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z"
+bt = pd.read_parquet(f"{base}/backtest_results.parquet")
+
+# Premium unit analysis
+# The report says:
+# - "Total premium received = $11.34B" for covered call
+# - premium_received_usd in backtest is 11,341,760,165 in binary (11.34B)
+# But let's check: premium per cycle should be around BS ATM 15% OTM at 30 DTE, 45% vol
+# BS call premium for S=65000, K=74750, T=30/365, r=0.04, σ=0.45
+# per contract (= 1 BTC notional)
+# Then * 30000 contracts
+
+print("=== PREMIUM UNIT ANALYSIS ===")
+ref_notional = 30000 * 65000
+print(f"Reference notional: ${ref_notional:,.0f}")
+
+sb = bt[bt['strategy_id'] == 'covered_call']
+print(f"\nCovered call cycles: {len(sb)}")
+
+# premium_received_usd is PER CYCLE
+# premium_received_btc is also per cycle
+for i in range(min(5, len(sb))):
+    c = sb.iloc[i]
+    print(f"  C{i}: prem_usd={c['premium_received_usd']:>15,.0f} prem_btc={c['premium_received_btc']:>10.2f} entry={c['entry_spot']:.2f}")
+    # Check: prem_usd / prem_btc should ≈ entry_spot (if prem_btc is in BTC units)
+    if c['premium_received_btc'] > 0:
+        implied_spot = c['premium_received_usd'] / c['premium_received_btc']
+        print(f"        implied_spot={implied_spot:.2f} vs entry_spot={c['entry_spot']:.2f}")
+
+# What should per-cycle premium be?
+# BS European call: K = S * (1 + 0.15) = 74750 for S=65000
+# For the first cycle: S=66771.45, K=75000 (rounded?)
+# T = 30/365.25 ≈ 0.082
+# Let me not compute BS right now, just check relationships
+
+# Now: the TOTAL premium for covered call is $11.34B (11,341,760,165)
+# But looking at JUST the premium per cycle:
+sum_prem = sb['premium_received_usd'].sum()
+print(f"\nSum of premium across cycles: ${sum_prem:,.0f}")
+print(f"Per-cycle avg premium: ${sum_prem/len(sb):,.0f}")
+print(f"Per-BTC avg premium per cycle: ${sum_prem/len(sb)/30000:,.2f}")
+print(f"Per-BTC avg premium as % of spot: {sum_prem/len(sb)/30000/65000*100:.2f}%")
+
+# The report says $11.34B total for covered call. This is indeed the sum.
+# But $11.34B for 30000 BTC over 24 cycles means
+# $11.34B / 24 cycles = $472.5M per cycle
+# $472.5M / 30000 BTC = $15,750 per BTC per cycle
+# $15,750 / $65,000 = 24.2% per cycle per BTC!!!
+
+# That's absurd. BS premium at 15% OTM, 30 DTE, 45% vol should be ~1%.
+# Something is VERY wrong with the premium numbers.
+
+# Let me check: is premium_received_usd per contract (1 BTC) or per total position?
+# If prem_usd = ~$15,000/BTC/cycle, that would be BS premium IF it's per entire position
+#   vs if prem_btc = ~400 BTC, then the implied spot is about right ($28M / 430 = $65k)
+
+# Look at cycle 0: prem_usd=$28,690,350, prem_btc=429.68
+# 28,690,350 / 429.68 = 66,771 which matches entry_spot!
+# So prem_btc = prem_usd / entry_spot, meaning prem_btc is the BTC-equivalent of the premium.
+# And prem_usd = 28,690,350 for 30,000 contracts.
+
+# Per-BTC premium: 28,690,350 / 30,000 = $956.35/BTC
+# As % of entry: 956.35 / 66,771 = 1.43%
+# That's about right for BS 15% OTM call!
+
+# So $956/BTC/cycle × 24 cycles = $22,952/BTC total
+# 30,000 BTC × 24 = $0.72B? No...
+# Wait: 30,000 BTC × 24 cycles means each cycle covers 30,000 BTC.
+# Total premium = sum over 24 cycles of (per_BTC_premium × 30,000)
+# = avg $956 × 30,000 × 24 = $688M? But the sum is $11.34B!
+
+# That means per-BTC premium is much higher than expected.
+# Let me compute: $11.34B / 24 / 30000 = $15,750/BTC/cycle
+
+# Something doesn't add up. Let me look at actual cycle premiums more carefully.
+
+print(f"\n=== DETAILED PREMIUM CHECK ===")
+for i, c in sb.iterrows():
+    prem = c['premium_received_usd']
+    prem_per_btc = prem / 30000
+    prem_pct = prem_per_btc / c['entry_spot'] * 100
+    print(f"  C{i}: prem=${prem:>20,.0f} per_btc=${prem_per_btc:>10.2f} pct={prem_pct:.2f}%")
+
+PYEOF
+.venv/bin/python /tmp/validate_premium.py
+=== PREMIUM UNIT ANALYSIS ===
+Reference notional: $1,950,000,000
+
+Covered call cycles: 24
+  C0: prem_usd=     28,690,353 prem_btc=    429.68 entry=66771.45
+        implied_spot=66771.45 vs entry_spot=66771.45
+  C1: prem_usd=      3,826,481 prem_btc=     64.43 entry=59385.50
+        implied_spot=59385.50 vs entry_spot=59385.50
+  C2: prem_usd=     22,019,023 prem_btc=    335.66 entry=65600.01
+        implied_spot=65600.01 vs entry_spot=65600.01
+  C3: prem_usd=     80,703,210 prem_btc=   1115.87 entry=72322.91
+        implied_spot=72322.91 vs entry_spot=72322.91
+  C4: prem_usd=    654,314,511 prem_btc=   6782.89 entry=96465.42
+        implied_spot=96465.42 vs entry_spot=96465.42
+
+Sum of premium across cycles: $11,341,760,165
+Per-cycle avg premium: $472,573,340
+Per-BTC avg premium per cycle: $15,752.44
+Per-BTC avg premium as % of spot: 24.23%
+
+=== DETAILED PREMIUM CHECK ===
+  C0: prem=$          28,690,353 per_btc=$    956.35 pct=1.43%
+  C1: prem=$           3,826,481 per_btc=$    127.55 pct=0.21%
+  C2: prem=$          22,019,023 per_btc=$    733.97 pct=1.12%
+  C3: prem=$          80,703,210 per_btc=$   2690.11 pct=3.72%
+  C4: prem=$         654,314,511 per_btc=$  21810.48 pct=22.61%
+  C5: prem=$         563,601,352 per_btc=$  18786.71 pct=20.12%
+  C6: prem=$         830,537,417 per_btc=$  27684.58 pct=27.03%
+  C7: prem=$         363,468,591 per_btc=$  12115.62 pct=14.06%
+  C8: prem=$         287,520,796 per_btc=$   9584.03 pct=11.52%
+  C9: prem=$         590,213,308 per_btc=$  19673.78 pct=20.87%
+  C10: prem=$         900,463,087 per_btc=$  30015.44 pct=28.65%
+  C11: prem=$       1,004,993,549 per_btc=$  33499.78 pct=30.95%
+  C12: prem=$       1,182,833,515 per_btc=$  39427.78 pct=34.53%
+  C13: prem=$       1,077,601,713 per_btc=$  35920.06 pct=32.46%
+  C14: prem=$       1,498,990,888 per_btc=$  49966.36 pct=40.06%
+  C15: prem=$         797,147,369 per_btc=$  26571.58 pct=26.23%
+  C16: prem=$         479,346,332 per_btc=$  15978.21 pct=17.67%
+  C17: prem=$         504,152,306 per_btc=$  16805.08 pct=18.41%
+  C18: prem=$          47,422,286 per_btc=$   1580.74 pct=2.28%
+  C19: prem=$          54,135,387 per_btc=$   1804.51 pct=2.58%
+  C20: prem=$          89,575,397 per_btc=$   2985.85 pct=4.09%
+  C21: prem=$         253,009,542 per_btc=$   8433.65 pct=10.32%
+  C22: prem=$          13,281,984 per_btc=$    442.73 pct=0.70%
+  C23: prem=$          13,911,767 per_btc=$    463.73 pct=0.73%
+[0m
+[0m✱ [0mGlob "engine/**/*.py"[90m 5 matches[0m
+[0m✱ [0mGlob "strategy/**/*.py"[90m 8 matches[0m
+Critical issues found. Let me now look at the engine code to understand how P&L is derived.
+[0m→ [0mRead engine/strategy.py
+[0m→ [0mRead strategy/backtest.py
+[0m→ [0mRead strategy/comparison.py
+[0m→ [0mRead research/runner.py
+[0m
+[0m$ [0mcat << 'PYEOF' > /tmp/validate_final.py
+import sys
+sys.path.insert(0, "/home/heimdall/btc_proj/BTC_analysis/btc_engine")
+import pandas as pd
+import numpy as np
+
+base = "/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-baseline-fixed-20260729T005016Z"
+
+# 1. Verify stress results vs table in report
+st = pd.read_parquet(f"{base}/stress_results.parquet")
+print("=== STRESS PREMIUM DECOMPOSITION ===")
+# Check premium contribution for a few scenarios
+for s in st['strategy_id'].unique()[:2]:
+    ss = st[st['strategy_id'] == s]
+    for _, r in ss.iterrows():
+        print(f"  {s}/{r['scenario_name']}: pnl={r['strategy_pnl_usd']:,.0f} prem_contrib={r['premium_contribution_pct']}%")
+
+# 2. Verify regime P&L claims  
+# The report says CSP consistently +$45M across all 21 regimes
+# Let me check if +45M in the report is correct
+reg = pd.read_parquet(f"{base}/regime_results.parquet")
+print(f"\n=== REGIME METRICS ===")
+# Check first regime's strategy_metrics
+rm = reg.iloc[0]['strategy_metrics']
+print(f"First regime strategy_metrics type: {type(rm)}")
+if isinstance(rm, dict) or hasattr(rm, 'keys'):
+    print(f"Keys: {list(rm.keys()) if isinstance(rm, dict) else rm}")
+    if 'cash_secured_put' in (rm if isinstance(rm, dict) else {}):
+        print(f"CSP pnl: {rm['cash_secured_put']}")
+
+# 3. Verify the intensive run failure
+intensive_dir = "/home/heimdall/btc_proj/BTC_analysis/btc_engine/results/research/empirical-intensive-20260729T000727Z"
+import os
+if os.path.exists(intensive_dir):
+    print(f"\n=== INTENSIVE RUN FILES ===")
+    for f in os.listdir(intensive_dir):
+        fpath = os.path.join(intensive_dir, f)
+        if os.path.isfile(fpath):
+            print(f"  {f}: {os.path.getsize(fpath)} bytes")
+    
+    rs = os.path.join(intensive_dir, "run_status.json")
+    if os.path.exists(rs):
+        with open(rs) as fh:
+            import json
+            print(f"  Status: {json.load(fh)}")
+
+# 4. Verify MC results for seeds
+mc = pd.read_parquet(f"{base}/monte_carlo_results.parquet")
+print(f"\n=== MC BY STRATEGY ===")
+for _, row in mc.iterrows():
+    print(f"  {row['strategy_id']}: expected=${row['expected_pnl']:,.0f} VaR95=${row['var_95_pnl']:,.0f} ES975=${row['es_975_pnl']:,.0f} loss_prob={row['probability_of_loss']:.4f}")
+
+# 5. Verify VaR and ES signs (should they be positive or negative?)
+# The CSV reports them as loss values (positive magnitude for loss)
+comp = pd.read_csv(f"{base}/strategy_comparison.csv")
+for _, row in comp.iterrows():
+    # var_95_loss in CSV should match var_95_pnl from MC
+    mc_row = mc[mc['strategy_id'] == row['strategy_id']]
+    if len(mc_row) > 0:
+        print(f"\n  {row['strategy_id']}: CSV_var95={row['var_95_loss']:,.0f} MC_var95={mc_row.iloc[0]['var_95_pnl']:,.0f}")
+
+# 6. Check reporting module
+print(f"\n=== REPORTING MODULE ===")
+
+PYEOF
+.venv/bin/python /tmp/validate_final.py
+=== STRESS PREMIUM DECOMPOSITION ===
+  unhedged_baseline/2025_breakout_to_126k: pnl=1,830,000,000 prem_contrib=0.0%
+  unhedged_baseline/2026_retrace_to_65k: pnl=0 prem_contrib=0.0%
+  unhedged_baseline/flash_crash_to_30k: pnl=-1,050,000,000 prem_contrib=0.0%
+  unhedged_baseline/dvol_35_to_65_shock: pnl=-195,000,000 prem_contrib=0.0%
+  unhedged_baseline/dvol_65_to_35_normalize: pnl=68,250,000 prem_contrib=0.0%
+  unhedged_baseline/liquidity_shock: pnl=-487,500,000 prem_contrib=0.0%
+  unhedged_baseline/settlement_price_shock: pnl=-97,500,000 prem_contrib=0.0%
+  unhedged_baseline/combined_severe: pnl=-780,000,000 prem_contrib=0.0%
+  unhedged_baseline/bull_rally_100k: pnl=1,050,000,000 prem_contrib=0.0%
+  unhedged_baseline/sideways_chop: pnl=39,000,000 prem_contrib=0.0%
+  covered_call/2025_breakout_to_126k: pnl=345,000,000 prem_contrib=1.0714285714285714%
+  covered_call/2026_retrace_to_65k: pnl=45,000,000 prem_contrib=1.0714285714285714%
+  covered_call/flash_crash_to_30k: pnl=-985,912,457 prem_contrib=1.0714285714285714%
+  covered_call/dvol_35_to_65_shock: pnl=-150,000,000 prem_contrib=1.0714285714285714%
+  covered_call/dvol_65_to_35_normalize: pnl=113,250,000 prem_contrib=1.0714285714285714%
+  covered_call/liquidity_shock: pnl=-442,500,000 prem_contrib=1.0714285714285714%
+  covered_call/settlement_price_shock: pnl=-45,778,395 prem_contrib=1.0714285714285714%
+  covered_call/combined_severe: pnl=-735,000,000 prem_contrib=1.0714285714285714%
+  covered_call/bull_rally_100k: pnl=345,000,000 prem_contrib=1.0714285714285714%
+  covered_call/sideways_chop: pnl=84,000,000 prem_contrib=1.0714285714285714%
+
+=== REGIME METRICS ===
+First regime strategy_metrics type: <class 'dict'>
+Keys: ['unhedged_baseline', 'covered_call', 'cash_secured_put', 'long_btc_plus_short_put', 'collar', 'call_spread', 'partial_overlay', 'strike_ladder']
+CSP pnl: {'regime_label': 'sideways', 'regime_start': '2024-07-30 00:00:00+00:00', 'regime_end': '2024-10-27 00:00:00+00:00', 'spot_return_pct': 10.992018864025303, 'annualised_vol_pct': 51.26264726126776, 'strategy_pnl_usd': 45000000.0, 'provenance': 'calculated'}
+
+=== INTENSIVE RUN FILES ===
+
+=== MC BY STRATEGY ===
+  unhedged_baseline: expected=$15,489,146 VaR95=$-395,670,135 ES975=$-551,490,491 loss_prob=0.4975
+  covered_call: expected=$37,591,865 VaR95=$-350,670,135 ES975=$-506,490,491 loss_prob=0.4297
+  cash_secured_put: expected=$16,110,953 VaR95=$-155,670,135 ES975=$-311,490,491 loss_prob=0.1662
+  long_btc_plus_short_put: expected=$31,600,099 VaR95=$-551,340,271 ES975=$-862,980,981 loss_prob=0.4297
+  collar: expected=$13,651,462 VaR95=$-291,000,000 ES975=$-291,000,000 loss_prob=0.4843
+  call_spread: expected=$6,906,561 VaR95=$-152,478,629 ES975=$-270,869,339 loss_prob=0.1226
+  partial_overlay: expected=$26,540,506 VaR95=$-373,170,135 ES975=$-528,990,491 loss_prob=0.4641
+  strike_ladder: expected=$30,505,791 VaR95=$-356,670,135 ES975=$-512,490,491 loss_prob=0.4385
+
+  unhedged_baseline: CSV_var95=395,670,135 MC_var95=-395,670,135
+
+  covered_call: CSV_var95=350,670,135 MC_var95=-350,670,135
+
+  cash_secured_put: CSV_var95=155,670,135 MC_var95=-155,670,135
+
+  long_btc_plus_short_put: CSV_var95=551,340,271 MC_var95=-551,340,271
+
+  collar: CSV_var95=291,000,000 MC_var95=-291,000,000
+
+  call_spread: CSV_var95=152,478,629 MC_var95=-152,478,629
+
+  partial_overlay: CSV_var95=373,170,135 MC_var95=-373,170,135
+
+  strike_ladder: CSV_var95=356,670,135 MC_var95=-356,670,135
+
+=== REPORTING MODULE ===
+[0m
+[0m$ [0mcat << 'PYEOF' > /tmp/validate_reporting.py
+import sys
+sys.path.insert(0, "/home/heimdall/btc_proj/BTC_analysis/btc_engine")
+
+# Read the reporting module
+from research.reporting import build_comparison_table
+import inspect
+print(inspect.getsource(build_comparison_table))
+PYEOF
+.venv/bin/python /tmp/validate_reporting.py 2>&1 | head -80
+def build_comparison_table(
+    backtest_results: dict[str, Any],
+    oos_results: dict[str, Any],
+    mc_results: dict[str, Any],
+    stress_results: dict[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for sid in backtest_results:
+        bt = backtest_results[sid]
+        oos = oos_results.get(sid, {})
+        mc = mc_results.get(sid, mc_results.get(f"{sid}_GBM", {}))
+        ss = stress_results.get(sid, {})
+
+        row = {
+            "strategy_id": sid,
+            "strategy_kind": getattr(bt, "strategy_kind", str(bt.get("canonical", "")) if hasattr(bt, "get") else ""),
+            "business_label": getattr(bt, "business_label", ""),
+            "total_pnl_pct": getattr(bt, "total_pnl_pct", 0.0),
+            "itm_frequency": getattr(bt, "itm_frequency", 0.0),
+            "touch_frequency": getattr(bt, "touch_frequency", 0.0),
+            "max_drawdown_pct": getattr(bt, "max_drawdown_pct", 0.0),
+            "sharpe_ratio": getattr(bt, "sharpe_ratio", None),
+            "total_premium_usd": getattr(bt, "total_premium_usd", 0.0),
+        }
+        if hasattr(bt, "effective_acquisition_cost") and bt.effective_acquisition_cost is not None:
+            row["effective_acquisition_cost"] = bt.effective_acquisition_cost.per_btc_usd
+        else:
+            row["effective_acquisition_cost"] = 0.0
+
+        row["pbo_estimate"] = getattr(oos, "pbo_estimate", oos.get("pbo_estimate") if hasattr(oos, "get") else None)
+        row["deflated_sharpe_ratio"] = getattr(oos, "deflated_sharpe_ratio", oos.get("deflated_sharpe_ratio") if hasattr(oos, "get") else None)
+        row["var_95_loss"] = getattr(mc, "var_95", mc.get("var_95", 0.0) if hasattr(mc, "get") else 0.0)
+        row["es_975_loss"] = getattr(mc, "es_975", mc.get("es_975", 0.0) if hasattr(mc, "get") else 0.0)
+        row["probability_of_loss"] = getattr(mc, "probability_of_loss", mc.get("probability_of_loss", 0.0) if hasattr(mc, "get") else 0.0)
+
+        stress_summary = getattr(ss, "scenario_results", ss.get("scenario_results", []) if hasattr(ss, "get") else [])
+        if stress_summary:
+            row["highest_pnl_stress"] = getattr(ss, "highest_pnl_scenario_pnl", max(s.get("strategy_pnl_usd", 0) for s in stress_summary if "strategy_pnl_usd" in s) if stress_summary else 0.0)
+            row["lowest_pnl_stress"] = getattr(ss, "lowest_pnl_scenario_pnl", min(s.get("strategy_pnl_usd", 0) for s in stress_summary if "strategy_pnl_usd" in s) if stress_summary else 0.0)
+        else:
+            row["highest_pnl_stress"] = 0.0
+            row["lowest_pnl_stress"] = 0.0
+
+        rows.append(row)
+    return rows
+[0m
+Now I have identified the critical issues. Let me verify a few more items quickly, then write the report.
+[0m$ [0mcat << 'PYEOF' > /tmp/verify_gbm.py
+import numpy as np
+from datetime import datetime, UTC, timedelta
+
+# Reconstruct EXACTLY what backtest_unhedged does
+start_date = datetime(2023, 1, 1, tzinfo=UTC)
+end_date = datetime(2026, 7, 27, tzinfo=UTC)
+n_days = max((end_date - start_date).days, 1)
+print(f"n_days = {n_days}")
+
+start_spot = 65000.0
+annual_vol = 0.45
+annual_drift = 0.10
+seed = 42
+
+rng = np.random.default_rng(seed)
+dt = 1.0 / 365.0
+z = rng.normal(size=n_days)
+returns = (annual_drift - 0.5 * annual_vol ** 2) * dt + annual_vol * np.sqrt(dt) * z
+path = start_spot * np.exp(np.cumsum(returns))
+spot_path = np.insert(path, 0, start_spot)
+
+print(f"Path start: {spot_path[0]:.2f}")
+print(f"Path end: {spot_path[-1]:.2f}")
+print(f"Path min: {spot_path.min():.2f}")
+print(f"Path max: {spot_path.max():.2f}")
+print(f"Return: {(spot_path[-1]/spot_path[0] - 1)*100:.2f}%")
+
+btc_held = 30000
+pnl_usd = btc_held * (spot_path[-1] - start_spot)
+pnl_pct = (pnl_usd / (btc_held * start_spot)) * 100.0
+print(f"P&L USD: ${pnl_usd:,.0f}")
+print(f"P&L %: {pnl_pct:.2f}%")
+print(f"Effective cost: {start_spot * (1.0 - 0.025):,.0f}")
+
+# Now verify: can this GBM path produce -56.2%?
+# Check if the path ever goes to ~$28,470 (which would give -56.2%)
+# Actually the return from start_spot to end_spot gives the P&L%
+print(f"\nEnd spot for -56.2%: {65000 * (1 - 0.562):.2f}")
+print(f"Actual end spot: {spot_path[-1]:.2f}")
+
+# Wait - the -56.2% might not be from backtest_unhedged at all!
+# Let me check the runner more carefully.
+# Line 388-393: For unhedged, it calls backtest_unhedged(s, start_date, end_date, spot, seed=42)
+# start_date=2023-01-01, end_date=2026-07-27, spot=65000.0
+# n_days = (2026-07-27 - 2023-01-01).days = about 1304 days
+
+dt2 = datetime(2026, 7, 27, tzinfo=UTC) - datetime(2023, 1, 1, tzinfo=UTC)
+print(f"\nDate range: 2023-01-01 to 2026-07-27 = {dt2.days} days")
+
+PYEOF
+.venv/bin/python /tmp/verify_gbm.py
+n_days = 1303
+Path start: 65000.00
+Path end: 28471.17
+Path min: 25574.85
+Path max: 73944.01
+Return: -56.20%
+P&L USD: $-1,095,864,783
+P&L %: -56.20%
+Effective cost: 63,375
+
+End spot for -56.2%: 28470.00
+Actual end spot: 28471.17
+
+Date range: 2023-01-01 to 2026-07-27 = 1303 days
+[0m
+[0m→ [0mRead strategy/regimes.py[90m [limit=100][0m
+[0m
+[0m$ [0mcat << 'PYEOF' > /tmp/check_oos_code.py
+import sys
+sys.path.insert(0, "/home/heimdall/btc_proj/BTC_analysis/btc_engine")
+from strategy.regimes import compute_oos_validation, split_train_test
+import inspect
+print("=== compute_oos_validation ===")
+print(inspect.getsource(compute_oos_validation))
+print("\n=== split_train_test ===")
+print(inspect.getsource(split_train_test))
+PYEOF
+.venv/bin/python /tmp/check_oos_code.py 2>&1
+=== compute_oos_validation ===
+def compute_oos_validation(
+    train_result: dict[str, Any] | None = None,
+    test_result: dict[str, Any] | None = None,
+    cscv_s: int = 16,
+    cscv_n: int = 100,
+) -> OOSValidationResult:
+    """Compute out-of-sample validation metrics.
+
+    Enforces train-before-test chronology via call-site ordering.
+    CSCV/PBO/DSR per Bailey et al. (2015).
+    """
+    train_sharpe = train_result.get("sharpe") if train_result else None
+    test_sharpe = test_result.get("sharpe") if test_result else None
+
+    train_period = train_result.get("train_period", (datetime.min, datetime.min)) if train_result else (datetime.min, datetime.min)
+    test_period = test_result.get("test_period", (datetime.min, datetime.min)) if test_result else (datetime.min, datetime.min)
+    if test_result and "test_period" in test_result:
+        test_period_data = test_result.get("test_period")
+        if test_period_data:
+            test_period = test_period_data
+
+    degradation = 0.0
+    if train_sharpe is not None and test_sharpe is not None:
+        degradation = train_sharpe - test_sharpe
+
+    train_returns = train_result.get("returns", []) if train_result else []
+    test_returns = test_result.get("returns", []) if test_result else []
+    all_returns = np.array(list(train_returns) + list(test_returns))
+
+    pbo: float | None = None
+    dsr: float | None = None
+    sn: float | None = None
+    is_insufficient = False
+    reason: str | None = None
+
+    if len(all_returns) >= cscv_n:
+        cscv_result = compute_cscv_pbo(all_returns, s=cscv_s, n_min=cscv_n)
+        pbo = cscv_result.get("pbo_estimate")
+        dsr = cscv_result.get("deflated_sharpe_ratio")
+        sn = cscv_result.get("signal_to_noise")
+        is_insufficient = bool(cscv_result.get("is_insufficient_data"))
+        if is_insufficient:
+            reason = cscv_result.get("insufficient_data_reason")
+    else:
+        is_insufficient = True
+        reason = f"Insufficient observations: have {len(all_returns)}, need >= {cscv_n}"
+
+    return OOSValidationResult(
+        train_period=train_period,
+        test_period=test_period,
+        train_sharpe=train_sharpe,
+        test_sharpe=test_sharpe,
+        pbo_estimate=pbo,
+        performance_degradation=degradation,
+        cscv_s=cscv_s,
+        cscv_n=cscv_n,
+        deflated_sharpe_ratio=dsr,
+        is_insufficient_data=is_insufficient,
+        insufficient_data_reason=reason,
+        signal_to_noise=sn,
+    )
+
+
+=== split_train_test ===
+def split_train_test(
+    dates: list[datetime],
+    train_ratio: float = 0.70,
+) -> tuple[list[int], list[int]]:
+    split_idx = int(len(dates) * train_ratio)
+    return list(range(split_idx)), list(range(split_idx, len(dates)))
+[0m
+[0m$ [0mmkdir -p /home/heimdall/btc_proj/BTC_analysis/btc_engine/docs/reports
+(no output)
+[0m
+Now I have all the evidence. Let me write the validation report and findings.
+[0m← [0mWrite docs/reports/independent_validation_report_deepseek.md
+Wrote file successfully.
+[0m
+[0m← [0mWrite docs/reports/independent_validation_findings_deepseek.json
+Wrote file successfully.
+[0m
+[0m$ [0mwc -l /home/heimdall/btc_proj/BTC_analysis/btc_engine/docs/reports/independent_validation_report_deepseek.md /home/heimdall/btc_proj/BTC_analysis/btc_engine/docs/reports/independent_validation_findings_deepseek.json
+316 /home/heimdall/btc_proj/BTC_analysis/btc_engine/docs/reports/independent_validation_report_deepseek.md
+  323 /home/heimdall/btc_proj/BTC_analysis/btc_engine/docs/reports/independent_validation_findings_deepseek.json
+  639 total
+[0m
+[0m$ [0mpython3 -c "import json; d=json.load(open('/home/heimdall/btc_proj/BTC_analysis/btc_engine/docs/reports/independent_validation_findings_deepseek.json')); print(f'Status: {d[\"review_status\"]}'); print(f'Blocking: {d[\"blocking_findings\"]}'); print(f'Total findings: {len(d[\"findings\"])}'); print(f'Verified identities: {len(d[\"verified_identities\"])}'); print(f'Unsupported claims: {len(d[\"unsupported_claims\"])}'); print(f'Required repairs: {len(d[\"required_repairs\"])}'); print(f'Acceptance tests: {len(d[\"acceptance_tests\"])}')"
+Status: INSUFFICIENT_EVIDENCE
+Blocking: ['V-001', 'V-002', 'V-003']
+Total findings: 14
+Verified identities: 5
+Unsupported claims: 6
+Required repairs: 10
+Acceptance tests: 6
+[0m
+## Verdict: INSUFFICIENT_EVIDENCE
+
+The validation report and findings have been written to:
+- `docs/reports/independent_validation_report_deepseek.md` (316 lines)
+- `docs/reports/independent_validation_findings_deepseek.json` (323 lines)
+
+### 14 findings: 3 BLOCKING, 4 MAJOR, 5 MODERATE, 2 MINOR
+
+**BLOCKING findings:**
+
+| ID | Finding |
+|----|---------|
+| V-001 | The unhedged baseline P&L of -56.20% comes from a synthetic GBM path (seed=42), not the observed Massive spot data. The actual observed buy-and-hold return is **-4.61%**. The report claims "BTC declined 56%" — this is fabricated. |
+| V-002 | Unhedged `max_drawdown_pct = 0.0` with `total_pnl_pct = -56.2%` — mathematically impossible. Drawdown is never computed for unhedged. |
+| V-003 | The strategy comparison mixes synthetic GBM data (unhedged) with observed Massive data (all other strategies). No meaningful comparison is possible. |
+
+**Key evidence:** Reconstructing the GBM path (seed=42, drift=10%, vol=45%, 1303 days from 2023-01-01) independently confirms the -56.20% result, proving it is purely synthetic. The observed `_spot_data_dump.csv` shows start=$66,771.45, end=$63,694.43 — a **-4.61%** return.
+
+**Additional major findings:** The "$11.34B total premium" for covered call includes intrinsic value from deep-ITM options that must be repaid at settlement (not standalone income). Execution sensitivity has zero results. OOS metrics are all null (only 24 cycles available — insufficient for CSCV requiring ≥100).
