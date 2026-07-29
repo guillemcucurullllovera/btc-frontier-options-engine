@@ -322,6 +322,7 @@ def backtest_strategy(
     total_premium_received_btc = 0.0
     total_fees_usd = 0.0
     total_fees_btc = 0.0
+    total_payout_usd = 0.0
     cumulative_premium_pct = 0.0
     max_cumulative_pnl = -1e12
     max_drawdown_pct = 0.0
@@ -481,6 +482,7 @@ def backtest_strategy(
         total_premium_received_btc += premium_received_btc
         total_fees_usd += total_fees_this_cycle
         total_fees_btc += total_fees_btc_this_cycle
+        total_payout_usd += payout_usd
         cumulative_premium_pct += premium_pct_of_spot * 100.0
 
         realised_pnl_total += net_pnl_usd_cycle
@@ -574,23 +576,25 @@ def backtest_strategy(
             "realised_assignment": float(c.realised_assignment),
         })
 
-    ref_qty = max(btc_held, total_opt_qty, 1.0)
     if btc_held > 0:
-        baseline = initial_spot * ref_qty
+        acq_denominator = btc_held
+        baseline = initial_spot * btc_held
     elif cash_collateral_req > 0:
+        acq_denominator = max(total_opt_qty, 1.0)
         baseline = cash_collateral_req
     else:
-        baseline = initial_spot * ref_qty
+        acq_denominator = max(total_opt_qty, 1.0)
+        baseline = initial_spot * acq_denominator
 
-    seller_discount = initial_spot * seller_discount_pct * ref_qty
+    seller_discount = initial_spot * seller_discount_pct * acq_denominator
     total_impact_usd = sum(c.impact_usd for c in cycles)
     eff_cost_usd = (
         baseline
         + total_fees_usd
         - total_premium_received_usd
+        - total_payout_usd
         - seller_discount
-        + total_impact_usd
-    ) / ref_qty
+    ) / acq_denominator
 
     eff_acq = EffectiveAcquisitionCost(
         per_btc_usd=eff_cost_usd,
@@ -711,14 +715,15 @@ def backtest_unhedged(
     pnl_usd = btc_held * (spot_at_end - start_spot)
     pnl_pct = (pnl_usd / (btc_held * start_spot)) * 100.0 if btc_held > 0 and start_spot > 0 else 0.0
 
+    seller_discount = start_spot * 0.025 * btc_held if btc_held > 0 else 0.0
     eff_cost = EffectiveAcquisitionCost(
-        per_btc_usd=start_spot - (pnl_usd / btc_held) if btc_held > 0 else start_spot,
+        per_btc_usd=start_spot * (1.0 - 0.025) if btc_held > 0 else start_spot,
         per_btc_btc=0.0,
         premium_component_usd=0.0,
         premium_provenance=Provenance.BUSINESS_REQUIREMENT,
         fee_component_usd=0.0,
         fee_provenance=Provenance.ASSUMED,
-        seller_discount_component_usd=start_spot * 0.025 * btc_held,
+        seller_discount_component_usd=seller_discount,
         seller_discount_provenance=Provenance.BUSINESS_REQUIREMENT,
         impact_component_usd=0.0,
         impact_provenance=Provenance.ASSUMED,

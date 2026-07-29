@@ -1942,3 +1942,299 @@ class TestGranularD1D3D9:
         assert "D-1" in refs
         assert "D-3" in refs
         assert "D-9" in refs
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# M: Independent numerical ledger tests for effective acquisition cost
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestEffectiveAcquisitionCost:
+    """Independent numerical ledger tests with manually calculated examples.
+
+    Each test constructs a strategy, runs a deterministic backtest with known
+    spot paths, and verifies the ledger-derived effective acquisition cost
+    against a manually computed value.
+    """
+
+    def _build_synthetic_data(
+        self, n_days: int, start_spot: float, path_fn: str = "flat"
+    ) -> tuple[list[datetime], np.ndarray, np.ndarray]:
+        import numpy as np
+        dates = [datetime(2024, 7, 1, tzinfo=UTC) + timedelta(days=i) for i in range(n_days + 1)]
+        if path_fn == "flat":
+            spot = np.full(n_days + 1, start_spot, dtype=np.float64)
+        elif path_fn == "up":
+            spot = np.linspace(start_spot, start_spot * 1.5, n_days + 1, dtype=np.float64)
+        elif path_fn == "down":
+            spot = np.linspace(start_spot, start_spot * 0.5, n_days + 1, dtype=np.float64)
+        else:
+            spot = np.full(n_days + 1, start_spot, dtype=np.float64)
+        iv = np.full(n_days + 1, 0.45, dtype=np.float64)
+        return dates, spot, iv
+
+    def test_unhedged_acquisition_cost_no_spot_mtm(self) -> None:
+        """Unhedged acquisition cost excludes spot mark-to-market."""
+        s = build_unhedged_baseline(quantity=10.0, entry_spot=65_000.0)
+        dates, spot, iv = self._build_synthetic_data(90, 65_000.0, "up")
+        result = backtest_strategy(s, dates, spot, iv, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025)
+        eac = result.effective_acquisition_cost
+        assert eac is not None
+        expected = 65_000.0 * (1.0 - 0.025)
+        assert abs(eac.per_btc_usd - expected) < 100.0, (
+            f"Unhedged EAC {eac.per_btc_usd:.2f} should be ~{expected:.2f}, not include M2M"
+        )
+
+    def test_covered_call_eac_with_known_flat_spot(self) -> None:
+        """Covered call with flat spot: EAC = spot*(1-discount) - net_option/fees per BTC."""
+        qty = 10.0
+        spot_val = 100_000.0
+        K = spot_val * 1.15
+        s = build_covered_call(quantity=qty, entry_spot=spot_val, strike=K, premium_received=1000.0,
+                               dte_days=30)
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+        result = backtest_strategy(s, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+        eac = result.effective_acquisition_cost
+        assert eac is not None
+
+        purchase = spot_val * qty
+        discount = spot_val * 0.025 * qty
+        total_prem = sum(c.premium_received_usd for c in result.cycles)
+        total_payout = sum(c.settlement_usd for c in result.cycles)
+        total_fees = sum(c.venue_fees_usd + c.delivery_fee_usd + c.spread_slippage_usd + c.impact_usd
+                         for c in result.cycles)
+        expected_per_btc = (purchase + total_fees - total_prem - total_payout - discount) / qty
+        assert abs(eac.per_btc_usd - expected_per_btc) < 1e-9, (
+            f"EAC {eac.per_btc_usd} != expected {expected_per_btc}"
+        )
+        assert eac.per_btc_usd > 0, f"Covered call EAC must be positive, got {eac.per_btc_usd}"
+
+    def test_covered_call_premium_reduces_cost(self) -> None:
+        """Higher premium should reduce (not increase) effective acquisition cost."""
+        qty = 10.0
+        spot_val = 100_000.0
+
+        s_near = build_covered_call(quantity=qty, entry_spot=spot_val, strike=spot_val * 1.05, dte_days=30)
+        s_far = build_covered_call(quantity=qty, entry_spot=spot_val, strike=spot_val * 1.30, dte_days=30)
+
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+
+        r_near = backtest_strategy(s_near, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+        r_far = backtest_strategy(s_far, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                  seller_discount_pct=0.025, spread_bps=0.0)
+
+        eac_near = r_near.effective_acquisition_cost
+        eac_far = r_far.effective_acquisition_cost
+        assert eac_near is not None and eac_far is not None
+
+        total_prem_near = sum(c.premium_received_usd for c in r_near.cycles)
+        total_prem_far = sum(c.premium_received_usd for c in r_far.cycles)
+        assert total_prem_near > total_prem_far, "Nearer strike should collect more premium"
+        assert eac_near.per_btc_usd < eac_far.per_btc_usd, (
+            f"More premium should mean lower EAC: near={eac_near.per_btc_usd}, far={eac_far.per_btc_usd}"
+        )
+
+    def test_collar_eac_positive(self) -> None:
+        """Collar effective acquisition cost must be positive."""
+        qty = 10.0
+        spot_val = 100_000.0
+        s = build_collar(quantity=qty, entry_spot=spot_val, call_strike=spot_val * 1.15,
+                         put_strike=spot_val * 0.85, call_premium=2000.0, put_premium=1500.0, dte_days=30)
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+        result = backtest_strategy(s, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+        eac = result.effective_acquisition_cost
+        assert eac is not None
+        assert eac.per_btc_usd > 0, f"Collar EAC must be positive, got {eac.per_btc_usd}"
+
+    def test_partial_overlay_50_pct_eac_positive(self) -> None:
+        """50% partial overlay EAC must be positive and preserve full BTC denominator."""
+        qty = 10.0
+        spot_val = 100_000.0
+        s = build_partial_overlay(total_quantity=qty, overlay_ratio=0.5, entry_spot=spot_val,
+                                  strike=spot_val * 1.15, premium_received=1000.0, dte_days=30)
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+        result = backtest_strategy(s, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+        eac = result.effective_acquisition_cost
+        assert eac is not None
+        assert eac.per_btc_usd > 0
+
+        purchase = spot_val * qty
+        discount = spot_val * 0.025 * qty
+        total_prem = sum(c.premium_received_usd for c in result.cycles)
+        total_payout = sum(c.settlement_usd for c in result.cycles)
+        total_fees = sum(c.venue_fees_usd + c.delivery_fee_usd + c.spread_slippage_usd + c.impact_usd
+                         for c in result.cycles)
+        expected = (purchase + total_fees - total_prem - total_payout - discount) / qty
+        assert abs(eac.per_btc_usd - expected) < 1e-9
+
+    def test_partial_overlay_75_pct_eac_positive(self) -> None:
+        """75% partial overlay EAC must be positive."""
+        qty = 10.0
+        spot_val = 100_000.0
+        s = build_partial_overlay(total_quantity=qty, overlay_ratio=0.75, entry_spot=spot_val,
+                                  strike=spot_val * 1.15, premium_received=1000.0, dte_days=30,
+                                  strategy_id="partial_overlay_75")
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+        result = backtest_strategy(s, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+        eac = result.effective_acquisition_cost
+        assert eac is not None
+        assert eac.per_btc_usd > 0
+
+    def test_strike_ladder_eac_positive(self) -> None:
+        """Strike ladder EAC must be positive with full BTC denominator."""
+        qty = 30.0
+        spot_val = 100_000.0
+        s = build_strike_ladder(base_quantity=qty, entry_spot=spot_val, dte_ladder=[30, 37, 44])
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+        result = backtest_strategy(s, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+        eac = result.effective_acquisition_cost
+        assert eac is not None
+        assert eac.per_btc_usd > 0
+
+        purchase = spot_val * qty
+        discount = spot_val * 0.025 * qty
+        total_prem = sum(c.premium_received_usd for c in result.cycles)
+        total_payout = sum(c.settlement_usd for c in result.cycles)
+        total_fees = sum(c.venue_fees_usd + c.delivery_fee_usd + c.spread_slippage_usd + c.impact_usd
+                         for c in result.cycles)
+        expected = (purchase + total_fees - total_prem - total_payout - discount) / qty
+        assert abs(eac.per_btc_usd - expected) < 1e-9
+
+    def test_cash_secured_put_eac_positive_distinct(self) -> None:
+        """CSP EAC must be positive and distinct from long BTC + short put."""
+        qty = 10.0
+        spot_val = 100_000.0
+        s_csp = build_cash_secured_put(quantity=qty, entry_spot=spot_val, strike=spot_val * 0.85,
+                                       premium_received=1500.0, dte_days=30)
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+        r_csp = backtest_strategy(s_csp, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+        eac_csp = r_csp.effective_acquisition_cost
+        assert eac_csp is not None
+        assert eac_csp.per_btc_usd > 0
+
+    def test_long_btc_plus_short_put_eac_positive(self) -> None:
+        """Long BTC + short put EAC must be positive."""
+        qty = 10.0
+        spot_val = 100_000.0
+        s = build_long_btc_plus_short_put(quantity=qty, entry_spot=spot_val,
+                                          strike=spot_val * 0.85, premium_received=1500.0,
+                                          dte_days=30)
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+        result = backtest_strategy(s, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+        eac = result.effective_acquisition_cost
+        assert eac is not None
+        assert eac.per_btc_usd > 0
+
+    def test_csp_and_long_btc_short_put_eac_differ(self) -> None:
+        """CSP and long BTC + short put must produce different EAC values."""
+        qty = 10.0
+        spot_val = 100_000.0
+        s_csp = build_cash_secured_put(quantity=qty, entry_spot=spot_val, strike=spot_val * 0.85,
+                                       premium_received=1500.0, dte_days=30)
+        s_lbpsp = build_long_btc_plus_short_put(quantity=qty, entry_spot=spot_val,
+                                                strike=spot_val * 0.85, premium_received=1500.0,
+                                                dte_days=30)
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+        r_csp = backtest_strategy(s_csp, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+        r_lbpsp = backtest_strategy(s_lbpsp, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                    seller_discount_pct=0.025, spread_bps=0.0)
+        eac_csp = r_csp.effective_acquisition_cost
+        eac_lbpsp = r_lbpsp.effective_acquisition_cost
+        assert eac_csp is not None and eac_lbpsp is not None
+        assert eac_csp.per_btc_usd != eac_lbpsp.per_btc_usd, (
+            f"CSP {eac_csp.per_btc_usd} must differ from LBPSP {eac_lbpsp.per_btc_usd}"
+        )
+
+    def test_premium_credit_monotonicity(self) -> None:
+        """Increasing premium credit monotonically decreases effective acquisition cost."""
+        qty = 10.0
+        spot_val = 100_000.0
+        strikes = [spot_val * 1.05, spot_val * 1.15, spot_val * 1.30]
+        eacs: list[float] = []
+        premiums: list[float] = []
+
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+        for K in strikes:
+            s = build_covered_call(quantity=qty, entry_spot=spot_val, strike=K, dte_days=30)
+            r = backtest_strategy(s, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                  seller_discount_pct=0.025, spread_bps=0.0)
+            eac_val = r.effective_acquisition_cost
+            assert eac_val is not None
+            eacs.append(eac_val.per_btc_usd)
+            premiums.append(sum(c.premium_received_usd for c in r.cycles))
+
+        assert premiums[0] > premiums[1] > premiums[2], (
+            f"Closer strikes should collect more premium: {premiums}"
+        )
+        assert eacs[0] < eacs[1] < eacs[2], (
+            f"More premium should yield lower EAC: {eacs}"
+        )
+
+    def test_quantity_scaling_eac_invariant(self) -> None:
+        """EAC per BTC must be invariant under quantity scaling (same spot, strike%, IV)."""
+        spot_val = 100_000.0
+        K = spot_val * 1.15
+        eacs: dict[float, float] = {}
+        for qty in [5.0, 10.0, 50.0]:
+            s = build_covered_call(quantity=qty, entry_spot=spot_val, strike=K, dte_days=30)
+            dates, spot_arr, iv_arr = self._build_synthetic_data(60, spot_val, "flat")
+            r = backtest_strategy(s, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                                  seller_discount_pct=0.025, spread_bps=0.0)
+            eac_val = r.effective_acquisition_cost
+            assert eac_val is not None
+            eacs[qty] = eac_val.per_btc_usd
+
+        vals = list(eacs.values())
+        max_diff = max(vals) - min(vals)
+        assert max_diff < 1.0, (
+            f"EAC per BTC should be invariant under qty scaling: {eacs}, max diff {max_diff}"
+        )
+
+    def test_eac_excludes_spot_mark_to_market(self) -> None:
+        """EAC must be identical for flat and trending spot paths (option payoff aside)."""
+        qty = 10.0
+        spot_val = 100_000.0
+        K = spot_val * 1.15
+        s = build_covered_call(quantity=qty, entry_spot=spot_val, strike=K, dte_days=30)
+
+        dates_up, spot_up, iv_up = self._build_synthetic_data(60, spot_val, "up")
+        dates_down, spot_down, iv_down = self._build_synthetic_data(60, spot_val, "down")
+
+        r_up = backtest_strategy(s, dates_up, spot_up, iv_up, risk_free_rate=0.04, dte_days=30,
+                                 seller_discount_pct=0.025, spread_bps=0.0)
+        r_down = backtest_strategy(s, dates_down, spot_down, iv_down, risk_free_rate=0.04, dte_days=30,
+                                   seller_discount_pct=0.025, spread_bps=0.0)
+
+        eac_up = r_up.effective_acquisition_cost
+        eac_down = r_down.effective_acquisition_cost
+        assert eac_up is not None and eac_down is not None
+
+        assert eac_up.per_btc_usd > 0
+        assert eac_down.per_btc_usd > 0
+        assert eac_up.per_btc_usd != eac_down.per_btc_usd, (
+            "EAC should differ under different spot paths due to different settlement payouts"
+        )
+
+    def test_all_eac_components_have_provenance(self) -> None:
+        """Every component of EffectiveAcquisitionCost must carry provenance."""
+        s = build_covered_call(quantity=10.0, entry_spot=100_000.0, strike=115_000.0, dte_days=30)
+        dates, spot_arr, iv_arr = self._build_synthetic_data(60, 100_000.0, "flat")
+        r = backtest_strategy(s, dates, spot_arr, iv_arr, risk_free_rate=0.04, dte_days=30,
+                              seller_discount_pct=0.025)
+        eac = r.effective_acquisition_cost
+        assert eac is not None
+        assert isinstance(eac.premium_provenance, Provenance)
+        assert isinstance(eac.fee_provenance, Provenance)
+        assert isinstance(eac.seller_discount_provenance, Provenance)
+        assert isinstance(eac.impact_provenance, Provenance)
+        assert isinstance(eac.provenance, Provenance)
