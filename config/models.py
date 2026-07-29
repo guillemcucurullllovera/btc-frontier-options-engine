@@ -13,7 +13,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # ── §4.1 Provenance ──────────────────────────────────────────────────────────
 
@@ -84,6 +84,10 @@ class EngineConfig(BaseModel):
     Frozen per contracts.md §16.1.
     """
 
+    # FRF-020 / AT-020: reject unknown/unconsumed keys so a configured research
+    # design is exactly the executed design (no silently-ignored knobs).
+    model_config = ConfigDict(extra="forbid")
+
     btc_quantity: int = Field(ge=1, description="Reference transaction quantity")
     reference_spot_usd: float = Field(gt=0, description="Working reference spot price (USD)")
     seller_discount_pct: float = Field(ge=0, le=100)
@@ -127,26 +131,35 @@ class EngineConfig(BaseModel):
 
     # ── field validators ─────────────────────────────────────────────────
 
+    # FRF-029 / AT-029: validators raise ValueError (NOT assert, which `python -O`
+    # strips) so the invariants still hold under optimised bytecode.
     @field_validator("call_delta_target")
     @classmethod
     def deltas_in_0_1_range(cls, v: list[float]) -> list[float]:
-        assert 0.0 < v[0] < 1.0, f"First delta {v[0]} must be in (0, 1)"
-        assert 0.0 < v[1] < 1.0, f"Second delta {v[1]} must be in (0, 1)"
-        assert v[0] <= v[1], f"Deltas {v} must be non-decreasing"
+        if not 0.0 < v[0] < 1.0:
+            raise ValueError(f"First delta {v[0]} must be in (0, 1)")
+        if not 0.0 < v[1] < 1.0:
+            raise ValueError(f"Second delta {v[1]} must be in (0, 1)")
+        if not v[0] <= v[1]:
+            raise ValueError(f"Deltas {v} must be non-decreasing")
         return v
 
     @field_validator("risk_free_rate_pct")
     @classmethod
     def rate_sane(cls, v: float) -> float:
-        assert -5.0 <= v <= 50.0, f"Risk-free rate {v}% out of plausible range [-5%, 50%]"
+        if not -5.0 <= v <= 50.0:
+            raise ValueError(f"Risk-free rate {v}% out of plausible range [-5%, 50%]")
         return v
 
     @field_validator("iv_working_band_pct")
     @classmethod
     def iv_band_sane(cls, v: list[float]) -> list[float]:
-        assert 10.0 <= v[0] <= 200.0, f"IV band lower bound {v[0]}%% unreasonable"
-        assert 10.0 <= v[1] <= 200.0, f"IV band upper bound {v[1]}%% unreasonable"
-        assert v[0] <= v[1], f"IV band {v} lower must be ≤ upper"
+        if not 10.0 <= v[0] <= 200.0:
+            raise ValueError(f"IV band lower bound {v[0]}% unreasonable")
+        if not 10.0 <= v[1] <= 200.0:
+            raise ValueError(f"IV band upper bound {v[1]}% unreasonable")
+        if not v[0] <= v[1]:
+            raise ValueError(f"IV band {v} lower must be <= upper")
         return v
 
     @field_validator("tranche_btc")
@@ -154,9 +167,12 @@ class EngineConfig(BaseModel):
     def tranches_within_quantity(cls, v: list[int], info: Any) -> list[int]:
         qty = info.data.get("btc_quantity")
         if qty is not None:
-            assert v[0] <= qty, f"Min tranche {v[0]} > total quantity {qty}"
-            assert v[1] <= qty, f"Max tranche {v[1]} > total quantity {qty}"
-        assert v[0] <= v[1], f"Tranche min {v[0]} must be ≤ max {v[1]}"
+            if v[0] > qty:
+                raise ValueError(f"Min tranche {v[0]} > total quantity {qty}")
+            if v[1] > qty:
+                raise ValueError(f"Max tranche {v[1]} > total quantity {qty}")
+        if not v[0] <= v[1]:
+            raise ValueError(f"Tranche min {v[0]} must be <= max {v[1]}")
         return v
 
     # ── model validators ─────────────────────────────────────────────────

@@ -72,6 +72,9 @@ EXCLUDE_FILES: set[str] = {
     ".DS_Store",
     ".env",  # local-only credentials, gitignored
     "anonymisation_scan.py",  # this file itself
+    # Owner disposition A-2026-07-29 (FRF-038): the private deal-identifier
+    # dictionary self-matches by construction and must never be committed.
+    ".deal_identifiers.local",
 }
 
 # File extensions to scan
@@ -296,43 +299,66 @@ def scan_file(
 
 
 def main() -> int:
-    """Run the anonymisation scan.  Returns exit code: 0 = clean, 1 = findings."""
+    """Run the anonymisation scan.
+
+    Exit codes:
+      * 1 if any CREDENTIAL/wallet/key/seed pattern is found (always blocking).
+      * DEAL_IDENTIFIER findings on approved project identifiers are ACCEPTED
+        internally (owner disposition A-2026-07-29 / FRF-038): they are reported
+        but do NOT block by default. Confidentiality scanning remains mandatory
+        before any public/client-facing/external package — run with `--strict`
+        (or ANONYMISATION_STRICT=1) to make deal-identifier findings blocking.
+    """
+    strict = ("--strict" in sys.argv) or os.environ.get("ANONYMISATION_STRICT") == "1"
     all_findings: dict[str, list[tuple[str, str, int, str]]] = {}
-    total_findings: int = 0
 
     deal_terms = load_deal_terms()
     if deal_terms:
-        print(f"· deal-identifier pass enabled ({len(deal_terms)} term(s), "
-              f"including binary content).")
+        print(f"· deal-identifier pass enabled ({len(deal_terms)} term(s), including "
+              f"binary content){' — STRICT (external)' if strict else ' — internal (accepted)'}.")
 
     files_to_scan: list[pathlib.Path] = []
     for file_path in ROOT.rglob("*"):
         if file_path.is_file() and should_consider(file_path):
             files_to_scan.append(file_path)
-
     files_to_scan.sort()
 
     for file_path in files_to_scan:
         findings: list[tuple[str, str, int, str]] = scan_file(file_path, deal_terms)
         if findings:
-            rel: str = str(file_path.relative_to(ROOT))
-            all_findings[rel] = findings
-            total_findings += len(findings)
+            all_findings[str(file_path.relative_to(ROOT))] = findings
 
-    if total_findings == 0:
+    cred_count = sum(
+        1 for fs in all_findings.values() for f in fs if f[0] != "DEAL_IDENTIFIER"
+    )
+    deal_count = sum(
+        1 for fs in all_findings.values() for f in fs if f[0] == "DEAL_IDENTIFIER"
+    )
+
+    if cred_count == 0 and deal_count == 0:
         print("✓ Anonymisation scan: no confidentiality concerns detected.")
         return 0
 
-    print(
-        f"✗ Anonymisation scan: {total_findings} potential concern(s) "
-        f"in {len(all_findings)} file(s):"
-    )
-    for rel_path, findings in sorted(all_findings.items()):
-        print(f"  {rel_path}:")
-        for rule_id, desc, lineno, text in findings:
-            print(f"    [{rule_id}] L{lineno}: {desc} → {text}")
+    # Credential/wallet/key/seed findings always block.
+    if cred_count:
+        print(f"✗ Anonymisation scan: {cred_count} credential/wallet concern(s):")
+        for rel_path, findings in sorted(all_findings.items()):
+            creds = [f for f in findings if f[0] != "DEAL_IDENTIFIER"]
+            if creds:
+                print(f"  {rel_path}:")
+                for rule_id, desc, lineno, text in creds:
+                    print(f"    [{rule_id}] L{lineno}: {desc} → {text}")
 
-    return 1
+    if deal_count:
+        n_files = sum(1 for fs in all_findings.values() if any(f[0] == "DEAL_IDENTIFIER" for f in fs))
+        verb = "BLOCKING (strict/external mode)" if strict else "ACCEPTED internally (owner disposition A-2026-07-29)"
+        print(f"· deal-identifier: {deal_count} occurrence(s) of approved project "
+              f"identifiers in {n_files} file(s) — {verb}.")
+
+    if cred_count or (deal_count and strict):
+        return 1
+    print("✓ Anonymisation scan: no blocking concerns (deal-identifier occurrences accepted).")
+    return 0
 
 
 if __name__ == "__main__":

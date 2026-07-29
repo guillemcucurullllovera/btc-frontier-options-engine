@@ -12,6 +12,8 @@ from __future__ import annotations
 import numpy as np
 from scipy.stats import norm as _scipy_norm
 
+from engine.errors import PricingError
+
 
 def price_grid(
     S: float,
@@ -41,6 +43,16 @@ def price_grid(
         raise ValueError("Ks must be 1-D")
     if Ts.ndim != 1:
         raise ValueError("Ts must be 1-D")
+    # FRF-029 / AT-029: reject degenerate inputs up front rather than masking
+    # the resulting non-finite prices to 0.0 downstream.
+    # sigma == 0 is a valid deterministic limit (finite intrinsic value); only
+    # genuinely non-finite OUTPUTS raise (checked after the computation).
+    if not (S > 0 and sigma >= 0):
+        raise PricingError(f"price_grid requires positive S and non-negative sigma; got S={S}, sigma={sigma}")
+    if Ks.size and float(np.min(Ks)) <= 0:
+        raise PricingError("price_grid requires strictly positive strikes")
+    if Ts.size and float(np.min(Ts)) <= 0:
+        raise PricingError("price_grid requires strictly positive times to expiry")
 
     M = Ks.shape[0]  # noqa: F841
     N_ = Ts.shape[0]  # noqa: F841
@@ -60,6 +72,7 @@ def price_grid(
     else:
         prices = K_grid * df * _scipy_norm.cdf(-d2) - S * _scipy_norm.cdf(-d1)
 
-    prices = np.where(np.isfinite(prices), prices, 0.0)
+    if not bool(np.all(np.isfinite(prices))):
+        raise PricingError("non-finite price produced in price_grid")
 
     return prices.astype(np.float64)

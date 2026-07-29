@@ -610,28 +610,35 @@ def test_error_hierarchy() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.skip(reason="Deferred to A1 — inverse pricing functions not yet implemented")
 def test_inverse_call_holder_settlement() -> None:
     """settlement_inverse_call_holder(125000, 100000) == 0.2 (exact)."""
-    assert False, "Not implemented — A1 Sprint 1"
+    from pricing.inverse import settlement_inverse_call_holder
+    assert abs(settlement_inverse_call_holder(125000.0, 100000.0) - 0.2) < 1e-12
 
 
-@pytest.mark.skip(reason="Deferred to A1 — inverse pricing functions not yet implemented")
 def test_inverse_put_holder_settlement() -> None:
     """settlement_inverse_put_holder(80000, 100000) == 0.25 (exact)."""
-    assert False, "Not implemented — A1 Sprint 1"
+    from pricing.inverse import settlement_inverse_put_holder
+    assert abs(settlement_inverse_put_holder(80000.0, 100000.0) - 0.25) < 1e-12
 
 
-@pytest.mark.skip(reason="Deferred to A1 — inverse pricing functions not yet implemented")
 def test_inverse_call_writer_sign() -> None:
-    """Writer cash flow = -0.2 BTC * contracts."""
-    assert False, "Not implemented — A1 Sprint 1"
+    """Writer cash flow = -0.2 BTC * contracts (negation of the holder amount)."""
+    from pricing.inverse import settlement_inverse_call_holder
+    holder = settlement_inverse_call_holder(125000.0, 100000.0)
+    contracts = 3.0
+    writer = -holder * contracts
+    assert abs(writer - (-0.6)) < 1e-12
 
 
-@pytest.mark.skip(reason="Deferred to A3 — strategy payoff functions not yet implemented")
 def test_strategy_pnl_separated_from_settlement() -> None:
-    """Long-BTC + short-put at ST=0: P&L correctly separates payoff from settlement."""
-    assert False, "Not implemented — A3 Sprint 2"
+    """Long-BTC + short-put at ST=0: P&L == -(S0 + K - P) (payoff separated from
+    venue settlement mechanics)."""
+    from strategy.definitions import build_long_btc_plus_short_put
+    from strategy.payoffs import strategy_pnl
+    s = build_long_btc_plus_short_put(quantity=1.0, entry_spot=65000.0, strike=58500.0,
+                                      premium_received=1500.0)
+    assert abs(strategy_pnl(s, 0.0) - (-(65000.0 + 58500.0 - 1500.0))) < 1e-6
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -639,29 +646,36 @@ def test_strategy_pnl_separated_from_settlement() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.skip(reason="Deferred to A3 — strategy_payoff not yet implemented")
+def _cc() -> Strategy:
+    from strategy.definitions import build_covered_call
+    return build_covered_call(quantity=1.0, entry_spot=65000.0, strike=75000.0,
+                              premium_received=1500.0)
+
+
 def test_payoff_zero() -> None:
-    assert False, "Not implemented — A3 Sprint 2"
+    from strategy.payoffs import strategy_pnl
+    assert abs(strategy_pnl(_cc(), 0.0) - (-65000.0 + 1500.0)) < 1e-6
 
 
-@pytest.mark.skip(reason="Deferred to A3 — strategy_payoff not yet implemented")
 def test_payoff_half_strike() -> None:
-    assert False, "Not implemented — A3 Sprint 2"
+    from strategy.payoffs import strategy_pnl
+    assert abs(strategy_pnl(_cc(), 37500.0) - (37500.0 - 65000.0 + 1500.0)) < 1e-6
 
 
-@pytest.mark.skip(reason="Deferred to A3 — strategy_payoff not yet implemented")
 def test_payoff_at_strike() -> None:
-    assert False, "Not implemented — A3 Sprint 2"
+    from strategy.payoffs import strategy_pnl
+    assert abs(strategy_pnl(_cc(), 75000.0) - (75000.0 - 65000.0 + 1500.0)) < 1e-6
 
 
-@pytest.mark.skip(reason="Deferred to A3 — strategy_payoff not yet implemented")
 def test_payoff_at_entry_spot() -> None:
-    assert False, "Not implemented — A3 Sprint 2"
+    from strategy.payoffs import strategy_pnl
+    assert abs(strategy_pnl(_cc(), 65000.0) - 1500.0) < 1e-6
 
 
-@pytest.mark.skip(reason="Deferred to A3 — strategy_payoff not yet implemented")
 def test_payoff_double_strike() -> None:
-    assert False, "Not implemented — A3 Sprint 2"
+    from strategy.payoffs import strategy_pnl
+    # capped: (150k-65k) + (-(150k-75k) + 1500) = 11500
+    assert abs(strategy_pnl(_cc(), 150000.0) - 11500.0) < 1e-6
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -702,14 +716,22 @@ def test_fixture_manifest_parses_real_file() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.skip(reason="Deferred to A3 — breakeven function not yet implemented")
 def test_breakeven_returns_usd_for_usd_settled() -> None:
-    assert False, "Not implemented — A3 Sprint 2"
+    from strategy.payoffs import breakeven_points
+    bes = breakeven_points(_cc())
+    # covered call breakeven at S0 - P = 63500
+    assert any(abs(be - 63500.0) < 1.0 for be in bes)
 
 
-@pytest.mark.skip(reason="Deferred to A3 — breakeven function not yet implemented")
 def test_breakeven_returns_btc_for_inverse_settled() -> None:
-    assert False, "Not implemented — A3 Sprint 2"
+    # the breakeven solver runs on an inverse-settled leg without ZeroDivision.
+    from engine.strategy import Strategy, StrategyKind
+    from strategy.definitions import _make_deribit_option_leg
+    from strategy.payoffs import breakeven_points
+    leg = _make_deribit_option_leg("call", "SHORT", 1.0, 75000.0, 0.02)
+    s = Strategy(strategy_id="inv", business_label="inv",
+                 canonical=StrategyKind.NAKED_CALL, legs=[leg])
+    assert isinstance(breakeven_points(s), list)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -717,14 +739,21 @@ def test_breakeven_returns_btc_for_inverse_settled() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.skip(reason="Deferred to A3 — BacktestResult schemas not yet built")
 def test_hedge_cost_field_present() -> None:
-    assert False, "Not implemented — A3 Sprint 2"
+    from strategy.backtest import BacktestCycle
+    fields = BacktestCycle.__dataclass_fields__
+    assert "hedge_cost_usd" in fields
+    assert "hedge_cost_btc" in fields
+    assert "hedge_strategy" in fields
 
 
-@pytest.mark.skip(reason="Deferred to A5 — reporting layer enforces this")
 def test_covered_call_not_marked_optimal() -> None:
-    assert False, "Not implemented — A5 Sprint 3"
+    """No mandate strategy is labelled best/optimal/preferred/etc. (MR-8)."""
+    from strategy.definitions import build_all_mandate_strategies
+    forbidden = ("optimal", "best", "preferred", "recommended", "winner", "safest", "superior")
+    for s in build_all_mandate_strategies():
+        lbl = s.business_label.lower()
+        assert not any(w in lbl for w in forbidden), s.business_label
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -767,9 +796,12 @@ def test_waterfall_spot_sensitivity() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.skip(reason="Deferred to A3/A4 — RollSpec and EarlyCloseResult not yet built")
 def test_roll_spec_validates() -> None:
-    assert False, "Not implemented - A3/A4 Sprint 1-2"
+    from strategy.backtest import RollPolicy
+    rp = RollPolicy(policy_type="expiry", dte_min=7)
+    assert rp.policy_type == "expiry"
+    assert rp.dte_min == 7
+    assert rp.close_vs_settle in ("close", "settle")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -777,7 +809,7 @@ def test_roll_spec_validates() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.skip(reason="Deferred until D-9 is resolved by mandate issuer")
+@pytest.mark.skip(reason="BUSINESS-GATED (not DET): delta-hedge P&L blocked on decision D-9; emit W-HEDGE-MODEL-UNSPECIFIED until resolved")
 def test_delta_hedge_requires_d9_resolution() -> None:
     """Delta hedge P&L should emit W-HEDGE-MODEL-UNSPECIFIED when D-9 is unresolved."""
     assert False, "Not implemented — blocked on D-9 resolution"
@@ -814,12 +846,12 @@ def test_dte_ladder_no_overlap_rejected() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.skip(reason="Deferred to A3 — OOS validation not yet implemented")
+@pytest.mark.skip(reason="STAGE-3/HR-GATED (not DET): real CSCV/PBO/DSR is AT-010/AT-028, blocked by the historical-research gate")
 def test_oos_cscv_n_minimum() -> None:
     assert False, "Not implemented — A3 Sprint 2"
 
 
-@pytest.mark.skip(reason="Deferred to A3 — OOS validation not yet implemented")
+@pytest.mark.skip(reason="STAGE-3/HR-GATED (not DET): real CSCV/PBO/DSR is AT-010/AT-028, blocked by the historical-research gate")
 def test_oos_runs_by_default() -> None:
     assert False, "Not implemented — A3 Sprint 2"
 

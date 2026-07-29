@@ -474,10 +474,15 @@ class SpotCache:
 
 
 def _parse_timestamp(raw: str) -> datetime:
-    """Parse various timestamp formats to UTC datetime."""
+    """Parse various timestamp formats to UTC datetime.
+
+    FRF-029 / AT-029: an empty or unparseable timestamp RAISES rather than
+    silently substituting the current time (which would turn corrupt rows into
+    plausible observed data).
+    """
     raw = raw.strip()
     if not raw:
-        return datetime.now(UTC)
+        raise MassiveResponseError("empty timestamp in historical bar (cannot substitute now())")
     try:
         ts = float(raw)
         if ts > 1e12:
@@ -493,7 +498,7 @@ def _parse_timestamp(raw: str) -> datetime:
             return dt
         except ValueError:
             continue
-    return datetime.now(UTC)
+    raise MassiveResponseError(f"unparseable timestamp {raw!r} in historical bar")
 
 
 def _safe_parse_float(v: str | None) -> float | None:

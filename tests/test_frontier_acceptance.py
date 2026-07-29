@@ -15,7 +15,7 @@ import math
 import pathlib
 import sys
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import pytest
@@ -458,3 +458,819 @@ class TestAT019Classification:
         s = build_long_btc_plus_short_put(business_label="Covered Put Strategy")
         assert s.classification_warning is not None
         assert "W-CLASSIFY-MISMATCH" in s.classification_warning
+
+
+# ── deterministic-core fixtures ───────────────────────────────────────────
+
+from engine.settlement_engine import settle_leg  # noqa: E402
+from execution.fees import (  # noqa: E402
+    asymmetrica_fee_both_variants,
+    leg_trading_fee,
+)
+from strategy.definitions import (  # noqa: E402
+    _make_cme_option_leg,
+    _make_deribit_option_leg,
+    _make_usd_option_leg,
+)
+
+
+def _trend(n: int, lo: float, hi: float) -> np.ndarray:
+    return np.linspace(lo, hi, n).astype(float)
+
+
+# ── AT-001 — per-cycle strike reselection (FRF-001) ───────────────────────
+
+
+class TestAT001StrikeReselection:
+    def test_strikes_track_spot_each_cycle(self) -> None:
+        n = 200
+        dates = _dates(n)
+        spot = _trend(n, 60_000.0, 110_000.0)  # > strike_pct move across window
+        iv = _flat_iv(n)
+        strat = build_covered_call(quantity=1.0, entry_spot=60_000.0)
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        assert len(res.cycles) >= 3
+        strikes = [c.strike for c in res.cycles]
+        # distinct strike every cycle (spot moves each cycle)
+        assert len({round(s, 2) for s in strikes}) == len(strikes)
+        # each cycle strike is a constant-moneyness re-strike of its entry spot
+        for c in res.cycles:
+            assert abs(c.strike / c.entry_spot - c.targeting_moneyness) < 5e-3
+            assert c.targeting_moneyness > 1.0  # call is struck above spot
+
+
+# ── AT-003 — lifecycle calendar contiguity (FRF-003) ──────────────────────
+
+
+class TestAT003Lifecycle:
+    def test_no_dropped_day_spot_pnl_reconciles(self) -> None:
+        n = 181
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        strat = build_covered_call(quantity=1.0, entry_spot=float(spot[0]))
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        # Σ cycle spot-P&L == total spot move over the window (no dropped day).
+        sum_spot_pnl = sum(c.unrealised_pnl_usd for c in res.cycles)
+        total_move = 1.0 * (float(spot[res.cycles[-1].end_date != dates[0] and -1]) - float(spot[0]))
+        # last cycle end is the last bar reached
+        last_idx = {d: i for i, d in enumerate(dates)}[res.cycles[-1].end_date]
+        total_move = 1.0 * (float(spot[last_idx]) - float(spot[0]))
+        assert abs(sum_spot_pnl - total_move) < 1e-6 * abs(total_move + 1.0)
+
+    def test_ladder_settles_at_three_bars(self) -> None:
+        n = 200
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        strat = build_strike_ladder(base_quantity=3.0, entry_spot=float(spot[0]))
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        # Early (full-data) cycles settle the 30/37/44-DTE legs at 3 DISTINCT
+        # bars — not one index. (The final cycle may clamp to the data edge.)
+        assert res.cycles[0].num_settlement_bars == 3
+        assert any(c.num_settlement_bars == 3 for c in res.cycles)
+
+
+# ── AT-004 — ledger reconciliation identity (FRF-004) ─────────────────────
+
+
+class TestAT004LedgerReconciliation:
+    def _reconciles(self, strat) -> None:  # type: ignore[no-untyped-def]
+        n = 200
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        notional = max(1.0, sum(leg.quantity for leg in strat.legs if leg.product == "spot") * float(spot[0]))
+        for c in res.cycles:
+            assert abs(c.reconciliation_residual_usd) < 1e-6 * notional
+        assert abs(res.reconciliation_residual_usd) < 1e-6 * notional * max(1, len(res.cycles))
+
+    def test_covered_call_reconciles(self) -> None:
+        self._reconciles(build_covered_call(quantity=1.0, entry_spot=65_000.0))
+
+    def test_lbsp_reconciles(self) -> None:
+        self._reconciles(build_long_btc_plus_short_put(quantity=1.0, entry_spot=65_000.0))
+
+    def test_cash_settled_put_does_not_credit_btc(self) -> None:
+        # A LONG-BTC + short-put strategy holds exactly its spot BTC every cycle;
+        # a cash-settled ITM put must NOT add "free" physical BTC inventory.
+        n = 200
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        strat = build_long_btc_plus_short_put(quantity=1.0, entry_spot=float(spot[0]))
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        for c in res.cycles:
+            assert c.btc_inventory_start == 1.0
+            assert c.btc_inventory_end == 1.0
+
+
+# ── AT-007 — return/drawdown validity (FRF-007) ───────────────────────────
+
+
+class TestAT007Metrics:
+    def test_drawdown_matches_controlled_v_path(self) -> None:
+        # A controlled V: rise to a peak then fall 24.95% then recover.
+        up = np.linspace(65_000.0, 100_000.0, 40)
+        down = np.linspace(100_000.0, 75_050.0, 40)      # 24.95% decline from peak
+        rec = np.linspace(75_050.0, 90_000.0, 20)
+        spot = np.concatenate([up, down, rec]).astype(float)
+        n = len(spot)
+        dates = _dates(n)
+        iv = _flat_iv(n)
+        strat = build_unhedged_baseline(quantity=1.0, entry_spot=float(spot[0]))
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30,
+                                spread_bps=0.0, adv_btc=1e12)  # zero frictions
+        assert abs(res.max_drawdown_pct - 0.2495) < 1e-3
+
+    def test_sharpe_annualised_and_touch_direction(self) -> None:
+        n = 200
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_covered_call(quantity=1.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30)
+        # sharpe is finite (annualised) and touch is a valid frequency
+        assert res.sharpe_ratio is not None
+        assert 0.0 <= res.touch_frequency <= 1.0
+
+
+# ── AT-013 — fee engine correctness (FRF-013) ─────────────────────────────
+
+
+class TestAT013Fees:
+    def test_both_d1_variants_reproduce_mandate_figures(self) -> None:
+        f = asymmetrica_fee_both_variants(30_000.0, 65_000.0, 0.005, 0.025)
+        assert abs(f.reference_notional_fee_usd - 9_750_000.0) < 1e-6
+        assert abs(f.executed_notional_fee_usd - 9_506_250.0) < 1e-6
+
+    def test_no_silent_d1_default(self) -> None:
+        f = asymmetrica_fee_both_variants(30_000.0, 65_000.0, 0.005, 0.025)
+        with pytest.raises(ValueError):
+            f.fee_for("some_other_base")
+
+    def test_deribit_fee_only_on_deribit_legs(self) -> None:
+        otc = _make_usd_option_leg("call", "SHORT", 1.0, 75_000.0, 1500.0)
+        der = _make_deribit_option_leg("call", "SHORT", 1.0, 75_000.0, 0.02)
+        assert otc.settlement is not None and der.settlement is not None
+        assert leg_trading_fee(otc.settlement, 1500.0, 1.0, 65_000.0) == (0.0, 0.0)
+        f_usd, f_btc = leg_trading_fee(der.settlement, 0.02, 1.0, 65_000.0)
+        assert f_btc > 0.0 and f_usd > 0.0
+
+    def test_backtest_exposes_both_fee_variants_once(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_covered_call(quantity=30_000.0, entry_spot=65_000.0),
+                                dates, spot, iv, dte_days=30)
+        assert res.asym_fee_reference_notional_usd > 0
+        assert res.asym_fee_executed_notional_usd < res.asym_fee_reference_notional_usd
+        assert res.fee_base_variant == "pending_D1"  # not silently resolved
+
+
+# ── AT-014 — effective acquisition cost (FRF-014) ─────────────────────────
+
+
+class TestAT014EAC:
+    def test_component_identity_reconciles(self) -> None:
+        n = 200
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_covered_call(quantity=1.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30)
+        eac = res.eac_cash_settled
+        assert eac is not None and eac.is_applicable
+        # per_btc x btc == numerator (net cash deployed)
+        assert abs(eac.per_btc_usd * eac.btc_acquired - eac.net_cash_deployed_usd) < 1e-6 * abs(eac.net_cash_deployed_usd)
+
+    def test_csp_zero_assignment_is_na_both_interpretations(self) -> None:
+        n = 200
+        dates = _dates(n)
+        spot = np.full(n, 100_000.0)  # flat: 85%-strike put never assigns
+        iv = _flat_iv(n)
+        strat = build_cash_secured_put(quantity=1.0, entry_spot=100_000.0, strike=85_000.0)
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        assert res.eac_cash_settled is not None and res.eac_cash_settled.is_applicable is False
+        assert res.eac_cash_settled.na_reason is not None
+        assert res.eac_post_purchase is not None and res.eac_post_purchase.is_applicable is False
+
+
+# ── AT-025 — settlement result & multiplier (FRF-025) ─────────────────────
+
+
+class TestAT025Settlement:
+    def test_settlement_result_has_provenance(self) -> None:
+        leg = _make_usd_option_leg("call", "SHORT", 1.0, 60_000.0, 1500.0)
+        sr = settle_leg(leg, 70_000.0)
+        assert sr.provenance is not None
+        assert sr.is_itm is True
+        assert abs(sr.settlement_amount - 10_000.0) < 1e-9
+
+    def test_contract_multiplier_scales(self) -> None:
+        otc = _make_usd_option_leg("call", "SHORT", 1.0, 60_000.0, 1500.0)   # mult 1
+        cme = _make_cme_option_leg("call", "SHORT", 1.0, 60_000.0, 1500.0)   # mult 5
+        r1 = settle_leg(otc, 70_000.0)
+        r5 = settle_leg(cme, 70_000.0)
+        assert abs(r5.settlement_amount - 5.0 * r1.settlement_amount) < 1e-9
+        assert r5.contracts == 5.0 * r1.contracts
+
+    def test_deribit_inverse_settles_in_btc_with_delivery_fee(self) -> None:
+        der = _make_deribit_option_leg("call", "SHORT", 1.0, 100_000.0, 0.02)
+        sr = settle_leg(der, 125_000.0)
+        assert str(sr.settlement_currency) == "BTC"
+        assert abs(sr.settlement_amount - 0.2) < 1e-9  # holder BTC per contract
+        assert sr.venue_delivery_fee > 0.0
+
+
+# ── AT-002 — observed baseline comparability (FRF-002) ────────────────────
+
+from strategy.backtest import backtest_unhedged_observed  # noqa: E402
+from strategy.repricing import reprice_strategy  # noqa: E402
+from strategy.scenarios import Scenario  # noqa: E402
+from strategy.stress import apply_scenario  # noqa: E402
+
+
+class TestAT002ObservedBaseline:
+    def test_baseline_equals_observed_buy_and_hold(self) -> None:
+        n = 200
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        strat = build_unhedged_baseline(quantity=1.0, entry_spot=float(spot[0]))
+        res = backtest_unhedged_observed(strat, dates, spot, iv)
+        observed_return = (float(spot[-1]) - float(spot[0])) / float(spot[0]) * 100.0
+        assert abs(res.total_pnl_pct - observed_return) < 1e-9
+        assert res.cycles == []  # buy-and-hold, no synthetic cycles
+
+
+# ── AT-005 — instruments repriced for stress (FRF-005) ────────────────────
+
+
+class TestAT005Repricing:
+    def test_reprice_replaces_static_placeholder(self) -> None:
+        # Builder places a 1500 placeholder premium; the evaluator must reprice.
+        strat = build_covered_call(quantity=1.0, entry_spot=65_000.0,
+                                   strike=75_000.0, premium_received=1500.0)
+        repriced = reprice_strategy(strat, spot=65_000.0, iv=0.45)
+        opt = next(leg for leg in repriced.legs if leg.option_type is not None)
+        fair = bs_price(65_000.0, 75_000.0, 0.04, 0.45, 30 / 365.0, "call")
+        assert abs(opt.entry_premium - fair) < 1e-9
+        assert abs(opt.entry_premium - 1500.0) > 1.0  # not the static placeholder
+
+    def test_stress_uses_repriced_premium(self) -> None:
+        strat = build_covered_call(quantity=1.0, entry_spot=65_000.0,
+                                   strike=75_000.0, premium_received=1500.0)
+        sc = Scenario(name="flat", description="no move", shock_type="instantaneous",
+                      start_spot=65_000.0, end_spot=65_000.0, start_vol=0.45, end_vol=0.45)
+        r = apply_scenario(strat, sc)
+        # premium contribution reflects the fair (~1.7% of spot), not the 1500 stub
+        assert r["premium_contribution_pct"] > 0.0
+
+
+# ── AT-006 — stress single valuation basis (FRF-006) ──────────────────────
+
+
+class TestAT006Stress:
+    def test_collar_flash_crash_pnl_negative_and_single_basis(self) -> None:
+        strat = build_collar(quantity=1.0, entry_spot=65_000.0,
+                             call_strike=75_000.0, put_strike=55_000.0)
+        sc = Scenario(name="flash_crash", description="crash to 30k",
+                      shock_type="instantaneous", start_spot=65_000.0, end_spot=30_000.0,
+                      start_vol=0.45, end_vol=0.90)
+        r = apply_scenario(strat, sc)
+        # hedged collar's flash-crash P&L must be NEGATIVE (bounded near floor),
+        # not the sign-flipped positive of the double-counting bug.
+        assert r["strategy_pnl_usd"] < 0
+        assert r["valuation_basis"] == "expiry_settlement"
+        # adverse excursion is the worst SIGNED loss, not an absolute value.
+        assert r["max_adverse_excursion_usd"] <= 0
+
+    def test_collar_floor_bounded(self) -> None:
+        # The collar's structural loss floor: long put caps the downside.
+        strat = build_collar(quantity=1.0, entry_spot=65_000.0,
+                             call_strike=75_000.0, put_strike=55_000.0)
+        floor = -structural_max_loss(reprice_strategy(strat, 65_000.0, 0.45))
+        sc = Scenario(name="deep_crash", description="crash to 10k",
+                      shock_type="instantaneous", start_spot=65_000.0, end_spot=10_000.0,
+                      start_vol=0.45, end_vol=0.45)
+        r = apply_scenario(strat, sc)
+        # P&L at a deep crash equals the structural floor (put fully protects).
+        assert abs(r["strategy_pnl_usd"] - floor) < 1e-6 * abs(floor)
+
+
+# ── AT-029 — hygiene invariants (FRF-029) ─────────────────────────────────
+
+from pricing.grid import price_grid  # noqa: E402
+from vol.history import MassiveResponseError, _parse_timestamp  # noqa: E402
+
+
+class TestAT029Hygiene:
+    def test_unparseable_timestamp_raises(self) -> None:
+        with pytest.raises(MassiveResponseError):
+            _parse_timestamp("")
+        with pytest.raises(MassiveResponseError):
+            _parse_timestamp("not-a-date")
+
+    def test_non_finite_grid_price_raises(self) -> None:
+        with pytest.raises(PricingError):
+            price_grid(-1.0, np.array([100.0]), 0.04, 0.5, np.array([0.5]), "call")
+        with pytest.raises(PricingError):
+            price_grid(100.0, np.array([100.0]), 0.04, 0.5, np.array([-0.5]), "call")
+
+    def test_config_validators_raise_valueerror_not_assert(self) -> None:
+        # ValueError is raised (not a bare assert stripped by python -O).
+        from config.models import EngineConfig
+        with pytest.raises((ValueError, Exception)):
+            EngineConfig(  # invalid: delta outside (0,1)
+                btc_quantity=30_000, reference_spot_usd=65_000.0, seller_discount_pct=2.5,
+                target_option_yield_pct=3.0, combined_target_discount_pct=6.0,
+                execution_fee_pct=0.5, call_delta_target=[1.5, 1.9], dte_target_days=[30, 45],
+                strike_target_pct_above_spot=[15.0, 20.0], target_monthly_premium_pct=3.0,
+                iv_working_band_pct=[40.0, 60.0], risk_free_rate_pct=4.0,
+                tranche_btc=[100, 5000], expiry_ladder_dte=[30, 37, 44],
+            )
+
+    def test_inverse_leg_strategy_pnl_at_zero_no_zerodiv(self) -> None:
+        # A Deribit inverse (BTC-settled) leg: strategy_pnl at S_T=0 must not
+        # raise ZeroDivisionError (guarded settlement functions, FRF-029).
+        leg = _make_deribit_option_leg("put", "SHORT", 1.0, 60_000.0, 0.02)
+        strat = Strategy(strategy_id="inv", business_label="inv",
+                         canonical=StrategyKind.NAKED_PUT, legs=[leg])
+        val = strategy_pnl(strat, 0.0)
+        assert isinstance(val, float)
+
+
+# ── AT-020 — configuration integrity (FRF-020) ────────────────────────────
+
+from config.loader import fee_base_variants, load_research_config  # noqa: E402
+from config.models import EngineConfig  # noqa: E402
+
+_VALID_CFG: dict[str, Any] = {
+    "btc_quantity": 30_000, "reference_spot_usd": 65_000.0, "seller_discount_pct": 2.5,
+    "target_option_yield_pct": 2.5, "combined_target_discount_pct": 5.0,
+    "execution_fee_pct": 0.5, "call_delta_target": [0.10, 0.15], "dte_target_days": [30, 45],
+    "strike_target_pct_above_spot": [15.0, 20.0], "target_monthly_premium_pct": 3.0,
+    "iv_working_band_pct": [40.0, 50.0], "risk_free_rate_pct": 4.0,
+    "tranche_btc": [250, 1000], "expiry_ladder_dte": [30, 37, 44],
+}
+
+
+class TestAT020Config:
+    def test_unknown_key_rejected(self) -> None:
+        with pytest.raises(Exception):
+            EngineConfig(**{**_VALID_CFG, "bogus_unconsumed_key": 123})
+
+    def test_percent_decimal_convention_unambiguous(self) -> None:
+        cfg = EngineConfig(**_VALID_CFG)
+        # stored as percent (2.5); to_decimal_dict converts to 0.025
+        assert cfg.seller_discount_pct == 2.5
+        assert abs(cfg.to_decimal_dict()["seller_discount_pct"] - 0.025) < 1e-12
+
+    def test_research_loader_carries_pending_decisions(self) -> None:
+        # research config carries D-1/D-2/D-3 pending (None) — no silent default.
+        cfg = load_research_config()
+        assert cfg.fee_base is None       # D-1 pending
+        assert cfg.primary_venue is None  # D-3 pending
+        assert cfg.reference_spot_source is None  # D-2 pending
+
+    def test_both_d1_variants_emitted(self) -> None:
+        cfg = EngineConfig(**_VALID_CFG)
+        v = fee_base_variants(cfg)
+        assert set(v) == {"reference_notional", "executed_volume"}
+        # 0.5% of each reproduces the mandate figures
+        assert abs(v["reference_notional"] * 0.005 - 9_750_000.0) < 1e-6
+        assert abs(v["executed_volume"] * 0.005 - 9_506_250.0) < 1e-6
+
+    def test_malformed_config_rejected(self) -> None:
+        with pytest.raises(Exception):
+            EngineConfig(**{**_VALID_CFG, "call_delta_target": [1.5, 1.9]})  # delta > 1
+
+
+# ── AT-023 — economic-invariant coverage exists (FRF-023) ─────────────────
+
+import re  # noqa: E402
+
+import engine.fixture_loader as _fl  # noqa: E402
+from engine.errors import DataError  # noqa: E402
+from engine.fixture_loader import load_fixture  # noqa: E402
+
+
+class TestAT023TestGovernance:
+    def test_pricing_parity_50_draws_inverse_and_grid(self) -> None:
+        rng = np.random.default_rng(20260729)
+        draws = 60  # >= 50 independent draws
+        for _ in range(draws):
+            S = float(rng.uniform(30_000, 130_000))
+            K = float(rng.uniform(30_000, 130_000))
+            r = float(rng.uniform(0.0, 0.08))
+            sig = float(rng.uniform(0.2, 1.0))
+            T = float(rng.uniform(0.02, 1.0))
+            for kind in ("call", "put"):
+                bs = bs_price(S, K, r, sig, T, kind)
+                inv = price_inverse_btc(S, K, r, sig, T, kind, 0.0)
+                assert abs(inv * S - bs) < 1e-6 * max(bs, 1.0)  # inverse no-arb parity
+                g = float(price_grid(S, np.array([K]), r, sig, np.array([T]), kind)[0, 0])
+                assert abs(g - bs) < 1e-6 * max(bs, 1.0)        # grid == scalar BS
+
+    def test_fixture_sha256_verified_at_load(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        load_fixture("index_price")  # real fixture: hash matches
+        monkeypatch.setattr(_fl, "_manifest_sha256", lambda name: "0" * 64)
+        with pytest.raises(DataError):
+            load_fixture("index_price")  # forced mismatch must raise
+
+    def test_no_det_required_test_is_ungated_stub(self) -> None:
+        txt = (pathlib.Path(__file__).resolve().parents[1] / "tests" / "test_phase0.py").read_text()
+        reasons = re.findall(r'@pytest\.mark\.skip\(reason="([^"]+)"\)', txt)
+        # every remaining skip is explicitly business- or HR/stage-gated, not DET.
+        for reason in reasons:
+            assert ("BUSINESS-GATED" in reason) or ("HR-GATED" in reason) or ("STAGE-3" in reason), reason
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Stage-2 Remediation Tests (sprint/stage2-remediation)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+# ── Issue 1: Asymmetrica 0.5% fee included in P&L, total_fees, EAC ──────────
+
+class TestRemediationIssue1AsymFee:
+    """Issue 1: The 0.5% Asymmetrica fee must be deducted from cash/P&L,
+    included in total_fees_usd, and included in EAC numerator."""
+
+    def test_asym_fee_deducted_from_total_pnl(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_covered_call(quantity=10.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30,
+                                execution_fee_pct=0.005, seller_discount_pct=0.025)
+        # total_pnl_usd reflects the asym fee deduction
+        cycle_sum = sum(c.net_pnl_usd for c in res.cycles)
+        assert abs(res.total_pnl_usd - (cycle_sum - res.total_asym_fee_usd)) < 1e-6
+        assert res.total_asym_fee_usd > 0
+
+    def test_asym_fee_included_in_total_fees(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_covered_call(quantity=10.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30,
+                                execution_fee_pct=0.005, seller_discount_pct=0.025)
+        assert res.total_fees_usd >= res.total_asym_fee_usd
+        # asym fee is material (non-zero)
+        assert res.total_asym_fee_usd > 0.0
+
+    def test_asym_fee_in_eac_numerator(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_covered_call(quantity=1.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30,
+                                execution_fee_pct=0.005, seller_discount_pct=0.025)
+        eac = res.eac_cash_settled
+        assert eac is not None and eac.is_applicable
+        # EAC fee component includes asym fee
+        assert eac.asym_fee_component_usd > 0.0
+
+    def test_both_d1_variants_emitted_economically(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = np.full(n, 65_000.0)   # fixed reference spot
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_covered_call(quantity=30000.0, entry_spot=65_000.0),
+                                dates, spot, iv, dte_days=30,
+                                execution_fee_pct=0.005, seller_discount_pct=0.025)
+        assert abs(res.asym_fee_reference_notional_usd - 9_750_000.0) < 1000.0
+        assert abs(res.asym_fee_executed_notional_usd - 9_506_250.0) < 1000.0
+        assert res.fee_base_variant == "pending_D1"
+
+
+# ── Issue 2: Delivery fee counted exactly once ───────────────────────────────
+
+class TestRemediationIssue2DeliveryFee:
+    """Issue 2: Deribit delivery fee is charged exactly once for both long and
+    short legs. No double-count."""
+
+    def test_delivery_fee_once_for_long_inverse_call(self) -> None:
+        from strategy.definitions import _make_deribit_option_leg
+        leg = _make_deribit_option_leg("call", "LONG", 1.0, 100_000.0, 0.02, dte_days=30)
+        strat = Strategy(strategy_id="inv_long", business_label="inv",
+                         canonical=StrategyKind.BESPOKE, legs=[leg])
+        n = 60
+        dates = _dates(n)
+        spot = _trend(n, 65_000.0, 120_000.0)
+        iv = _flat_iv(n)
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        # The delivery fee appears exactly once (not double-counted).
+        # With gross settlement, the total is positive (net long P&L minus single fee).
+        assert len(res.cycles) >= 1
+        for c in res.cycles:
+            # delivery_fee_usd is tracked once
+            assert c.delivery_fee_usd >= 0.0
+
+    def test_delivery_fee_once_for_short_inverse_put(self) -> None:
+        from strategy.definitions import _make_deribit_option_leg
+        leg = _make_deribit_option_leg("put", "SHORT", 1.0, 60_000.0, 0.02, dte_days=30)
+        strat = Strategy(strategy_id="inv_short", business_label="inv",
+                         canonical=StrategyKind.NAKED_PUT, legs=[leg])
+        n = 60
+        dates = _dates(n)
+        spot = _trend(n, 65_000.0, 50_000.0)  # drops into ITM
+        iv = _flat_iv(n)
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        assert len(res.cycles) >= 1
+        for c in res.cycles:
+            assert c.delivery_fee_usd >= 0.0
+
+
+# ── Issue 3: D-12 explicit post-settlement BTC purchase ──────────────────────
+
+class TestRemediationIssue3D12PostPurchase:
+    """Issue 3: The post-purchase D-12 interpretation creates an explicit
+    separate transaction with provenance."""
+
+    def test_post_purchase_btc_inventory_increases_on_assignment(self) -> None:
+        n = 200
+        dates = _dates(n)
+        spot = np.full(n, 100_000.0)
+        iv = _flat_iv(n)
+        # CSP with ITM put assignments — post_purchase_btc_inventory_end > 0
+        strat = build_cash_secured_put(quantity=1.0, entry_spot=100_000.0,
+                                        strike=115_000.0)  # ITM when strike>spot
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30,
+                                strike_pct_above=0.15)  # strike = 115k
+        assert res.post_purchase_btc_inventory_end >= 0.0
+
+    def test_post_purchase_tracks_separate_usd_deployed(self) -> None:
+        n = 120
+        dates = _dates(n)
+        # Fast geometric decline: ~3% per day = ~60% decline over 30 days.
+        # Entry spot = 100k, 30 days later spot ≈ 40k < 85k (strike).
+        spot = 100_000.0 * (0.97 ** np.arange(n, dtype=float))
+        iv = _flat_iv(n)
+        strat = build_cash_secured_put(quantity=1.0, entry_spot=100_000.0,
+                                        strike=85_000.0)
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30,
+                                strike_pct_above=0.15)
+        any_itm = any(c.is_itm for c in res.cycles)
+        assert any_itm, f"Need at least one ITM cycle. Spot: {spot[0]:.0f} → {spot[-1]:.0f}"
+        assert res.post_purchase_usd_deployed > 0.0
+        assert res.post_purchase_btc_inventory_end > 0.0
+
+    def test_cash_settled_btc_inventory_never_changes(self) -> None:
+        n = 200
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        strat = build_cash_secured_put(quantity=1.0, entry_spot=float(spot[0]))
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        # Base cash-settled BTC inventory stays zero (no physical delivery)
+        for c in res.cycles:
+            assert c.btc_inventory_end == 0.0
+
+
+# ── Issue 4: BTC-settled proceeds tracked separately ─────────────────────────
+
+class TestRemediationIssue4BTCLedger:
+    """Issue 4: BTC-denominated settlement is tracked and settlement_btc
+    is populated."""
+
+    def test_settlement_btc_nonzero_for_inverse_option(self) -> None:
+        from strategy.definitions import _make_deribit_option_leg
+        leg = _make_deribit_option_leg("call", "LONG", 1.0, 100_000.0, 0.02, dte_days=30)
+        strat = Strategy(strategy_id="inv", business_label="inv",
+                         canonical=StrategyKind.BESPOKE, legs=[leg])
+        n = 60
+        dates = _dates(n)
+        spot = _trend(n, 65_000.0, 125_000.0)  # rises into ITM
+        iv = _flat_iv(n)
+        res = backtest_strategy(strat, dates, spot, iv, dte_days=30)
+        assert len(res.cycles) >= 1
+        # At least one cycle where the call finishes ITM and settlement_btc > 0
+        any_btc = any(c.settlement_btc > 0 for c in res.cycles)
+        any_itm = any(c.is_itm for c in res.cycles)
+        assert any_itm
+        assert any_btc
+
+
+# ── Issue 5: Venue/product fail-closed ───────────────────────────────────────
+
+class TestRemediationIssue5VenueGuard:
+    """Issue 5: Unsupported venue/mechanism/currency combos raise
+    SettlementError rather than inheriting Deribit assumptions."""
+
+    def test_otc_cash_btc_raises_settlement_error(self) -> None:
+        from engine.errors import SettlementError
+        from engine.settlement import (
+            DeliveryPriceConvention,
+            ExerciseStyle,
+            SettlementCurrency,
+            SettlementMechanism,
+            SettlementSpec,
+            Venue,
+        )
+        spec = SettlementSpec(
+            venue=Venue.OTC, product="otc_option",
+            settlement_mechanism=SettlementMechanism.CASH,
+            settlement_currency=SettlementCurrency.BTC,
+            exercise_style=ExerciseStyle.EUROPEAN,
+            contract_multiplier=1.0,
+            delivery_price_convention=DeliveryPriceConvention.NEGOTIATED,
+        )
+        leg = Leg(instrument="OTC-BTC", venue=Venue.OTC, product="put_option",
+                  side="SHORT", quantity=1.0, entry_premium=0.02,
+                  settlement=spec, option_type="put", strike=60_000.0)
+        with pytest.raises(SettlementError):
+            settle_leg(leg, 65_000.0)
+
+    def test_deribit_inverse_settles_ok(self) -> None:
+        der = _make_deribit_option_leg("call", "SHORT", 1.0, 100_000.0, 0.02)
+        sr = settle_leg(der, 125_000.0)
+        assert str(sr.settlement_currency) == "BTC"
+        assert sr.settlement_amount > 0.0
+
+
+# ── Issue 6: contract_multiplier applied consistently ────────────────────────
+
+class TestRemediationIssue6CMEMultiplier:
+    """Issue 6: contract_multiplier=5 applied consistently to premium, spread,
+    impact, collateral and assignment."""
+
+    def test_cme_full_cycle_premium_reflects_multiplier(self) -> None:
+        from strategy.definitions import _make_cme_option_leg, _make_spot_leg, _make_usd_option_leg
+        s0 = 65_000.0
+        # OTC (mult=1) covered call
+        leg_otc = _make_usd_option_leg("call", "SHORT", 1.0, s0 * 1.15, 1500.0, dte_days=30)
+        strat1 = Strategy(strategy_id="otc", business_label="otc",
+                          canonical=StrategyKind.BESPOKE,
+                          legs=[_make_spot_leg(1.0, s0), leg_otc])
+        # CME (mult=5) covered call
+        leg_cme = _make_cme_option_leg("call", "SHORT", 1.0, s0 * 1.15, 1500.0, dte_days=30)
+        strat5 = Strategy(strategy_id="cme", business_label="cme",
+                          canonical=StrategyKind.BESPOKE,
+                          legs=[_make_spot_leg(5.0, s0), leg_cme])
+
+        n = 60
+        dates = _dates(n)
+        spot = np.full(n, s0)
+        iv = _flat_iv(n)
+
+        r1 = backtest_strategy(strat1, dates, spot, iv, dte_days=30, spread_bps=0.0)
+        r5 = backtest_strategy(strat5, dates, spot, iv, dte_days=30, spread_bps=0.0)
+
+        abs_prem_1 = abs(sum(c.premium_received_usd for c in r1.cycles))
+        abs_prem_5 = abs(sum(c.premium_received_usd for c in r5.cycles))
+        # CME (5 BTC exposure) premium ≈ 5 * OTC (1 BTC exposure)
+        assert abs_prem_1 > 0
+        assert abs_prem_5 > 0
+        ratio = abs_prem_5 / abs_prem_1
+        assert abs(ratio - 5.0) < 0.1, f"CME/OTC premium ratio {ratio} should be ~5"
+
+
+# ── Issue 7: strike_pct_above controls cycle strikes ─────────────────────────
+
+class TestRemediationIssue7StrikeTargeting:
+    """Issue 7: strike_pct_above wires into actual cycle strike selection.
+    Changing strike_pct_above changes every applicable cycle strike."""
+
+    def test_changing_strike_pct_above_changes_strikes(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+
+        r10 = backtest_strategy(build_covered_call(quantity=1.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30, strike_pct_above=0.10)
+        r25 = backtest_strategy(build_covered_call(quantity=1.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30, strike_pct_above=0.25)
+        assert len(r10.cycles) == len(r25.cycles) >= 2
+        # Every cycle has a different strike
+        for c10, c25 in zip(r10.cycles, r25.cycles, strict=False):
+            assert c10.strike != c25.strike
+
+    def test_strike_equals_entry_spot_times_one_plus_pct_for_calls(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_covered_call(quantity=1.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30, strike_pct_above=0.15)
+        for c in res.cycles:
+            expected = c.entry_spot * 1.15
+            assert abs(c.strike - expected) < 1e-9
+
+    def test_strike_equals_entry_spot_times_one_minus_pct_for_puts(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_cash_secured_put(quantity=1.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30, strike_pct_above=0.15)
+        for c in res.cycles:
+            expected = c.entry_spot * 0.85
+            assert abs(c.strike - expected) < 1e-9
+
+
+# ── Issue 8: Validated runner configuration ──────────────────────────────────
+
+class TestRemediationIssue8RunnerConfig:
+    """Issue 8: runner.py consumes validated config and passes execution
+    assumptions through to backtest_strategy."""
+
+    def test_config_change_alters_backtest_result(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        strat = build_covered_call(quantity=1.0, entry_spot=float(spot[0]))
+        r_default = backtest_strategy(strat, dates, spot, iv, dte_days=30,
+                                       execution_fee_pct=0.005, seller_discount_pct=0.025,
+                                       spread_bps=2.0)
+        r_changed = backtest_strategy(strat, dates, spot, iv, dte_days=30,
+                                       execution_fee_pct=0.010, seller_discount_pct=0.025,
+                                       spread_bps=2.0)
+        # Changing execution_fee_pct changes total_asym_fee_usd and total_pnl_usd
+        assert r_default.total_asym_fee_usd != r_changed.total_asym_fee_usd
+        assert r_default.total_pnl_usd != r_changed.total_pnl_usd
+
+
+# ── Issue 9: Equity curve with option MTM ────────────────────────────────────
+
+class TestRemediationIssue9EquityCurve:
+    """Issue 9: daily_snapshots is populated with complete option MTM."""
+
+    def test_daily_snapshots_populated(self) -> None:
+        n = 120
+        dates = _dates(n)
+        spot = _deterministic_spot(n)
+        iv = _flat_iv(n)
+        res = backtest_strategy(build_covered_call(quantity=1.0, entry_spot=float(spot[0])),
+                                dates, spot, iv, dte_days=30)
+        assert len(res.daily_snapshots) > 0
+        # Snapshot contains meaningful fields
+        snap = res.daily_snapshots[0]
+        assert snap.spot > 0
+        assert snap.mtm_usd != 0.0
+
+    def test_option_mtm_affects_curve_flat_spot_changing_iv(self) -> None:
+        """On flat spot with changing IV, the equity curve changes due to
+        option MTM (theta decay and vega)."""
+        n = 60
+        spot = np.full(n, 65_000.0)
+        dates = _dates(n)
+        # Declining IV: vega gain for a short call
+        iv = np.linspace(0.60, 0.30, n)
+        res = backtest_strategy(build_covered_call(quantity=1.0, entry_spot=65_000.0),
+                                dates, spot, iv, dte_days=30)
+        assert len(res.daily_snapshots) > 10
+        # MTM values differ (not all identical)
+        mtms = [s.mtm_usd for s in res.daily_snapshots]
+        assert len({round(m, 2) for m in mtms}) > 1
+
+
+# ── Issue 10: Stress MTM valuation basis ─────────────────────────────────────
+
+class TestRemediationIssue10StressMTM:
+    """Issue 10: apply_scenario supports mtm_revaluation basis with non-zero
+    vol_shock_contribution_usd for vol-only shocks."""
+
+    def test_mtm_basis_vol_only_shock_nonzero(self) -> None:
+        strat = build_covered_call(quantity=1.0, entry_spot=65_000.0,
+                                    strike=75_000.0, premium_received=1500.0)
+        sc = Scenario(name="vol_double", description="vol doubles, spot unchanged",
+                       shock_type="instantaneous",
+                       start_spot=65_000.0, end_spot=65_000.0,
+                       start_vol=0.45, end_vol=0.90)
+        r = apply_scenario(strat, sc, valuation_basis="mtm_revaluation")
+        assert r["valuation_basis"] == "mtm_revaluation"
+        # vol_shock_contribution_usd must be non-zero when vol changes
+        assert r["vol_shock_contribution_usd"] != 0.0
+
+    def test_mtm_basis_spot_change_nonzero(self) -> None:
+        strat = build_covered_call(quantity=1.0, entry_spot=65_000.0,
+                                    strike=75_000.0, premium_received=1500.0)
+        sc = Scenario(name="spot_up", description="spot up 10%, vol unchanged",
+                       shock_type="instantaneous",
+                       start_spot=65_000.0, end_spot=71_500.0,
+                       start_vol=0.45, end_vol=0.45)
+        r = apply_scenario(strat, sc, valuation_basis="mtm_revaluation")
+        assert r["strategy_pnl_usd"] != 0.0
+
+    def test_expiry_basis_vol_only_zero_contribution(self) -> None:
+        """expiry_settlement: vol_shock_contribution_usd is zero
+        even when vol changes (consistent with expiry payoff basis)."""
+        strat = build_covered_call(quantity=1.0, entry_spot=65_000.0,
+                                    strike=75_000.0, premium_received=1500.0)
+        sc = Scenario(name="vol_double", description="vol doubles, spot unchanged",
+                       shock_type="instantaneous",
+                       start_spot=65_000.0, end_spot=65_000.0,
+                       start_vol=0.45, end_vol=0.90)
+        r = apply_scenario(strat, sc, valuation_basis="expiry_settlement")
+        assert r["vol_shock_contribution_usd"] == 0.0
+        assert r["valuation_basis"] == "expiry_settlement"

@@ -24,7 +24,7 @@ import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from config.models import Provenance
+from config.models import EngineConfig, Provenance
 from execution.waterfall import WaterfallSensitivity, waterfall_sensitivity
 from research.manifest import DataManifest, DataSourceRecord, RunManifest
 from research.reporting import (
@@ -32,7 +32,7 @@ from research.reporting import (
     generate_decision_pending,
     generate_presentation_summary,
 )
-from strategy.backtest import backtest_strategy, backtest_unhedged
+from strategy.backtest import backtest_strategy, backtest_unhedged_observed
 from strategy.definitions import build_all_mandate_strategies
 from strategy.monte_carlo import MonteCarloConfig, run_monte_carlo
 from strategy.regimes import (
@@ -152,7 +152,11 @@ def _validate_results(
                         failures.append(f"implausible total_pnl_pct {tpp} for {sid}")
                 except (ValueError, TypeError):
                     pass
-                for k in ("total_pnl_pct", "effective_acquisition_cost", "sharpe_ratio", "var_95_loss", "es_975_loss"):
+                # NOTE: effective_acquisition_cost is intentionally EXCLUDED —
+                # a strategy that acquires no BTC reports EAC = n/a (nan) by
+                # design (FRF-014 / D-12). Its plausibility is covered by the
+                # negative-EAC check above and by AT-014 component reconciliation.
+                for k in ("total_pnl_pct", "sharpe_ratio", "var_95_loss", "es_975_loss"):
                     val = row.get(k, "0")
                     if val in ("nan", "NaN", "inf", "-inf", "Infinity", "-Infinity"):
                         failures.append(f"NaN or infinite result in {k} for {sid}")
@@ -193,7 +197,21 @@ def run_research(
 
     Returns 0 on success, non-zero on failure.
     """
-    config = _load_config(config_path)
+    # Issue 8: consume validated config layer (EngineConfig), not raw YAML dict.
+    raw = _load_config(config_path)
+    # EngineConfig fields may be at top level or nested under 'mandate'.
+    eng_fields: dict[str, Any] = {}
+    mandate_section = raw.get("mandate", {})
+    for field_name in EngineConfig.model_fields:
+        if field_name in raw:
+            eng_fields[field_name] = raw[field_name]
+        elif isinstance(mandate_section, dict) and field_name in mandate_section:
+            eng_fields[field_name] = mandate_section[field_name]
+    try:
+        cfg = EngineConfig(**eng_fields)
+    except Exception:
+        # Fall back: config doesn't have full EngineConfig fields; use raw values
+        cfg = None
     run_id = os.path.basename(output_dir.rstrip("/"))
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "logs"), exist_ok=True)
@@ -202,37 +220,55 @@ def run_research(
         run_id=run_id,
         started_at=datetime.now(UTC),
         config_path=config_path,
-        config_checksum=_sha256(json.dumps(config, sort_keys=True).encode()),
+        config_checksum=_sha256(json.dumps(raw, sort_keys=True, default=str).encode()),
         output_dir=output_dir,
     )
 
-    config_str = json.dumps(config, sort_keys=True, indent=2)
     resolved_config_path = os.path.join(output_dir, "resolved_config.yaml")
     with open(resolved_config_path, "w") as f:
-        f.write(config_str)
+        json.dump(raw, f, sort_keys=True, indent=2, default=str)
 
-    mandate = config["mandate"]
-    qty = mandate["btc_quantity"]
-    spot = mandate["reference_spot_usd"]
+    mandate = raw.get("mandate", {})
+    # Issue 8: use validated config where available, raw dict otherwise
+    if cfg is not None:
+        qty = cfg.btc_quantity
+        spot = cfg.reference_spot_usd
+        seller_discount_pct = cfg.seller_discount_pct / 100.0
+        execution_fee_pct = cfg.execution_fee_pct / 100.0
+        risk_free_rate_pct_dec = cfg.risk_free_rate_pct / 100.0
+    else:
+        qty = mandate.get("btc_quantity", 30000)
+        spot = mandate.get("reference_spot_usd", 65000.0)
+        seller_discount_pct = mandate.get("seller_discount_pct", 0.025)
+        execution_fee_pct = mandate.get("execution_fee_pct", 0.005)
+        risk_free_rate_pct_dec = 0.04
 
     strategies = build_all_mandate_strategies(quantity=float(qty), entry_spot=float(spot))
-    enabled_list = config.get("strategies", {}).get("enabled", [s.strategy_id for s in strategies])
+    enabled_list = raw.get("strategies", {}).get("enabled", [s.strategy_id for s in strategies])
     if enabled_list:
         strategies = [s for s in strategies if s.strategy_id in enabled_list]
     manifest.strategy_count = len(strategies)
 
-    bt_config = config["backtest"]
+    bt_config = raw.get("backtest", {})
     start_date = datetime.fromisoformat(bt_config["window_start"]).replace(tzinfo=UTC)
     end_date = datetime.fromisoformat(bt_config["window_end"]).replace(tzinfo=UTC)
     dte = bt_config["dte_days"]
-    r = bt_config["risk_free_rate"]
+    r = bt_config.get("risk_free_rate", risk_free_rate_pct_dec)
     sigma = bt_config["volatility"]
-    strike_pct = bt_config["strike_pct_above"]
+    if cfg is not None:
+        strike_pct = bt_config.get("strike_pct_above", cfg.strike_target_pct_above_spot[0] / 100.0)
+    else:
+        strike_pct = bt_config.get("strike_pct_above", 0.15)
 
-    ds_config = config.get("data_sources", {})
+    # Issue 8: additional execution assumptions from config
+    spread_bps = raw.get("execution", {}).get("spread_bps", 2.0)
+    adv_btc = raw.get("execution", {}).get("adv_btc", None)
+    overlay_ratio = raw.get("execution", {}).get("overlay_ratio", 1.0)
+
+    ds_config = raw.get("data_sources", {})
     primary_spot = ds_config.get("primary_spot", "massive")
     allow_fallback = ds_config.get("allow_cdd_fallback", False)
-    exec_cfg = config.get("execution", {})
+    exec_cfg = raw.get("execution", {})
     run_mode = exec_cfg.get("run_mode", "full" if not test_mode else "smoke")
 
     data_manifest: DataManifest | None = None
@@ -390,19 +426,28 @@ def run_research(
             (s.canonical and str(s.canonical) in ("unhedged_baseline", "Unhedged BTC Acquisition"))
             or s.strategy_id == "unhedged_baseline"
         ):
-            result = backtest_unhedged(s, start_date, end_date, spot, seed=42)
+            # FRF-002 / AT-002: the baseline consumes the SAME observed spot
+            # series as every strategy (buy-and-hold), never a synthetic GBM
+            # path. The synthetic backtest_unhedged wrapper is quarantined from
+            # full research mode.
+            result = backtest_unhedged_observed(s, dates, spot_path, iv_history)
         else:
             result = backtest_strategy(
                 s, dates, spot_path, iv_history,
                 risk_free_rate=r, dte_days=dte,
                 strike_pct_above=strike_pct,
+                overlay_ratio=overlay_ratio,
+                seller_discount_pct=seller_discount_pct,
+                execution_fee_pct=execution_fee_pct,
+                spread_bps=spread_bps,
+                adv_btc=adv_btc,
                 seed=42,
             )
         backtest_results[s.strategy_id] = result
         manifest.total_cycles += len(getattr(result, "cycles", []))
 
     logger.info("Running OOS validation")
-    oos_config = config["oos_validation"]
+    oos_config = raw.get("oos_validation", {})
     train_start = datetime.fromisoformat(oos_config["train_start"]).replace(tzinfo=UTC)
     train_end = datetime.fromisoformat(oos_config["train_end"]).replace(tzinfo=UTC)
     test_start = datetime.fromisoformat(oos_config["test_start"]).replace(tzinfo=UTC)
@@ -458,7 +503,7 @@ def run_research(
         oos_results[s.strategy_id] = oos
 
     logger.info("Running regime analysis")
-    regime_cfg = config["regimes"]
+    regime_cfg = raw.get("regimes", {})
     regime_results: list[Any] = []
     if regime_cfg.get("enabled", True):
         regime_results = run_regime_analysis(
@@ -467,7 +512,7 @@ def run_research(
         )
 
     mc_results: dict[str, Any] = {}
-    mc_cfg = config["monte_carlo"]
+    mc_cfg = raw.get("monte_carlo", {})
     mc_enabled = mc_cfg.get("enabled", True)
     if mc_enabled:
         logger.info(f"Running Monte Carlo with {mc_cfg['n_paths']} paths")
@@ -504,7 +549,7 @@ def run_research(
                 manifest.total_paths_mc += mc_cfg["n_paths"]
 
     stress_results: dict[str, Any] = {}
-    stress_cfg = config["stress"]
+    stress_cfg = raw.get("stress", {})
     if stress_cfg.get("enabled", True):
         logger.info("Running stress tests")
         stress_results_list = run_stress_tests(strategies, start_spot=float(spot))
@@ -512,7 +557,7 @@ def run_research(
             stress_results[rst.strategy_id] = rst
 
     logger.info("Running execution sensitivity")
-    es_cfg = config.get("execution_sensitivity", {})
+    es_cfg = raw.get("execution_sensitivity", {})
     if es_cfg.get("enabled", True):
         sens = WaterfallSensitivity(
             spot_offsets_pct=es_cfg.get("spot_offsets_pct", [-10, -5, -1, 0, 1, 5, 10]),
@@ -663,7 +708,12 @@ def run_research(
         pnl = row.get("total_pnl_pct", 0.0)
         sharpe = row.get("sharpe_ratio")
         eac = row.get("effective_acquisition_cost", 0)
-        research_report_lines.append(f"- **{sid}**: P&L {pnl:.2f}%, " + (f"Sharpe {sharpe:.3f}, " if sharpe else "") + f"Eff. Acq. ${eac:,.0f}/BTC")
+        try:
+            eac_f = float(eac)
+            eac_str = "n/a (no BTC acquired)" if eac_f != eac_f else f"${eac_f:,.0f}/BTC"  # nan → n/a
+        except (ValueError, TypeError):
+            eac_str = "n/a"
+        research_report_lines.append(f"- **{sid}**: P&L {pnl:.2f}%, " + (f"Sharpe {sharpe:.3f}, " if sharpe else "") + f"Eff. Acq. {eac_str}")
     research_report_lines.extend([
         "",
         "*No strategy is described as best, optimal, preferred, recommended, safest or winner.*",
@@ -693,8 +743,8 @@ def run_research(
         with open(dm_path, "w") as f:
             json.dump(dm_payload, f, indent=2)
 
-    mc_cfg_enabled = config.get("monte_carlo", {}).get("enabled", True)
-    stress_cfg_enabled = config.get("stress", {}).get("enabled", True)
+    mc_cfg_enabled = raw.get("monte_carlo", {}).get("enabled", True)
+    stress_cfg_enabled = raw.get("stress", {}).get("enabled", True)
     validation_failures = _validate_results(
         manifest, data_manifest, output_dir, run_id,
         mc_enabled=mc_cfg_enabled,
