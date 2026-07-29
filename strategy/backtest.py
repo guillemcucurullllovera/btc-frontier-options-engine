@@ -301,6 +301,12 @@ def backtest_strategy(
     total_opt_qty = _total_option_qty(strategy)
 
     initial_spot = float(spot_prices[0])
+    strategy_notional = max(
+        btc_held * initial_spot,
+        cash_collateral_req,
+        total_opt_qty * initial_spot,
+        1.0,
+    )
     iv_provenance = Provenance.MODEL_RECONSTRUCTED
 
     cash_usd = -(btc_held * initial_spot) if btc_held > 0 else 0.0
@@ -363,18 +369,19 @@ def backtest_strategy(
 
             premium_per_ct = _option_price(leg, entry_spot_v, entry_iv_v, risk_free_rate, T)
             prem_currency = _option_premium_currency(leg)
+            prem_sign = 1.0 if leg.side == "SHORT" else -1.0
 
             if prem_currency == "BTC":
                 btc_prem = premium_per_ct * q
                 usd_prem = btc_prem * entry_spot_v
-                premium_received_btc += btc_prem
-                premium_received_usd += usd_prem
+                premium_received_btc += prem_sign * btc_prem
+                premium_received_usd += prem_sign * usd_prem
             else:
                 usd_prem = premium_per_ct * q
-                premium_received_usd += usd_prem
-                premium_received_btc += usd_prem / entry_spot_v if entry_spot_v > 0 else 0.0
+                premium_received_usd += prem_sign * usd_prem
+                premium_received_btc += prem_sign * (usd_prem / entry_spot_v) if entry_spot_v > 0 else 0.0
 
-            premium_pct_of_spot += (premium_per_ct * q) / (entry_spot_v * q) / max(len(opt_legs), 1) if entry_spot_v > 0 and q > 0 else 0.0
+            premium_pct_of_spot += prem_sign * (premium_per_ct * q) / (entry_spot_v * q) / max(len(opt_legs), 1) if entry_spot_v > 0 and q > 0 else 0.0
 
             leg_delta = _option_delta(leg, entry_spot_v, entry_iv_v, risk_free_rate, T)
             delta_at_entry += leg_delta
@@ -439,7 +446,6 @@ def backtest_strategy(
         for leg in opt_legs:
             if leg.side == "SHORT" and leg.option_type == "put" and _is_itm(leg, expiry_spot_v):
                 assignment_btc = leg.quantity
-                btc_inventory += assignment_btc
                 consumed_collateral = assignment_btc * (leg.strike or 0.0)
                 if cash_collateral_req > 0 and collateral_usd > 0:
                     consumed_from_reserve = min(collateral_usd, consumed_collateral)
@@ -447,6 +453,9 @@ def backtest_strategy(
                     shortfall = consumed_collateral - consumed_from_reserve
                     if shortfall > 0:
                         cash_usd -= shortfall
+
+                if _option_premium_currency(leg) == "USD":
+                    btc_inventory += assignment_btc
 
         if cash_collateral_req > 0:
             all_options_otm = all(not _is_itm(leg, expiry_spot_v) for leg in opt_legs)
@@ -465,6 +474,7 @@ def backtest_strategy(
         total_fees_btc_this_cycle = venue_fees_btc_cycle + delivery_fee_btc_cycle
 
         net_pnl_usd_cycle = premium_received_usd + payout_usd - total_fees_this_cycle
+        net_pnl_usd_cycle += prev_btc_inv * (expiry_spot_v - entry_spot_v)
         net_pnl_btc_cycle = (premium_received_btc + payout_btc - total_fees_btc_this_cycle)
 
         total_premium_received_usd += premium_received_usd
@@ -481,12 +491,10 @@ def backtest_strategy(
         if cumul > max_cumulative_pnl:
             max_cumulative_pnl = cumul
         dd = max_cumulative_pnl - cumul
-        notional_ref = max(btc_held * initial_spot, total_opt_qty * initial_spot, 1.0)
         if dd > max_drawdown_pct:
-            max_drawdown_pct = dd / notional_ref
+            max_drawdown_pct = dd / strategy_notional
 
-        denom = max(btc_held, total_opt_qty, 1.0) * entry_spot_v
-        cycle_pct = (net_pnl_usd_cycle / denom) * 100.0 if denom > 0 else 0.0
+        cycle_pct = (net_pnl_usd_cycle / strategy_notional) * 100.0 if strategy_notional > 0 else 0.0
 
         cycles.append(BacktestCycle(
             cycle_num=cycle_idx,
@@ -540,8 +548,7 @@ def backtest_strategy(
 
     total_pnl_usd = sum(c.net_pnl_usd for c in cycles)
     total_pnl_btc = sum(c.net_pnl_btc for c in cycles)
-    denom = max(btc_held * initial_spot, total_opt_qty * initial_spot, 1.0)
-    total_pnl_pct = (total_pnl_usd / denom) * 100.0 if denom > 0 else 0.0
+    total_pnl_pct = (total_pnl_usd / strategy_notional) * 100.0 if strategy_notional > 0 else 0.0
 
     itm_count = sum(1 for c in cycles if c.is_itm)
     itm_frequency = itm_count / len(cycles) if cycles else 0.0
@@ -567,14 +574,22 @@ def backtest_strategy(
             "realised_assignment": float(c.realised_assignment),
         })
 
-    seller_discount = initial_spot * seller_discount_pct * max(btc_held, total_opt_qty, 1.0)
     ref_qty = max(btc_held, total_opt_qty, 1.0)
+    if btc_held > 0:
+        baseline = initial_spot * ref_qty
+    elif cash_collateral_req > 0:
+        baseline = cash_collateral_req
+    else:
+        baseline = initial_spot * ref_qty
+
+    seller_discount = initial_spot * seller_discount_pct * ref_qty
+    total_impact_usd = sum(c.impact_usd for c in cycles)
     eff_cost_usd = (
-        initial_spot * ref_qty
+        baseline
         + total_fees_usd
         - total_premium_received_usd
         - seller_discount
-        + sum(c.impact_usd for c in cycles)
+        + total_impact_usd
     ) / ref_qty
 
     eff_acq = EffectiveAcquisitionCost(
@@ -586,7 +601,7 @@ def backtest_strategy(
         fee_provenance=Provenance.ASSUMED,
         seller_discount_component_usd=seller_discount,
         seller_discount_provenance=Provenance.BUSINESS_REQUIREMENT,
-        impact_component_usd=sum(c.impact_usd for c in cycles),
+        impact_component_usd=total_impact_usd,
         impact_provenance=Provenance.ASSUMED,
         spread_slippage_component_usd=sum(c.spread_slippage_usd for c in cycles),
         delivery_fee_component_usd=sum(c.delivery_fee_usd for c in cycles),

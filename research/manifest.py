@@ -1,6 +1,6 @@
 """Research run manifest — records sources, dates, endpoints, checksums, provenance and configuration.
 
-Produces run_manifest.json for each research run with full traceability.
+Produces run_manifest.json and data_manifest.json for each research run with full traceability.
 """
 
 from __future__ import annotations
@@ -20,6 +20,24 @@ class DataSourceRecord:
     record_count: int
     checksum_sha256: str
     provenance: Provenance
+    notes: str = ""
+
+
+@dataclass
+class DataManifest:
+    actual_provider: str
+    endpoint: str
+    requested_start: datetime | None = None
+    requested_end: datetime | None = None
+    actual_start: datetime | None = None
+    actual_end: datetime | None = None
+    observation_count: int = 0
+    retrieval_timestamp: datetime | None = None
+    checksum_sha256: str = ""
+    provenance: str = ""
+    fallback_used: bool = False
+    fallback_provider: str = ""
+    cache_path: str = ""
     notes: str = ""
 
 

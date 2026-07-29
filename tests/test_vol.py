@@ -7,6 +7,7 @@ All tests derive from fixtures: no live network.
 
 from __future__ import annotations
 
+import json
 import math
 import pathlib
 
@@ -14,11 +15,14 @@ import pathlib
 import sys
 import time
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import numpy as np
 import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from unittest import mock
 
 from config.models import Provenance
 from engine.data_models import HistoricalSpotBar
@@ -42,7 +46,11 @@ from vol.garch import (
 from vol.history import (
     CompositeSpotProvider,
     CryptoDataDownloadProvider,
+    HistoricalSpotError,
+    HistoricalSpotNotFound,
+    MassiveResponseError,
     MassiveSpotProvider,
+    MassiveTimeoutError,
     SpotCache,
 )
 from vol.surface import (
@@ -51,6 +59,9 @@ from vol.surface import (
     fit_surface,
     iv_at,
 )
+
+TEST_API_KEY = "test" + "-key"
+
 
 FIXTURE_DIR: pathlib.Path = (
     pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures"
@@ -608,3 +619,245 @@ def test_garch_params_unconditional_vol() -> None:
     uv = params.unconditional_vol
     assert uv > 0
     assert uv < 1.0
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 13. Massive live integration — mocked API responses
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _massive_api_response(bars: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "adjusted": True,
+        "queryCount": len(bars),
+        "request_id": "test-req-id",
+        "results": bars,
+        "resultsCount": len(bars),
+        "status": "OK",
+        "ticker": "X:BTCUSD",
+    }
+
+
+def _make_bar(t_ms: int, o: float, h: float, lo: float, c: float, v: float = 1000.0) -> dict[str, Any]:
+    return {
+        "c": c,
+        "h": h,
+        "l": lo,
+        "n": 1,
+        "o": o,
+        "t": t_ms,
+        "v": v,
+        "vw": c,
+    }
+
+
+def test_massive_parses_live_response() -> None:
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+    bars_data = [
+        _make_bar(1704067200000, 65000, 65500, 64500, 65200),
+        _make_bar(1704153600000, 65200, 66000, 65000, 65800),
+    ]
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = _massive_api_response(bars_data)
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        bars = provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+        assert len(bars) == 2
+        assert bars[0].close == 65200.0
+        assert bars[1].close == 65800.0
+        assert bars[0].provenance == Provenance.OBSERVED
+        assert bars[0].origin == "massive"
+        assert bars[0].symbol == "X:BTCUSD"
+
+
+def test_massive_deduplicates_and_sorts() -> None:
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+    # Duplicate timestamp, out of order
+    ts = 1704067200000
+    bars_data = [
+        _make_bar(ts + 86400000, 66000, 67000, 65000, 66500),  # later, out of order
+        _make_bar(ts, 65000, 65500, 64500, 65200),               # earlier
+        _make_bar(ts, 64000, 64500, 63500, 64200),               # duplicate
+    ]
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = _massive_api_response(bars_data)
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        bars = provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 5, tzinfo=UTC))
+        assert len(bars) == 2
+        assert bars[0].close > 0
+        assert bars[1].close == 66500.0
+
+
+def test_massive_timestamps_utc() -> None:
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+    bars_data = [_make_bar(1704067200000, 65000, 65500, 64500, 65200)]
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = _massive_api_response(bars_data)
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        bars = provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+        assert bars[0].timestamp.tzinfo is not None
+        assert bars[0].timestamp.tzinfo == UTC
+
+
+def test_massive_monotonic_timestamps() -> None:
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+    ts = 1704067200000
+    bars_data = [
+        _make_bar(ts + 86400000, 66000, 67000, 65000, 66500),
+        _make_bar(ts, 65000, 65500, 64500, 65200),
+    ]
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = _massive_api_response(bars_data)
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        bars = provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 5, tzinfo=UTC))
+        for i in range(1, len(bars)):
+            assert bars[i].timestamp > bars[i - 1].timestamp
+
+
+def test_massive_retry_on_timeout() -> None:
+    import requests as req_lib
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY, timeout_s=0.1)
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_get.side_effect = req_lib.exceptions.Timeout("timed out")
+        with pytest.raises(MassiveTimeoutError):
+            provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+        assert mock_get.call_count == 3  # MAX_RETRIES
+
+
+def test_massive_retry_on_server_error() -> None:
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+
+    import contextlib
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 500
+        mock_get.return_value = mock_resp
+        with contextlib.suppress(HistoricalSpotError):
+            provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+        assert mock_get.call_count >= 2
+
+
+def test_massive_empty_results_raises() -> None:
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "OK", "results": [], "resultsCount": 0, "ticker": "X:BTCUSD"}
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        with pytest.raises(HistoricalSpotNotFound):
+            provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+
+
+def test_massive_malformed_response_raises() -> None:
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "ERROR", "message": "invalid ticker"}
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        with pytest.raises(MassiveResponseError):
+            provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+
+
+def test_massive_invalid_json_raises() -> None:
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.side_effect = ValueError("not json")
+        mock_get.return_value = mock_resp
+
+        with pytest.raises(MassiveResponseError):
+            provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+
+
+def test_massive_no_api_key_raises() -> None:
+    provider = MassiveSpotProvider()
+    with pytest.raises(HistoricalSpotError):
+        provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+
+
+def test_massive_rate_limit_retries() -> None:
+    import time as _time
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+
+    with mock.patch.object(_time, "sleep", return_value=None), mock.patch.object(
+        provider._get_session(), "get"
+    ) as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 429
+        mock_resp.headers = {"Retry-After": "0.1"}
+        mock_get.return_value = mock_resp
+
+        with pytest.raises(HistoricalSpotError):
+            provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+        assert mock_get.call_count >= 3
+
+
+def test_massive_zero_price_bars_skipped() -> None:
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+    ts = 1704067200000
+    bars_data = [
+        _make_bar(ts, 0, 0, 0, 0),                   # zero-price bar
+        _make_bar(ts + 86400000, 65000, 65500, 64500, 65200),  # valid
+    ]
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = _massive_api_response(bars_data)
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        bars = provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 5, tzinfo=UTC))
+        assert len(bars) == 1
+        assert bars[0].close == 65200.0
+
+
+def test_massive_cache_dir_saves_json(tmp_path: pathlib.Path) -> None:
+    cache_dir = tmp_path / "cache"
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY, cache_dir=cache_dir)
+    ts = 1704067200000
+    bars_data = [_make_bar(ts, 65000, 65500, 64500, 65200)]
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = _massive_api_response(bars_data)
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        bars = provider.fetch_bars(start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC))
+        assert len(bars) == 1
+
+    cache_files = list(cache_dir.glob("massive_*.json"))
+    assert len(cache_files) >= 1
+    cached = json.loads(cache_files[0].read_text())
+    assert cached["ticker"] == "X:BTCUSD"

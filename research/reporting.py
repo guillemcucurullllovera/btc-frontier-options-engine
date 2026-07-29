@@ -47,7 +47,7 @@ def build_comparison_table(
     for sid in backtest_results:
         bt = backtest_results[sid]
         oos = oos_results.get(sid, {})
-        mc = mc_results.get(sid, {})
+        mc = mc_results.get(sid, mc_results.get(f"{sid}_GBM", {}))
         ss = stress_results.get(sid, {})
 
         row = {

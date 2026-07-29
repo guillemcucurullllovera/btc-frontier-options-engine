@@ -11,12 +11,19 @@ No live network dependency in tests — use fixture-based providers.
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
+import json
+import os
 import pathlib
+import random
+import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from datetime import UTC, datetime, timedelta
-from typing import ClassVar
+from typing import Any, ClassVar
+
+import requests
 
 from config.models import Provenance
 from engine.data_models import HistoricalSpotBar
@@ -33,6 +40,22 @@ class HistoricalSpotNotFound(HistoricalSpotError):
 
 class StaleDataError(HistoricalSpotError):
     """Cached data exceeds the staleness threshold."""
+
+
+class MassiveTimeoutError(HistoricalSpotError):
+    """Request to Massive API exceeded timeout."""
+
+
+class MassiveRateLimitError(HistoricalSpotError):
+    """Rate-limited by Massive API."""
+
+
+class MassiveServerError(HistoricalSpotError):
+    """5xx or transient server error from Massive."""
+
+
+class MassiveResponseError(HistoricalSpotError):
+    """Malformed or unexpected Massive response."""
 
 
 # ── Data provider abstractions ────────────────────────────────────────────
@@ -54,21 +77,40 @@ class SpotProvider(ABC):
 class MassiveSpotProvider(SpotProvider):
     """Massive primary historical BTC spot provider.
 
-    Reads from CSV files or an API interface.  When *fixture_path* is provided,
-    data is read from a local file for offline testing.
+    Supports live API calls (with MASSIVE_API_KEY env var) and fixture-based
+    CSV replay for offline testing.
     """
 
     ORIGIN: ClassVar[str] = "massive"
+    BASE_URL: ClassVar[str] = "https://api.massive.com"
+    TICKER: ClassVar[str] = "X:BTCUSD"
+    ENDPOINT_PATH: ClassVar[str] = "/v2/aggs/ticker/{ticker}/range/1/day/{from_}/{to}"
+
+    MAX_RETRIES: ClassVar[int] = 3
+    BASE_DELAY_S: ClassVar[float] = 1.0
+    MAX_DELAY_S: ClassVar[float] = 30.0
+    DEFAULT_TIMEOUT_S: ClassVar[float] = 30.0
+    PAGE_LIMIT: ClassVar[int] = 5000
 
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = "https://api.massive.com/v1",
+        base_url: str | None = None,
         fixture_path: pathlib.Path | None = None,
+        cache_dir: pathlib.Path | None = None,
+        timeout_s: float | None = None,
     ) -> None:
-        self._api_key = api_key
-        self._base_url = base_url.rstrip("/")
+        self._api_key = api_key or os.environ.get("MASSIVE_API_KEY", "")
+        self._base_url = (base_url or self.BASE_URL).rstrip("/")
         self._fixture_path = fixture_path
+        self._cache_dir = cache_dir
+        self._timeout_s = timeout_s or self.DEFAULT_TIMEOUT_S
+        self._session: requests.Session | None = None
+
+    def _get_session(self) -> requests.Session:
+        if self._session is None:
+            self._session = requests.Session()
+        return self._session
 
     def fetch_bars(
         self,
@@ -78,10 +120,194 @@ class MassiveSpotProvider(SpotProvider):
     ) -> list[HistoricalSpotBar]:
         if self._fixture_path is not None:
             return self._parse_csv(self._fixture_path)
-        if self._api_key is None:
-            msg = "MassiveSpotProvider requires api_key or fixture_path"
-            raise HistoricalSpotError(msg)
-        raise NotImplementedError("Live Massive API not yet connected")
+
+        if not self._api_key:
+            raise HistoricalSpotError("MassiveSpotProvider requires api_key or fixture_path")
+
+        all_bars: list[HistoricalSpotBar] = []
+        from_str = self._format_date_param(start)
+        to_str = self._format_date_param(end)
+
+        url = f"{self._base_url}{self.ENDPOINT_PATH.format(ticker=self.TICKER, from_=from_str, to=to_str)}"
+
+        raw_response: dict[str, Any] | None = None
+        attempt = 0
+        while attempt < self.MAX_RETRIES:
+            attempt += 1
+            try:
+                session = self._get_session()
+                resp = session.get(
+                    url,
+                    params={"apiKey": self._api_key, "limit": str(self.PAGE_LIMIT), "sort": "asc"},
+                    timeout=self._timeout_s,
+                )
+            except requests.exceptions.Timeout:
+                if attempt >= self.MAX_RETRIES:
+                    raise MassiveTimeoutError(f"Timeout after {self._timeout_s}s on Massive API") from None
+                self._sleep_backoff(attempt)
+                continue
+            except requests.exceptions.ConnectionError as exc:
+                if attempt >= self.MAX_RETRIES:
+                    raise HistoricalSpotError(f"Connection error on Massive API: {exc}") from exc
+                self._sleep_backoff(attempt)
+                continue
+            except requests.exceptions.RequestException as exc:
+                if attempt >= self.MAX_RETRIES:
+                    raise HistoricalSpotError(f"Request failed on Massive API: {exc}") from exc
+                self._sleep_backoff(attempt)
+                continue
+
+            if resp.status_code == 429:
+                if attempt >= self.MAX_RETRIES:
+                    raise MassiveRateLimitError("Rate limited by Massive API after max retries")
+                retry_after = resp.headers.get("Retry-After")
+                wait_s = float(retry_after) if retry_after else min(self.BASE_DELAY_S * (2 ** (attempt - 1)), self.MAX_DELAY_S)
+                time.sleep(wait_s + random.uniform(0, 1.0))
+                continue
+            if resp.status_code >= 500:
+                if attempt >= self.MAX_RETRIES:
+                    raise MassiveServerError(f"Massive server error {resp.status_code} after max retries")
+                self._sleep_backoff(attempt)
+                continue
+
+            try:
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError as exc:
+                if attempt >= self.MAX_RETRIES:
+                    raise HistoricalSpotError(f"Massive HTTP {resp.status_code}: {exc}") from exc
+                self._sleep_backoff(attempt)
+                continue
+
+            try:
+                raw_response = resp.json()
+            except ValueError as exc:
+                if attempt >= self.MAX_RETRIES:
+                    raise MassiveResponseError(f"Invalid JSON from Massive API: {exc}") from exc
+                self._sleep_backoff(attempt)
+                continue
+
+            break
+
+        if raw_response is None:
+            raise HistoricalSpotError("All retries exhausted for Massive API")
+
+        status = raw_response.get("status", "")
+        if status != "OK":
+            raise MassiveResponseError(f"Massive API returned status '{status}': {raw_response}")
+
+        if self._cache_dir is not None:
+            self._cache_raw(raw_response, from_str, to_str)
+
+        results = raw_response.get("results")
+        if not results or not isinstance(results, list):
+            raise HistoricalSpotNotFound(f"Massive returned no results for {from_str}-{to_str}")
+
+        for row in results:
+            bar = self._parse_result_row(row, raw_response.get("ticker", self.TICKER))
+            if bar is not None:
+                all_bars.append(bar)
+
+        if not all_bars:
+            raise HistoricalSpotNotFound(f"No valid bars parsed from Massive response for {from_str}-{to_str}")
+
+        all_bars = self._deduplicate_and_sort(all_bars)
+        self._validate_monotonic(all_bars)
+        return all_bars
+
+    def _parse_result_row(self, row: dict[str, Any], ticker: str) -> HistoricalSpotBar | None:
+        try:
+            t_ms = int(row.get("t", 0))
+            if t_ms <= 0:
+                return None
+            ts = datetime.fromtimestamp(t_ms / 1000.0, tz=UTC)
+
+            o = float(row.get("o", 0))
+            h = float(row.get("h", 0))
+            lo = float(row.get("l", 0))
+            c = float(row.get("c", 0))
+            v = float(row.get("v", 0))
+            vw = self._safe_float(row.get("vw"))
+            n = self._safe_int(row.get("n"))
+
+            # Reject zero-price bars (likely malformed or weekend/NY holidays with no trading)
+            if o <= 0 and h <= 0 and lo <= 0 and c <= 0:
+                return None
+
+            return HistoricalSpotBar(
+                symbol=ticker,
+                timestamp=ts,
+                open=o,
+                high=h,
+                low=lo,
+                close=c,
+                volume=v,
+                vwap=vw,
+                transactions=n,
+                provenance=Provenance.OBSERVED,
+                origin="massive",
+            )
+        except (ValueError, OverflowError, OSError):
+            return None
+
+    @staticmethod
+    def _deduplicate_and_sort(bars: list[HistoricalSpotBar]) -> list[HistoricalSpotBar]:
+        seen: dict[datetime, HistoricalSpotBar] = {}
+        for bar in bars:
+            seen[bar.timestamp] = bar
+        return sorted(seen.values(), key=lambda b: b.timestamp)
+
+    @staticmethod
+    def _validate_monotonic(bars: list[HistoricalSpotBar]) -> None:
+        if len(bars) < 2:
+            return
+        for i in range(1, len(bars)):
+            if bars[i].timestamp <= bars[i - 1].timestamp:
+                raise HistoricalSpotError(
+                    f"Non-monotonic timestamps at index {i}: "
+                    f"{bars[i-1].timestamp} >= {bars[i].timestamp}"
+                )
+
+    def _cache_raw(self, data: dict[str, Any], from_str: str, to_str: str) -> str:
+        raw_json = json.dumps(data, sort_keys=True, default=str)
+        checksum = hashlib.sha256(raw_json.encode()).hexdigest()
+        if self._cache_dir is None:
+            return ""
+        self._cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = self._cache_dir / f"massive_{from_str}_{to_str}_{checksum[:12]}.json"
+        cache_path.write_text(raw_json)
+        return str(cache_path)
+
+    @staticmethod
+    def _format_date_param(dt: datetime | None) -> str:
+        if dt is None:
+            return datetime.now(UTC).strftime("%Y-%m-%d")
+        return dt.strftime("%Y-%m-%d")
+
+    @staticmethod
+    def _sleep_backoff(attempt: int) -> None:
+        delay = min(
+            MassiveSpotProvider.BASE_DELAY_S * (2 ** (attempt - 1)) + random.uniform(0, 0.5),
+            MassiveSpotProvider.MAX_DELAY_S,
+        )
+        time.sleep(delay)
+
+    @staticmethod
+    def _safe_float(v: Any) -> float | None:
+        if v is None or v == "":
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def _safe_int(v: Any) -> int | None:
+        if v is None or v == "":
+            return None
+        try:
+            return int(float(v))
+        except (ValueError, TypeError):
+            return None
 
     @staticmethod
     def _parse_csv(path: pathlib.Path) -> list[HistoricalSpotBar]:
@@ -105,6 +331,11 @@ class MassiveSpotProvider(SpotProvider):
                 origin="massive",
             ))
         return bars
+
+    def close(self) -> None:
+        if self._session is not None:
+            self._session.close()
+            self._session = None
 
 
 class CryptoDataDownloadProvider(SpotProvider):
