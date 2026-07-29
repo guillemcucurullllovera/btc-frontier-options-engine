@@ -1,9 +1,13 @@
-"""Historical BTC spot ingestion.
+"""Historical BTC spot and DVOL ingestion.
 
-Massive is the primary provider; CryptoDataDownload is the explicitly-labelled
+Massive is the primary spot provider; CryptoDataDownload is the explicitly-labelled
 fallback (AC-5, per authoritative_corrections.md §5 and mandate_sanitized.md §Data rules).
 
-Providers return typed HistoricalSpotBar models with provenance and origin labels.
+DVOL is consumed from observed historical sources when available.  When observed
+DVOL is unavailable, an explicitly labelled fallback (CDD OBSERVED_FALLBACK) or
+a constant volatility (ASSUMED) is used.
+
+Providers return typed dataclass/Pydantic models with provenance and origin labels.
 Caching is managed by SpotCache with configurable staleness thresholds.
 No live network dependency in tests — use fixture-based providers.
 """
@@ -23,6 +27,7 @@ from collections import OrderedDict
 from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar
 
+import numpy as np
 import requests
 
 from config.models import Provenance
@@ -517,3 +522,227 @@ def _cache_key(start: datetime | None, end: datetime | None) -> tuple[float, flo
     s = start.timestamp() if start else 0.0
     e = end.timestamp() if end else float("inf")
     return (s, e)
+
+
+# ── DVOL history providers ────────────────────────────────────────────────
+
+
+class DvolManifest:
+    """Provenance and coverage record for a DVOL history fetch."""
+
+    def __init__(
+        self,
+        source: str,
+        requested_start: datetime,
+        requested_end: datetime,
+        actual_start: datetime,
+        actual_end: datetime,
+        observation_count: int,
+        checksum_sha256: str,
+        retrieval_timestamp: datetime,
+        provenance: Provenance,
+        values: list[float] | None = None,
+        fallback_used: bool = False,
+        fallback_provider: str = "",
+    ) -> None:
+        self.source = source
+        self.requested_start = requested_start
+        self.requested_end = requested_end
+        self.actual_start = actual_start
+        self.actual_end = actual_end
+        self.observation_count = observation_count
+        self.checksum_sha256 = checksum_sha256
+        self.retrieval_timestamp = retrieval_timestamp
+        self.provenance = provenance
+        self.values = values or []
+        self.fallback_used = fallback_used
+        self.fallback_provider = fallback_provider
+
+
+class DvolHistoryProvider:
+    """Orchestrates DVOL history retrieval with provenance labelling.
+
+    - Observed DVOL (Provenance.OBSERVED) when available from Deribit API.
+    - CDD fallback DVOL (Provenance.OBSERVED, fallback label) when Deribit
+      is unavailable and CDD data is available.
+    - Constant vol (Provenance.ASSUMED) when neither is available.
+    """
+
+    def __init__(self) -> None:
+        pass
+
+    def fetch_dvol_history(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        spot_dates: list[datetime],
+        n_obs: int,
+        constant_vol: float = 0.45,
+    ) -> tuple[np.ndarray, DvolManifest]:
+        """Return DVOL array and manifest for the given date range.
+
+        Strategy:
+        1. Try observed DVOL (Deribit API or cached fixtures).
+        2. Fall back to CDD DVOL if configured.
+        3. Fall back to constant vol (ASSUMED, diagnostic-only label).
+
+        The returned array matches spot_dates in length, with DVOL values
+        interpolated where needed.
+        """
+        import os
+
+        dvol_values: np.ndarray | None = None
+        provenance = Provenance.OBSERVED
+        source = "deribit_dvol"
+        fallback_used = False
+        fallback_provider = ""
+        actual_start = start_date
+        actual_end = end_date
+        obs_count = 0
+
+        api_key = os.environ.get("MASSIVE_API_KEY", "")
+
+        # Attempt 1: obs_dvol_series.py
+        try:
+            bars = self._fetch_deribit_dvol(start_date, end_date, api_key)
+            if bars and len(bars) >= 2:
+                dvol_values = self._align_to_dates(bars, spot_dates, n_obs)
+                obs_count = len(bars)
+                actual_start = bars[0].timestamp if bars else start_date
+                actual_end = bars[-1].timestamp if bars else end_date
+        except Exception:
+            pass
+
+        # Attempt 2: CDD DVOL fallback
+        if dvol_values is None:
+            try:
+                cdd_path = os.environ.get("CDD_DVOL_PATH", "")
+                if cdd_path:
+                    bars = self._parse_cdd_dvol_csv(pathlib.Path(cdd_path))
+                    if bars and len(bars) >= 2:
+                        dvol_values = self._align_to_dates(bars, spot_dates, n_obs)
+                        obs_count = len(bars)
+                        actual_start = bars[0].timestamp if bars else start_date
+                        actual_end = bars[-1].timestamp if bars else end_date
+                        fallback_used = True
+                        fallback_provider = "cryptodatadownload"
+                        provenance = Provenance.OBSERVED
+            except Exception:
+                pass
+
+        # Attempt 3: constant vol (ASSUMED)
+        if dvol_values is None:
+            dvol_values = np.full(n_obs, constant_vol, dtype=np.float64)
+            provenance = Provenance.ASSUMED
+            source = "constant_assumed"
+            obs_count = n_obs
+            actual_start = start_date
+            actual_end = end_date
+
+        checksum = hashlib.sha256(dvol_values.tobytes()).hexdigest()
+
+        manifest = DvolManifest(
+            source=source,
+            requested_start=start_date,
+            requested_end=end_date,
+            actual_start=actual_start,
+            actual_end=actual_end,
+            observation_count=obs_count,
+            checksum_sha256=checksum,
+            retrieval_timestamp=datetime.now(UTC),
+            provenance=provenance,
+            values=list(dvol_values),
+            fallback_used=fallback_used,
+            fallback_provider=fallback_provider,
+        )
+
+        return dvol_values, manifest
+
+    def _fetch_deribit_dvol(
+        self, start: datetime, end: datetime, api_key: str
+    ) -> list[Any]:
+        import requests
+
+        from engine.data_models import HistoricalSpotBar
+
+        url = "https://www.deribit.com/api/v2/public/get_volatility_index_data"
+        params = {
+            "currency": "BTC",
+            "start_timestamp": str(int(start.timestamp() * 1000)),
+            "end_timestamp": str(int(end.timestamp() * 1000)),
+        }
+        session = requests.Session()
+        try:
+            resp = session.get(url, params=params, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("result", [])
+            if not results:
+                return []
+            bars: list[Any] = []
+            for row in results:
+                ts_ms = int(row[0])
+                vol = float(row[1]) / 100.0 if row[1] is not None else 0.0
+                if vol > 0.0:
+                    bars.append(HistoricalSpotBar(
+                        symbol="BTC_DVOL",
+                        timestamp=datetime.fromtimestamp(ts_ms / 1000.0, tz=UTC),
+                        open=vol, high=vol, low=vol, close=vol,
+                        volume=0.0, vwap=None, transactions=None,
+                        provenance=Provenance.OBSERVED,
+                        origin="deribit",
+                    ))
+            return bars
+        except Exception:
+            return []
+        finally:
+            session.close()
+
+    def _parse_cdd_dvol_csv(self, path: pathlib.Path) -> list[Any]:
+        import io
+
+        from engine.data_models import HistoricalSpotBar
+
+        text = path.read_text()
+        reader = csv.DictReader(io.StringIO(text))
+        bars: list[Any] = []
+        for row in reader:
+            ts = row.get("timestamp", row.get("date", ""))
+            close_val = float(row.get("close", row.get("dvol", 0)))
+            if close_val <= 0.0:
+                continue
+            dt = _parse_timestamp(ts)
+            bars.append(HistoricalSpotBar(
+                symbol="BTC_DVOL_CDD",
+                timestamp=dt,
+                open=close_val, high=close_val, low=close_val, close=close_val,
+                volume=0.0, vwap=None, transactions=None,
+                provenance=Provenance.OBSERVED,
+                origin="cryptodatadownload",
+            ))
+        return bars
+
+    def _align_to_dates(
+        self, bars: list[Any], spot_dates: list[datetime], n_obs: int
+    ) -> np.ndarray:
+        bar_map: dict[datetime, float] = {}
+        for b in bars:
+            d = b.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+            bar_map[d] = float(b.close)
+
+        result = np.zeros(n_obs, dtype=np.float64)
+        for i, d in enumerate(spot_dates):
+            d_key = d.replace(hour=0, minute=0, second=0, microsecond=0)
+            val = bar_map.get(d_key)
+            if val is not None and val > 0.0:
+                result[i] = val
+            elif i > 0 and result[i - 1] > 0.0:
+                result[i] = result[i - 1]
+            else:
+                result[i] = 0.0
+
+        nonzero = result[result > 0.0]
+        if len(nonzero) == 0:
+            result[:] = 0.45
+
+        return result

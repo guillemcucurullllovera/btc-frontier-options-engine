@@ -23,9 +23,14 @@ class Provenance(StrEnum):
 
     Frozen per contracts.md §4.1.  Must be assigned at ingestion and carried
     through to every output report.
+
+    Stage 3 additions: OBSERVED_REPLAY (historical windows consumed as-is),
+    OBSERVED_FALLBACK (explicitly-labelled fallback data source).
     """
 
     OBSERVED = "observed"  # Direct market observation (e.g. Deribit mark_iv)
+    OBSERVED_REPLAY = "observed_replay"  # Observed historical window consumed as-is
+    OBSERVED_FALLBACK = "observed_fallback"  # Explicitly-labelled fallback provider
     CALCULATED = "calculated"  # Deterministic computation from observed inputs
     MODEL_RECONSTRUCTED = "model_reconstructed"  # Inferred where observed data is missing (AC-5 §5)
     SIMULATED = "simulated"  # Monte Carlo or synthetic generation

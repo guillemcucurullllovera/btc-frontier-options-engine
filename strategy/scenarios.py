@@ -1,6 +1,11 @@
 """Scenario definitions for stress testing and regime analysis.
 
 Defines specific market scenarios with deterministic path generation.
+
+Stage 3 (C9): shock_type labels must reflect actual data provenance:
+  - OBSERVED_REPLAY: observed historical windows consumed as-is
+  - SIMULATED: synthetic/bridge scenarios generated from parameters
+  - Do not call synthetic scenarios historical replays.
 """
 
 from __future__ import annotations
@@ -18,13 +23,13 @@ from engine.errors import ValidationError
 class Scenario:
     name: str
     description: str
-    shock_type: Literal["instantaneous", "replay", "regime_shift"]
+    shock_type: Literal["instantaneous", "replay", "regime_shift", "synthetic"]
     start_spot: float
     end_spot: float
     start_vol: float
     end_vol: float
     path: list[float] | None = None
-    provenance: Provenance = Provenance.MODEL_RECONSTRUCTED
+    provenance: Provenance = Provenance.SIMULATED
 
 
 @dataclass(frozen=True)
@@ -89,19 +94,21 @@ def build_all_scenarios(start_spot: float = 65_000.0) -> list[Scenario]:
     scenarios.append(Scenario(
         name="2025_breakout_to_126k",
         description="BTC surges to 126k (2025 ATH scenario)",
-        shock_type="replay",
+        shock_type="synthetic",
         start_spot=start_spot, end_spot=126_000.0,
         start_vol=0.45, end_vol=0.55,
         path=generate_scenario_path(start_spot, 126_000.0, 90, 0.45, seed=123),
+        provenance=Provenance.SIMULATED,
     ))
 
     scenarios.append(Scenario(
         name="2026_retrace_to_65k",
         description="BTC retraces from 126k to 65k",
-        shock_type="replay",
+        shock_type="synthetic",
         start_spot=126_000.0, end_spot=65_000.0,
         start_vol=0.55, end_vol=0.50,
         path=generate_scenario_path(126_000.0, 65_000.0, 90, 0.55, seed=456),
+        provenance=Provenance.SIMULATED,
     ))
 
     scenarios.append(Scenario(
@@ -110,33 +117,37 @@ def build_all_scenarios(start_spot: float = 65_000.0) -> list[Scenario]:
         shock_type="instantaneous",
         start_spot=start_spot, end_spot=30_000.0,
         start_vol=0.45, end_vol=0.80,
+        provenance=Provenance.SIMULATED,
     ))
 
     scenarios.append(Scenario(
         name="dvol_35_to_65_shock",
         description="Volatility spike from 35% to 65% DVOL with spot dropping 10%",
-        shock_type="replay",
+        shock_type="synthetic",
         start_spot=start_spot, end_spot=start_spot * 0.90,
         start_vol=0.35, end_vol=0.65,
         path=generate_scenario_path(start_spot, start_spot * 0.90, 30, 0.35, seed=789),
+        provenance=Provenance.SIMULATED,
     ))
 
     scenarios.append(Scenario(
         name="dvol_65_to_35_normalize",
         description="Volatility collapse from 65% to 35% with 15% spot rally",
-        shock_type="replay",
+        shock_type="synthetic",
         start_spot=start_spot * 0.90, end_spot=start_spot * 1.035,
         start_vol=0.65, end_vol=0.35,
         path=generate_scenario_path(start_spot * 0.90, start_spot * 1.035, 30, 0.65, seed=101),
+        provenance=Provenance.SIMULATED,
     ))
 
     scenarios.append(Scenario(
         name="liquidity_shock",
         description="Spot drops 25% with vol spike to 100% over 5 days",
-        shock_type="replay",
+        shock_type="synthetic",
         start_spot=start_spot, end_spot=start_spot * 0.75,
         start_vol=0.45, end_vol=1.00,
         path=generate_scenario_path(start_spot, start_spot * 0.75, 5, 0.45, seed=112),
+        provenance=Provenance.SIMULATED,
     ))
 
     scenarios.append(Scenario(
@@ -145,33 +156,37 @@ def build_all_scenarios(start_spot: float = 65_000.0) -> list[Scenario]:
         shock_type="instantaneous",
         start_spot=start_spot, end_spot=start_spot * 0.95,
         start_vol=0.45, end_vol=0.50,
+        provenance=Provenance.SIMULATED,
     ))
 
     scenarios.append(Scenario(
         name="combined_severe",
         description="40% spot drop + vol spike to 120% combined",
-        shock_type="replay",
+        shock_type="synthetic",
         start_spot=start_spot, end_spot=start_spot * 0.60,
         start_vol=0.45, end_vol=1.20,
         path=generate_scenario_path(start_spot, start_spot * 0.60, 20, 0.45, seed=345),
+        provenance=Provenance.SIMULATED,
     ))
 
     scenarios.append(Scenario(
         name="bull_rally_100k",
         description="BTC rallies 54% to 100k",
-        shock_type="replay",
+        shock_type="synthetic",
         start_spot=start_spot, end_spot=100_000.0,
         start_vol=0.45, end_vol=0.40,
         path=generate_scenario_path(start_spot, 100_000.0, 60, 0.45, seed=678),
+        provenance=Provenance.SIMULATED,
     ))
 
     scenarios.append(Scenario(
         name="sideways_chop",
         description="BTC oscillates within +/-5% band for 90 days",
-        shock_type="replay",
+        shock_type="synthetic",
         start_spot=start_spot, end_spot=start_spot * 1.02,
         start_vol=0.30, end_vol=0.30,
         path=generate_scenario_path(start_spot, start_spot * 1.02, 90, 0.30, seed=901),
+        provenance=Provenance.SIMULATED,
     ))
 
     return scenarios

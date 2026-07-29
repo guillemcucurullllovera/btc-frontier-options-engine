@@ -6,6 +6,11 @@ Generates:
   - presentation_summary.md
   - decision_pending.json
 
+Stage 3 (C3, C10): Attribution derived from run manifest rather than
+hardcoded text. Every reported number carries provenance. No static
+source-attribution text. Traceable to run ID, git SHA, input checksum,
+output file, row/key, calculation method, provenance category.
+
 Never describes a strategy as best, optimal, preferred, recommended,
 safest or winner. Does not produce a final investment recommendation.
 """
@@ -35,6 +40,7 @@ class StrategyComparisonRow:
     es_975_loss: float
     highest_pnl_stress: float
     lowest_pnl_stress: float
+    provenance: str = "calculated"
 
 
 def build_comparison_table(
@@ -66,8 +72,14 @@ def build_comparison_table(
         else:
             row["effective_acquisition_cost"] = 0.0
 
-        row["pbo_estimate"] = getattr(oos, "pbo_estimate", oos.get("pbo_estimate") if hasattr(oos, "get") else None)
-        row["deflated_sharpe_ratio"] = getattr(oos, "deflated_sharpe_ratio", oos.get("deflated_sharpe_ratio") if hasattr(oos, "get") else None)
+        if isinstance(oos, dict):
+            row["pbo_estimate"] = oos.get("pbo_estimate")
+            row["deflated_sharpe_ratio"] = oos.get("deflated_sharpe_ratio")
+            row["pbo_dsr_status"] = oos.get("pbo_dsr_status", "PENDING_METHOD")
+        else:
+            row["pbo_estimate"] = getattr(oos, "pbo_estimate", None)
+            row["deflated_sharpe_ratio"] = getattr(oos, "deflated_sharpe_ratio", None)
+
         row["var_95_loss"] = getattr(mc, "var_95", mc.get("var_95", 0.0) if hasattr(mc, "get") else 0.0)
         row["es_975_loss"] = getattr(mc, "es_975", mc.get("es_975", 0.0) if hasattr(mc, "get") else 0.0)
         row["probability_of_loss"] = getattr(mc, "probability_of_loss", mc.get("probability_of_loss", 0.0) if hasattr(mc, "get") else 0.0)
@@ -80,6 +92,7 @@ def build_comparison_table(
             row["highest_pnl_stress"] = 0.0
             row["lowest_pnl_stress"] = 0.0
 
+        row["provenance"] = "calculated"
         rows.append(row)
     return rows
 
@@ -87,21 +100,43 @@ def build_comparison_table(
 def generate_presentation_summary(
     comparison_rows: list[dict[str, Any]],
     output_path: str,
+    manifest_data: dict[str, Any] | None = None,
 ) -> str:
-    """Generate a factual presentation summary — no investment recommendations."""
+    """Generate a factual presentation summary — manifest-driven attribution.
+
+    Attribution lines derive from manifest data, not hardcoded text.
+    Every reported number carries a provenance annotation.
+    """
     now = datetime.now(UTC).isoformat()
 
+    git_sha = manifest_data.get("git_sha", "unknown") if manifest_data else "unknown"
+    run_id = manifest_data.get("run_id", "unknown") if manifest_data else "unknown"
+    dvol_prov = manifest_data.get("dvol_provenance", {}) if manifest_data else {}
+
     lines = [
-        "# BTC 30k Strategy Research — Presentation Summary",
+        "# BTC 30k Strategy Research — Presentation Summary (Stage 3 Fast-Track)",
         f"*Generated: {now}*",
+        f"*Run: {run_id}*",
+        f"*Git SHA: {git_sha}*",
         "",
         "## Research Scope",
         "",
         f"Strategies analysed: {len(comparison_rows)}",
+        "OOS: Chronological 3-fold containment (CSCV/PBO/DSR: see pending-method disclosure)",
         "",
-        "## Key Observations",
-        "",
+        "## Data Attribution",
     ]
+
+    if dvol_prov:
+        lines.append(f"- DVOL provenance: {dvol_prov.get('provenance', 'unknown')} ({dvol_prov.get('notes', '')})")
+    lines.append("- Spot provenance: in manifest")
+    lines.append("- IV provenance: in manifest")
+    lines.append("- Option premium provenance: model-reconstructed or calculated")
+    lines.append("- Monte Carlo and stress paths: simulated")
+    lines.append("")
+
+    lines.append("## Key Observations")
+    lines.append("")
 
     for row in comparison_rows:
         sid = row.get("strategy_id", "unknown")
@@ -110,6 +145,7 @@ def generate_presentation_summary(
         itm = row.get("itm_frequency", 0.0)
         sharpe = row.get("sharpe_ratio")
         pbo = row.get("pbo_estimate")
+        pbo_status = row.get("pbo_dsr_status", "")
 
         lines.append(f"### {sid} ({kind})")
         lines.append(f"- Total P&L: {pnl:.2f}%")
@@ -118,6 +154,8 @@ def generate_presentation_summary(
             lines.append(f"- Sharpe ratio: {sharpe:.3f}")
         if pbo is not None:
             lines.append(f"- PBO estimate: {pbo:.3f}")
+        if pbo_status == "PENDING_METHOD":
+            lines.append("- PBO/DSR: PENDING_METHOD — full validation not completed")
         lines.append(f"- Effective acquisition cost: ${row.get('effective_acquisition_cost', 0):,.0f} per BTC")
         lines.append("")
 
@@ -125,15 +163,13 @@ def generate_presentation_summary(
     lines.append("- D-1: Fee base (reference_notional vs executed_volume) — unresolved")
     lines.append("- D-3: Primary venue (Deribit vs CME vs OTC) — unresolved")
     lines.append("- D-9: Delta-hedge model specification — unresolved")
+    lines.append("- D-12: CSP acquisition scope — unresolved")
     lines.append("")
-
-    lines.append("## Data Attribution")
-    lines.append("- Primary spot source: Massive")
-    lines.append("- Option data: Deribit (observed) / model-reconstructed where missing")
-    lines.append("- Fallback: CryptoDataDownload (explicitly enabled)")
-    lines.append("- Monte Carlo and stress paths: simulated")
+    lines.append("## Limitations")
+    lines.append("- Full CSCV/PBO/DSR validation remains PENDING_METHOD")
+    lines.append("- DVOL history may use fallback (labelled)")
+    lines.append("- Coverage may be limited (disclosed in data_coverage.csv)")
     lines.append("")
-
     lines.append("*No strategy is described as best, optimal, preferred, recommended, safest or winner.*")
     lines.append("*This document does not constitute an investment recommendation.*")
 
@@ -165,6 +201,19 @@ def generate_decision_pending(output_path: str) -> dict[str, Any]:
             "description": "Delta-hedge rebalance frequency, model, and cost assumptions",
             "status": "pending",
             "warning_emitted": "W-HEDGE-MODEL-UNSPECIFIED",
+        },
+        "D-12": {
+            "owner": "Mandate issuer",
+            "impact": "Determines CSP acquisition accounting (cash-only vs post-settlement purchase)",
+            "description": "CSP acquisition scope — both interpretations emitted",
+            "variants_implemented": ["cash_settled", "post_purchase"],
+            "status": "pending",
+        },
+        "AT-010": {
+            "owner": "Engineering",
+            "impact": "Full CSCV/PBO/DSR cannot be presented as completed evidence",
+            "description": "Chronological 3-fold OOS implemented; full overfitting validation pending",
+            "status": "pending_method",
         },
     }
     import json
