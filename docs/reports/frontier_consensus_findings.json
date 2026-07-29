@@ -1,0 +1,1726 @@
+{
+ "schema": "frontier_consensus_findings/v1",
+ "checkpoint": "92acecf",
+ "produced": "2026-07-29 frontier Stage-1 reviewer consensus and repair specification",
+ "authority_hierarchy": [
+  "docs/requirements/authoritative_corrections.md",
+  "contracts.md",
+  "docs/requirements/ceo_strategy_research_mandate.md",
+  "docs/requirements/mandate_sanitized.md",
+  "docs/requirements/BTC_30K_Build_Plan_Parallel_Agents.md",
+  "official venue/data-provider documentation",
+  "textbooks and peer-reviewed research",
+  "independent audit findings",
+  "generated implementation reports and prior conclusions"
+ ],
+ "reviewers_reconciled": [
+  "fable_full_context",
+  "fable_aux",
+  "deepseek_initial",
+  "reconciled",
+  "minimax_initial",
+  "deepseek_validation",
+  "minimax_validation",
+  "deepseek_fix_reports",
+  "phase_reports",
+  "pillar_studies",
+  "principal_auditor"
+ ],
+ "classification_vocabulary": [
+  "accepted",
+  "accepted_with_correction",
+  "superseded",
+  "rejected",
+  "duplicate",
+  "unresolved_pending_source",
+  "unresolved_pending_business_decision"
+ ],
+ "verification_note": "21 findings independently re-verified by adversarial skeptic agents against the code at 92acecf; the remaining findings were verified first-hand by the principal auditor by direct file:line inspection (the adversarial cluster covering them aborted on an account spend limit and was not re-run per instruction). FRF-037/FRF-038 rest partly or wholly on reviewer extraction as noted in each verification block.",
+ "findings": [
+  {
+   "id": "FRF-001",
+   "title": "Strikes and option legs frozen at construction; no per-cycle strike/expiry reselection",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "strike_expiry_reselection",
+   "reviewers": [
+    "fable_full_context:F-01",
+    "fable_aux:Repair-1.2",
+    "deepseek_validation:DSV-09",
+    "deepseek_fix_reports:DSF(intrinsic-dominated)",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/backtest.py:368 uses K = leg.strike from the static Strategy for every cycle of a multi-year run",
+    "strategy/backtest.py:274-275 strike_pct_above and overlay_ratio parameters accepted but never used in the cycle loop",
+    "strategy/definitions.py:150-169 covered call built once at strike=75,000 for reference spot 65,000; runner never rebuilds",
+    "results empirical-baseline-fixed: ITM frequency 62.5% is vs the fixed 75k strike as spot reached >120k (DSV-09)",
+    "consequence: reported 'premium' becomes dominated by intrinsic value of deep-ITM options (DSV-04; $11.3B premium on ~$2.0B notional in completed run)"
+   ],
+   "affected": [
+    "strategy/backtest.py:backtest_strategy",
+    "strategy/definitions.py:build_*",
+    "research/runner.py:run_research"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a76 (strikes not reselected)",
+    "config/research_nightly.yaml backtest.strike_pct_above",
+    "ceo_strategy_research_mandate.md \u00a7Hypotheses (strikes 15-20% above spot)"
+   ],
+   "impact": "Every historical result is for a different product than mandated: options drift deep ITM as spot trends, premium is mostly intrinsic, ITM/touch frequencies and premium yields are meaningless for the 15-20%-OTM policy under test. Invalidates all published strategy rankings.",
+   "depends_on": [],
+   "repair": "Re-derive strike (and expiry date) at each cycle open from prevailing spot and the configured targeting rule (strike_pct_above or delta target via strike_for_delta); rebuild option legs per cycle with repriced premium at prevailing spot/vol; record per-cycle strike, delta, premium, and targeting rule in BacktestCycle; remove the dead parameters or wire them.",
+   "acceptance_test": "AT-001",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 2",
+   "residual": "Choice between %-above-spot vs delta-target strike selection per cycle is a research-design parameter (both must be supported); no ambiguity for the repair itself.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-002",
+   "title": "Unhedged baseline backtested on a synthetic GBM path while strategies use observed data",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "baseline_comparability",
+   "reviewers": [
+    "fable_full_context:F-02",
+    "minimax_validation:MMV-01..07",
+    "deepseek_validation:DSV-01..03",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "research/runner.py:393 routes unhedged_baseline to backtest_unhedged(...) while line 395 routes all others to backtest_strategy on observed spot_path",
+    "strategy/backtest.py:694-748 backtest_unhedged generates a private GBM path (seed 42, drift 0.10, vol 0.45) and computes P&L from it",
+    "published report shows unhedged -56.20% vs the run's own observed window return -4.61% (verified vs _spot_data_dump.csv by Fable and MiniMax)",
+    "backtest_unhedged EAC hardcodes reference_spot*(1-0.025) (backtest.py:720) and anchors start_spot at 65,000 not first observed bar 66,771 (MMV-06)"
+   ],
+   "affected": [
+    "research/runner.py:388-401",
+    "strategy/backtest.py:backtest_unhedged",
+    "strategy/backtest.py:backtest_covered_call_overlay"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a76 (synthetic baseline vs observed-data comparisons)",
+    "contracts.md \u00a71.1 (compare, not prejudge)",
+    "mandate_sanitized.md \u00a7Data rules"
+   ],
+   "impact": "The headline comparison table opposes a fabricated -56% baseline to observed-data strategies (+11..17%), manufacturing ~68 points of apparent outperformance. Any conclusion drawn from the comparison is invalid.",
+   "depends_on": [],
+   "repair": "Baseline must consume the identical observed date/spot series, identical calendar, and identical applicable cost model as every strategy (buy at first observed bar, hold; seller discount and fees applied consistently). Delete or clearly quarantine the synthetic legacy wrappers so no production path can call them.",
+   "acceptance_test": "AT-002",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 2",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-003",
+   "title": "Lifecycle calendar defects: one day dropped between cycles, index-based DTE, truncated final cycle at full premium, per-leg expiries ignored",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "lifecycle_calendar",
+   "reviewers": [
+    "fable_full_context:F-03",
+    "fable_aux:Repair-1.1",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/backtest.py:548 day_idx = expiry_idx + 1 skips the spot move between expiry_idx and expiry_idx+1 in every cycle transition (Fable quantifies 23 dropped days, ~-12,985 USD/BTC understatement for long-BTC strategies)",
+    "strategy/backtest.py:408 expiry_idx = min(cycle_start_idx + dte_days, n_days-1): DTE is an array-index offset assuming perfectly contiguous daily bars; data gaps silently stretch cycles",
+    "final truncated cycle books a full 30-DTE premium (T = dte_days/365 at line 343) then settles after as little as 0 days",
+    "strike-ladder legs with dte 30/37/44 (definitions.py:302-337) are all priced and settled at the single 30-day cycle expiry; Leg.expiry_timestamp never consulted"
+   ],
+   "affected": [
+    "strategy/backtest.py:backtest_strategy (cycle loop)",
+    "strategy/definitions.py:build_strike_ladder"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a76 (calendar and lifecycle inconsistencies)",
+    "contracts.md \u00a73.5, \u00a79.1 (expiry_timestamp)"
+   ],
+   "impact": "Cumulative spot P&L excludes 23 daily moves whose sign is path-dependent (in the surviving window they sum to -12,985 USD/BTC, i.e. reported long-BTC P&L is OVERSTATED there); cycle windows drift from real venue expiries; ladder strategies are not actually laddered; premium of the final cycle is overstated.",
+   "depends_on": [],
+   "repair": "Drive the cycle calendar from actual dates: cycle expiry = calendar date (entry + DTE days) mapped to the nearest available bar; no gap between consecutive cycles (next entry = expiry bar); price the final cycle with its true remaining T or exclude it; settle each option leg at its own expiry_timestamp.",
+   "acceptance_test": "AT-003",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "Venue expiry conventions (Deribit 08:00 UTC Fridays) require D-3 resolution before exact venue calendars can be enforced; interim repair uses calendar-day arithmetic on observed bars.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-004",
+   "title": "Settlement and inventory accounting double-counts: cash settlement plus physical-style BTC credit plus collateral consumption applied together; BTC and cash ledgers do not reconcile",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "settlement_inventory",
+   "reviewers": [
+    "fable_full_context:F-14",
+    "fable_aux:Repair-1.4",
+    "deepseek_validation:DSV-17,DSV-18",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/backtest.py:418-425 payout_usd applies the full cash settlement -(K-S_T) for ITM short puts; lines 447-459 ADDITIONALLY consume collateral at strike (K per BTC) and credit btc_inventory for USD-premium legs \u2014 cash-settled and physical-delivery accounting applied simultaneously",
+    "long BTC + short put (no cash collateral): line 458-459 credits assignment BTC with no cash debit \u2014 free BTC every ITM expiry, which then earns spot P&L via line 478 (prev_btc_inv term)",
+    "inverse BTC-settled legs are double-booked: USD-equivalent to cash (line 472 via payout_usd) AND BTC amount to btc_inventory (lines 439-445)",
+    "CSP collateral reserved once (line 313), released on first all-OTM expiry (461-465), never re-reserved for subsequent cycles",
+    "DSV-17: cycle-record identity spot delta + premium - fees = $11.45B vs reported net P&L $225.6M; Fable: ledger equity vs summed cycle P&L gap +$389.6M per long-BTC strategy, four headline signs flip",
+    "DSV-18: cash_usd_end reaches -$2.0B..-$2.6B with no margin/financing model"
+   ],
+   "affected": [
+    "strategy/backtest.py:418-499",
+    "engine/ (missing SettlementResult model, contracts.md \u00a710.3)"
+   ],
+   "governing": [
+    "authoritative_corrections.md \u00a71 (settlement decomposition, economic payoff separate from settlement and inventory)",
+    "contracts.md \u00a75.3, \u00a710.3",
+    "FRONTIER_ORCHESTRATION.md \u00a75.2"
+   ],
+   "impact": "The ledger \u2014 the arbiter of every P&L, drawdown, and effective-cost number \u2014 does not reconcile. Reported totals differ from ledger equity by hundreds of millions of USD at mandate scale and flip signs of headline results.",
+   "depends_on": [
+    "FRF-025"
+   ],
+   "repair": "Implement a settlement engine keyed on SettlementSpec: exactly one settlement pathway per leg (cash settlement in settlement currency; futures-delivery-then-cash; physical only where the contract requires it); single-entry effect on the correct ledger; discretionary post-settlement BTC purchases modelled only as explicit separate actions; collateral re-reserved each cycle for CSP; produce SettlementResult (contracts \u00a710.3) with provenance; enforce cycle-level and run-level reconciliation identity \u0394cash + \u0394btc\u00b7S + \u0394collateral = net P&L.",
+   "acceptance_test": "AT-004",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 2",
+   "residual": "Whether a discretionary BTC repurchase after cash settlement is in scope for the acquisition programme is a business decision (registered as part of D-12).",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-005",
+   "title": "MC, stress, regime and comparison consume static hardcoded builder premiums (~2.4x model-fair); premiums never repriced outside the backtest",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "premium_intrinsic",
+   "reviewers": [
+    "fable_full_context:F-05",
+    "fable_aux:Repair-1.7",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/definitions.py:154,177,199,228-229 hardcode premium_received=1_500 (and 1_200/600) USD as builder defaults with no provenance label",
+    "research/runner.py:218 builds strategies once with build_all_mandate_strategies(qty, spot) \u2014 default premiums \u2014 and passes the same objects to run_monte_carlo (501), run_stress_tests (510), run_regime_analysis (464)",
+    "strategy/monte_carlo.py:281 and strategy/stress.py:100 evaluate strategy_pnl on those legs; model-fair 30d 15%-OTM premium at 45% vol is ~600-700 USD, so risk metrics embed ~2.4x premium (Fable: VaR95 gap = 1,500x30,000 = $45.0M exactly)"
+   ],
+   "affected": [
+    "strategy/definitions.py",
+    "strategy/monte_carlo.py:run_monte_carlo",
+    "strategy/stress.py:apply_scenario",
+    "strategy/regimes.py:compute_regime_metrics",
+    "strategy/comparison.py"
+   ],
+   "governing": [
+    "AGENTS.md (never hard-code spot/strike/premium)",
+    "contracts.md \u00a71.3 (provenance label on every value)"
+   ],
+   "impact": "All MC/stress/regime outputs embed an assumed premium ~2.4x fair value with CALCULATED provenance; VaR/ES and stress floors are wrong by tens of millions at mandate scale.",
+   "depends_on": [
+    "FRF-001"
+   ],
+   "repair": "Strategy legs used in MC/stress/regime must carry premiums repriced from the evaluation context (spot, vol, T at evaluation) via the pricing layer, or the evaluators must reprice; builder placeholder premiums must be labelled ASSUMED and rejected by evaluators.",
+   "acceptance_test": "AT-005",
+   "blocking": {
+    "stage2": true,
+    "historical_research": false,
+    "large_mc": true
+   },
+   "stage": "Stage 2",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-006",
+   "title": "Stress tests double-count the shock: expiry payoff plus full option MTM (level, not change) added together; sign-flipped stress headlines",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "stress",
+   "reviewers": [
+    "fable_full_context:F-04",
+    "fable_aux:Repair-1.8",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/stress.py:100-101 pnl = expiry_pnl + vol_shock_pnl where expiry_pnl already contains the full spot move and vol_shock_pnl = mtm_end - mtm_start re-counts the same spot move through the option delta",
+    "strategy/stress.py:134-139 path branch adds the ENTIRE option MTM value (a level, not a difference) to the payoff at each path point",
+    "Fable recomputation: collar flash-crash reported +$462,986,132 in stress_results.parquet vs true settlement floor -$291.0M \u2014 sign flipped on the scenario the mandate most cares about",
+    "premium_contribution_pct constant across scenarios (DSV-13); max_adverse_excursion_pct = abs(final P&L) for instantaneous shocks (stress.py:119)"
+   ],
+   "affected": [
+    "strategy/stress.py:apply_scenario",
+    "strategy/scenarios.py"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a76 (stress double-counting)",
+    "contracts.md \u00a711.3"
+   ],
+   "impact": "Stress results are unusable; the hedged-floor property of collars is misrepresented with the wrong sign at $100M scale.",
+   "depends_on": [
+    "FRF-005"
+   ],
+   "repair": "Choose one valuation basis per scenario: either expiry settlement at scenario end-spot (payoff basis) or MTM revaluation (mtm_end - mtm_start including spot and vol effects) \u2014 never the sum; path scenarios track MTM changes along the path; adverse excursion = worst signed loss, not absolute value; venue_settlement_applied must reflect what was actually applied.",
+   "acceptance_test": "AT-006",
+   "blocking": {
+    "stage2": true,
+    "historical_research": false,
+    "large_mc": true
+   },
+   "stage": "Stage 2",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-007",
+   "title": "Return, drawdown, Sharpe and touch metrics are computationally invalid",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "returns_drawdowns",
+   "reviewers": [
+    "fable_full_context:F-07,F-19,F-24",
+    "deepseek_validation:DSV-02,DSV-19",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/backtest.py:488-497 equity curve double-counts (realised_pnl_total already contains premium/fees/spot; unrealised adds spot P&L from initial plus total premium minus total fees again); the guard compares dd in USD against max_drawdown_pct as a fraction (unit mismatch), so the recorded value is\u8fd1 the LAST dd/notional, not the max (Fable controlled V-path: 0.0485 vs true 0.2495)",
+    "strategy/backtest.py:558-563 touch_frequency uses spot >= c.strike for ALL option types (a put 'touch' is spot <= strike) and only the last leg's strike",
+    "strategy/backtest.py:565-570 Sharpe = per-cycle mean/std, no annualisation, no risk-free; feeds OOS 'deflated Sharpe'",
+    "unhedged baseline reports max_drawdown 0.0% alongside -56.2% P&L (DSV-02) because backtest_unhedged returns default 0.0",
+    "net_pnl_btc excludes spot P&L and USD settlements (line 479), so total_pnl_btc is irreconcilable with total_pnl_usd"
+   ],
+   "affected": [
+    "strategy/backtest.py:488-570",
+    "strategy/comparison.py"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a76 (invalid return and drawdown calculations)",
+    "ceo_strategy_research_mandate.md \u00a7Required quantitative analysis"
+   ],
+   "impact": "Risk-adjusted comparisons (drawdown, Sharpe, touch) are wrong in construction, not merely imprecise.",
+   "depends_on": [
+    "FRF-004"
+   ],
+   "repair": "Build the equity curve solely from the reconciled ledger (daily mark-to-market snapshots); compute drawdown on that curve in consistent units; annualise Sharpe with an explicit risk-free and cycle frequency; per-leg touch logic with correct direction per option type using intra-cycle path; populate daily_snapshots.",
+   "acceptance_test": "AT-007",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "None.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-008",
+   "title": "Volatility layer unwired: constant 45% IV across the entire empirical window; no historical DVOL ingestion; contracts \u00a76.5 reconstruction unimplemented in practice",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "historical_reconstruction",
+   "reviewers": [
+    "fable_full_context:F-15",
+    "fable_aux:Phase-2.1",
+    "deepseek_initial:DS-15",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "research/runner.py:339 iv_history = np.full_like(spot_path, sigma) in FULL mode \u2014 sigma is config backtest.volatility=0.45",
+    "vol/history.py contains only SPOT providers; no DVOL history provider exists anywhere",
+    "vol/surface.py, vol/garch.py, vol/client.py have zero production consumers (research pipeline never imports them)",
+    "fit_surface never parses actual strikes from instrument names; fit_rmse evaluates the spline at its own nodes (~0 by construction)",
+    "backtest labels every premium MODEL_RECONSTRUCTED regardless of input provenance (backtest.py:310), conflating ASSUMED flat-vol pricing with the contracts \u00a76.5 DVOL-based reconstruction"
+   ],
+   "affected": [
+    "research/runner.py:339",
+    "vol/history.py",
+    "vol/surface.py",
+    "vol/garch.py",
+    "strategy/backtest.py:310"
+   ],
+   "governing": [
+    "contracts.md \u00a76.5 (DVOL+BS ATM reconstruction, MODEL_RECONSTRUCTED)",
+    "authoritative_corrections.md \u00a75 (Deribit owns DVOL)",
+    "BTC_30K_Build_Plan \u00a74 (historical DVOL)"
+   ],
+   "impact": "No premium in any 'empirical' run reflects observed volatility. DVOL ranged ~35-65+ over the window; flat 45% mis-prices every cycle and neutralises the elevated-IV hypothesis tests the mandate requires.",
+   "depends_on": [],
+   "repair": "Implement a historical DVOL provider (Deribit official endpoint for DVOL history; CDD daily DVOL as explicitly-labelled fallback); wire iv_history from observed DVOL; premium provenance = MODEL_RECONSTRUCTED only when produced by the \u00a76.5 reconstruction from observed DVOL, ASSUMED when from flat config vol (and such runs must be labelled diagnostic).",
+   "acceptance_test": "AT-008",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 3",
+   "residual": "Deribit DVOL history depth (available from 2021-03) must be confirmed against the official API; pre-DVOL windows need an approved reconstruction rule (pending source).",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-009",
+   "title": "Historical window silently truncated: requested 2023-01-01 start, delivered 2024-07-29 (Massive tier/pagination), accepted without any coverage gate",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "historical_reconstruction",
+   "reviewers": [
+    "fable_full_context:F-16",
+    "minimax_validation:MMV-05",
+    "deepseek_fix_reports:DSF(window)",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "results/research/empirical-baseline-fixed-20260729T005016Z/data_manifest.json: requested_start 2023-01-01, actual_start 2024-07-29, 729 obs \u2014 run accepted and marked completed",
+    "vol/history.py:115-215 fetch_bars issues a single request (limit 5000) and never follows pagination/next_url or compares returned range to requested range",
+    "research/runner.py accepts bars without validating actual_start \u2248 requested_start; OOS config trains on 2023-01-01..2024-12-31 \u2014 a window mostly absent from the data"
+   ],
+   "affected": [
+    "vol/history.py:MassiveSpotProvider.fetch_bars",
+    "research/runner.py:286-382"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a75.4 (Massive primary), \u00a76 (data lineage)",
+    "mandate_sanitized.md \u00a7Data rules"
+   ],
+   "impact": "All 'full-window' conclusions actually cover a different, shorter period that excludes the 2023-2024 bull run; OOS train window is largely fictitious.",
+   "depends_on": [],
+   "repair": "Coverage gate: run fails (or is explicitly relabelled with the true window) when actual coverage differs from requested by more than a configured tolerance; implement pagination; register business decision D-11 (paid Massive tier / vendor archive vs re-scoping the window).",
+   "acceptance_test": "AT-009",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 3",
+   "residual": "Unresolved pending business decision D-11: procure pre-2024-07 history or re-scope the research window.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-010",
+   "title": "OOS/CSCV/PBO/DSR is a pseudo-implementation and returns null in all real runs",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "out_of_sample",
+   "reviewers": [
+    "fable_full_context:F-08",
+    "deepseek_validation:DSV-06",
+    "phase_reports:a3 reviews",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/regimes.py:194-242 _cscv_matrix: single-strategy vector (Bailey CSCV requires an N-configuration matrix), s//2 random shuffles (seed 42+i) instead of C(S,S/2) symmetric combinations, 'logit' = log(max(best_oos,1e-10)/max(mean(train),1e-10)) \u2014 a clamped ratio of means, not the rank logit",
+    "strategy/regimes.py:296 DSR = sn*(1-PBO)*sqrt(n/365) \u2014 the exact naive heuristic the module docstring disclaims; not Bailey-Lopez de Prado DSR",
+    "runner pools ~24-43 cycle returns; n<100 \u2192 insufficient-data \u2192 pbo=None in every real run (oos_results.parquet null)",
+    "research/runner.py:414 split_train_test computed and discarded; train/test assignment by cycle start date lets cycles settle inside the test window (leakage)"
+   ],
+   "affected": [
+    "strategy/regimes.py:194-389",
+    "research/runner.py:404-458"
+   ],
+   "governing": [
+    "contracts.md \u00a711.4 (Bailey et al. 2015, S=16, N\u2265100)",
+    "Bailey et al., 'The Probability of Backtest Overfitting' (private_reference_library)"
+   ],
+   "impact": "Overfitting risk is unquantified for every published comparison while column names claim PBO/DSR \u2014 worse than absent because it asserts methodology that does not exist.",
+   "depends_on": [
+    "FRF-001"
+   ],
+   "repair": "Implement true CSCV over a variant grid (delta x DTE x overlay ratio x roll rule) producing an N-strategy per-period return matrix; C(S,S/2) combinations; rank-logit PBO; Bailey DSR with skew/kurtosis and trials correction; chronological walk-forward as a second protocol; explicit typed insufficient-data verdict when data cannot support the analysis.",
+   "acceptance_test": "AT-010",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 3",
+   "residual": "Variant-grid definition needs an approved research design (part of Stage 4 spec).",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-011",
+   "title": "Regime analysis is static payoff evaluation at window-end prices; avg_dvol is realized vol mislabeled",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "regime",
+   "reviewers": [
+    "fable_full_context:F-06",
+    "deepseek_validation:DSV-14",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/regimes.py:121-146 compute_regime_metrics evaluates strategy_pnl(strategy, prices[-1]) \u2014 the static payoff of the reference-spot strategy at the segment's last price; no per-regime backtest",
+    "strategy/regimes.py:188 avg_dvol=ann_vol \u2014 realized spot vol placed in a field named after the observed DVOL index (category mislabel: calculated presented as observed-index)",
+    "overlapping windows step window_days//3 double-count days across regime rows"
+   ],
+   "affected": [
+    "strategy/regimes.py:121-191"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a76 (weak or static regime analysis)",
+    "contracts.md \u00a711.5"
+   ],
+   "impact": "Per-regime performance claims do not measure strategy behaviour within regimes at all.",
+   "depends_on": [
+    "FRF-001",
+    "FRF-008"
+   ],
+   "repair": "Run the (repaired) cycle backtest within each regime window with re-struck legs and window-local data; avg_dvol only from observed DVOL (else rename realized_vol); non-overlapping or explicitly weighted windows.",
+   "acceptance_test": "AT-011",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 3",
+   "residual": "Regime taxonomy thresholds are uncalibrated assumptions; label provenance ASSUMED until calibrated.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-012",
+   "title": "Execution-sensitivity deliverable is a configuration echo; computed sensitivity discarded",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "execution_liquidity",
+   "reviewers": [
+    "fable_full_context:F-21",
+    "deepseek_validation:DSV-07",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "research/runner.py:514-521 calls waterfall_sensitivity(None, sens) and discards the returned 14 rows",
+    "research/runner.py:631-635 writes execution_sensitivity.parquet containing only stringified spot_offsets_pct and fee_bases config values"
+   ],
+   "affected": [
+    "research/runner.py:514-521,631-635",
+    "execution/waterfall.py:waterfall_sensitivity"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a76 (execution sensitivity outputs echoed configuration)",
+    "contracts.md \u00a712.4"
+   ],
+   "impact": "The D-1 fee-base swing and spot sensitivity \u2014 a mandated client-facing decision input \u2014 is absent while its output file exists and passes gates.",
+   "depends_on": [],
+   "repair": "Persist the actual waterfall_sensitivity rows (all spot-offset x fee-base combinations with computed economics); extend to strategy-level execution sensitivity (ADV, spread, IV give-up ranges) per contracts \u00a712.",
+   "acceptance_test": "AT-012",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 3",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-013",
+   "title": "Fee model wrong and incomplete: Asymmetrica 0.5% absent from all research results; Deribit BTC fee formula applied to USD OTC legs with unit mismatch; delivery fee wrong base and no cap; impact recharged in full every cycle; ADV hardcoded",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "fee_base",
+   "reviewers": [
+    "fable_full_context:F-10,F-11",
+    "fable_aux:Repair-1.6",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/backtest.py: no Asymmetrica fee anywhere; fee_breakdown parameter dead (constructed default, never used)",
+    "strategy/backtest.py:402 min(0.0003, 0.125*premium_per_ct)*q applied to ALL legs: for USD-quoted OTC premiums the 0.0003 BTC cap vs USD premium comparison is dimensionally wrong; result then treated as BTC",
+    "strategy/backtest.py:431-435 delivery fee = qty*settlement_btc*0.00015 \u2014 venue rule is 0.015% of underlying (0.00015 BTC per contract) capped at 12.5% of option value (deribitfilesascopiedtxt.txt:3755, verified); wrong base, cap absent (branch fires only for BTC-settled legs, so latent for current OTC-USD strategies; the trading-fee unit bug at :402 is the one that hits OTC legs)",
+    "strategy/backtest.py:394-398 full Kissell impact charged on every cycle's full option quantity (~$4.9M/cycle at mandate scale); adv_btc heuristic qty*5 at line 294 ignores config impact.adv_btc"
+   ],
+   "affected": [
+    "strategy/backtest.py:392-404,431-437",
+    "execution/impact.py",
+    "execution/waterfall.py"
+   ],
+   "governing": [
+    "ceo_strategy_research_mandate.md (0.5% fee modelled separately)",
+    "deribitfilesascopiedtxt.txt:3572-3574,3755 (verified)",
+    "contracts.md \u00a712.2, \u00a719 D-1"
+   ],
+   "impact": "Fees dominate results incorrectly (Fable: $184.4M fees vs +$112.8M gross premium in one run) while the one fee the mandate names (0.5%) is missing; venue fees applied to venues that do not charge them.",
+   "depends_on": [],
+   "repair": "Fee engine keyed on venue/product from SettlementSpec: Deribit formulas only for Deribit legs in BTC with the documented caps and bases; OTC legs use negotiated/zero venue fees per D-1/D-3 configuration; Asymmetrica 0.5% modelled separately on the D-1-resolved base (both variants until resolved); roll-frequency-aware impact (only incremental re-execution charged); ADV from config with ASSUMED provenance.",
+   "acceptance_test": "AT-013",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "D-1 (fee base) unresolved \u2014 both variants must be produced; D-3 determines which venue fee schedule governs the primary path.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-014",
+   "title": "Effective acquisition cost: three inconsistent definitions, per-BTC cost asserted where zero BTC acquired, denominators ignore assignment-acquired BTC, formula diverges from frozen contract",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "effective_acquisition_cost",
+   "reviewers": [
+    "fable_full_context:F-09",
+    "deepseek_validation:DSV-12",
+    "minimax_validation:MMV-04",
+    "deepseek_fix_reports:DSF(CSP EAC)",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/backtest.py:579-597 EAC = (baseline + fees - premium - payout - discount)/denominator adds a settlement term absent from contracts.md \u00a711.1 comment formula; denominator = btc_held or option qty, never actual BTC acquired",
+    "strategy/comparison.py:96 second definition: entry_spot - pnl/qty; backtest_unhedged third: hardcoded spot*(1-0.025)",
+    "CSP tabled at $55,676/BTC with zero BTC acquired all window (ITM frequency 0.0 in that run)"
+   ],
+   "affected": [
+    "strategy/backtest.py:579-613",
+    "strategy/comparison.py:85-99",
+    "strategy/backtest.py:718-730"
+   ],
+   "governing": [
+    "contracts.md \u00a711.1 EffectiveAcquisitionCost (H-6 decomposition)",
+    "ceo_strategy_research_mandate.md \u00a7Objective",
+    "docs/reports/effective_acquisition_cost_fix_deepseek.md (generated, evidence only)"
+   ],
+   "impact": "The single number the mandate exists to produce (effective cost of acquiring 30k BTC) is defined three different ways and reported for strategies that acquired no BTC.",
+   "depends_on": [
+    "FRF-004"
+   ],
+   "repair": "One EAC definition per contracts \u00a711.1, computed from the reconciled ledger: numerator = net cash deployed (incl. all fees, premiums, discounts, impact per provenance-labelled components), denominator = actual BTC held at end (from ledger); strategies acquiring zero BTC report EAC = n/a with an explicit reason; comparison layer consumes only this value.",
+   "acceptance_test": "AT-014",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "Whether CSP belongs in an acquisition comparison at all is D-12 (pending business decision).",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-015",
+   "title": "Inverse-BTC pricer numeraire error: spurious e^{-rT} discount on a BTC-denominated payoff",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "payoff_identity",
+   "reviewers": [
+    "fable_full_context:F-17",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "pricing/inverse.py:85,101 price = exp(-rT)*[N(d1)-(K/F)N(d2)] \u2014 deep-ITM call (K\u21920) returns e^{-rT}=0.996718 BTC for a certain 1-BTC payoff (numerically reproduced this session)",
+    "no-arbitrage identity price_btc*S = Black76_USD fails by exactly e^{-rT} (ratio 0.996718 reproduced)",
+    "tests lock the wrong convention: deep-ITM test asserts p/exp(-rT) \u2208 (0.98,1.00) (tests/test_a1.py:225-229) \u2014 self-referential (K\u21920 limit is exactly e^{-rT}; at the test's K=100 the ratio to e^{-rT} is 0.9990)",
+    "contracts.md \u00a713.1 inverse pricing golden vectors remain 'TBD' \u2014 no official-source vector exists to catch this",
+    "settlement_inverse_*_holder divide by delivery_price without positivity guard: ZeroDivisionError at S_T=0 boundary (reproduced)"
+   ],
+   "affected": [
+    "pricing/inverse.py:_call_price_raw,_put_price_raw,price_inverse_btc,settlement_inverse_*_holder",
+    "tests/test_a1.py:212-290"
+   ],
+   "governing": [
+    "authoritative_corrections.md \u00a74 (re-derive from official docs + dimensional analysis + unit tests)",
+    "contracts.md \u00a77.3, \u00a713.1",
+    "deribitfilesascopiedtxt.txt \u00a7Inverse Options (verified)"
+   ],
+   "impact": "Latent (current mandate strategies use OTC USD legs) but blocks any Deribit-venue analysis (D-3); systematically understates inverse premiums by ~rT.",
+   "depends_on": [],
+   "repair": "Re-derive: price_btc(q=0) = N(d1) - (K/F)N(d2) (equivalently Black76_USD/S); document numeraire and units; guard delivery_price>0; derive golden vectors from the official Deribit worked example plus the no-arbitrage identity price_btc*S == Black-76 USD; replace convention-locking tests.",
+   "acceptance_test": "AT-015",
+   "blocking": {
+    "stage2": true,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "Official venue docs give settlement examples, not pricing vectors; the no-arbitrage identity is the verification anchor (documented derivation required).",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-016",
+   "title": "Black-76 put theta sign error on the interest-rate terms",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "payoff_identity",
+   "reviewers": [
+    "fable_full_context:F-18",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "pricing/black76.py:72 computes -term1 - r\u00b7df\u00b7X\u00b7N(-d2) + r\u00b7df\u00b7F\u00b7N(-d1) = -term1 - r\u00b7P_put; parity requires theta_put = -term1 + r\u00b7P_put (derived via C-P = df(F-X) this session; Fable FD check: analytic -1.2986 vs FD -0.9584)",
+    "tests/test_a1.py:334-342 FD test asserts only delta for puts \u2014 theta uncovered",
+    "leftover draft reasoning comment at black76.py:63-64 shipped in source"
+   ],
+   "affected": [
+    "pricing/black76.py:greeks_black76"
+   ],
+   "governing": [
+    "Haug \u00a7Black-76 (b=0) theta formula",
+    "contracts.md \u00a77.3"
+   ],
+   "impact": "Latent (CME path unused in current runs); wrong theta for any futures-options analytics once D-3 includes CME.",
+   "depends_on": [],
+   "repair": "Fix the sign to -term1 + r*price_put; extend FD Greek tests to cover put theta/gamma/vega; remove the draft comment.",
+   "acceptance_test": "AT-016",
+   "blocking": {
+    "stage2": true,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-017",
+   "title": "Provenance and reporting controls violated: hardcoded false data attribution, no provenance annotations on reported numbers, warning catalogue unimplemented, category mislabels",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "provenance",
+   "reviewers": [
+    "fable_full_context:F-25",
+    "fable_aux",
+    "deepseek_validation:DSV-05",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "research/reporting.py:130-135 hardcodes 'Option data: Deribit (observed)' and 'Fallback: CryptoDataDownload (explicitly enabled)' independent of the run \u2014 no Deribit option data exists anywhere in the pipeline",
+    "no provenance column/annotation on any number in strategy_comparison.csv, research_report.md, presentation_summary.md (contracts \u00a714.3, \u00a713.13)",
+    "contracts \u00a715.3 warning catalogue effectively unimplemented as a reporting control: W-CLASSIFY-MISMATCH is assigned to StrategyDefinition.classification_warning (strategy/definitions.py:214-215,294-295) but nothing consumes/logs/reports it; no other W-* code is emitted anywhere; DataManifest top-level provenance (runner.py:341-345) is stamped correctly, the CDD mislabel is confined to DataSourceRecord (runner.py:376-379)",
+    "provenance category mislabels: CDD fallback stamped MODEL_RECONSTRUCTED instead of OBSERVED-with-fallback-origin (runner.py:376-379); synthetic scenario paths stamped MODEL_RECONSTRUCTED instead of SIMULATED (scenarios.py:27); backtest premium always MODEL_RECONSTRUCTED even from ASSUMED flat vol (backtest.py:310); fixture replay stamps datetime.now() timestamps and OBSERVED on arbitrary CSV content (vol layer)"
+   ],
+   "affected": [
+    "research/reporting.py",
+    "research/runner.py:376-379",
+    "strategy/scenarios.py:27",
+    "strategy/backtest.py:310",
+    "vol/client.py",
+    "vol/history.py"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a75.4 (six categories, never mixed silently)",
+    "contracts.md \u00a74, \u00a714.3, \u00a715.3",
+    "AGENTS.md (never represent generated values as observed)"
+   ],
+   "impact": "The control system that is supposed to prevent synthetic-as-observed misrepresentation is itself the source of a false claim in the client-facing summary.",
+   "depends_on": [],
+   "repair": "Reports derive every attribution line from the run's data_manifest; provenance column on every reported number; implement the \u00a715.3 warning catalogue with tests (W-PROVENANCE-MISLABEL, W-NO-OBSERVED-CHAINS, W-DECISION-PENDING, W-COVERED-CALL-OPTIMALITY-CLAIM at minimum); correct the category mapping (CDD=observed/fallback origin; synthetic=SIMULATED; flat-vol premiums=ASSUMED).",
+   "acceptance_test": "AT-017",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 3",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-018",
+   "title": "Frozen-interface contradiction: Leg.entry_premium sign convention documented opposite ways in engine vs payoffs",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "contracts_schema",
+   "reviewers": [
+    "fable_full_context:F-26",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "engine/strategy.py:55-61 'negative entry_premium means leg owner received premium (e.g. a short option)'",
+    "strategy/payoffs.py:97-106 'Do NOT pass negative entry_premium for short legs' \u2014 formula at 116-118 requires positive received premium",
+    "contracts.md \u00a79.1 defines premium paid positive / received negative \u2014 the implementation contradicts the frozen contract while claiming conformance"
+   ],
+   "affected": [
+    "engine/strategy.py:Leg",
+    "strategy/payoffs.py:strategy_pnl",
+    "strategy/definitions.py (all builders)"
+   ],
+   "governing": [
+    "contracts.md \u00a79.1 (frozen)",
+    "authoritative_corrections.md \u00a73 (no informal schema changes)"
+   ],
+   "impact": "Any caller following the frozen contract silently flips P&L sign for short legs.",
+   "depends_on": [],
+   "repair": "Resolve via an explicit contracts.md versioned amendment: adopt ONE convention (recommend contracts \u00a79.1: signed premium, received=negative) or amend the contract to unsigned-with-side; update all builders/formulas/docstrings consistently; add a property test that both documented entry paths produce identical P&L.",
+   "acceptance_test": "AT-018",
+   "blocking": {
+    "stage2": true,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "Stage 2 (contracts amendment first)",
+   "residual": "Which convention wins is an engineering decision requiring a contracts amendment record, not a business decision.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-019",
+   "title": "classify() defects: PARTIAL_OVERLAY unreachable; same-direction calls classify as CALL_SPREAD; BESPOKE never returned; LONG-only has_spot edge cases",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "contracts_schema",
+   "reviewers": [
+    "fable_full_context:F-27",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "engine/strategy.py:130 vs 158 \u2014 identical conditions; the PARTIAL_OVERLAY branch can never execute; build_partial_overlay stores canonical=COVERED_CALL with no warning",
+    "engine/strategy.py:150 two same-direction short calls satisfy CALL_SPREAD (len>=2) \u2014 capped-risk label on an uncapped position",
+    "BESPOKE defined but any unrecognised combination raises ClassificationError instead (169)",
+    "spot-short edge cases: short spot + short call \u2192 NAKED_CALL; cash + short spot + short put \u2192 CASH_SECURED_PUT"
+   ],
+   "affected": [
+    "engine/strategy.py:classify"
+   ],
+   "governing": [
+    "contracts.md \u00a72.2",
+    "AGENTS.md \u00a7Strategy classification"
+   ],
+   "impact": "Misclassification feeds max-loss logic in payoffs.py (kind-dependent branches) and reporting labels.",
+   "depends_on": [],
+   "repair": "Re-order/parameterise classification (overlay ratio < 1 \u2192 PARTIAL_OVERLAY), require opposite sides + distinct strikes for CALL_SPREAD, return BESPOKE for unrecognised combos, handle short-spot legs; add the full \u00a713.3 test matrix including negative cases.",
+   "acceptance_test": "AT-019",
+   "blocking": {
+    "stage2": true,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "None.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-020",
+   "title": "Configuration fragmentation: validated EngineConfig unusable and unused; three config surfaces with conflicting unit conventions; config keys silently ignored",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "contracts_schema",
+   "reviewers": [
+    "fable_full_context:F-28,F-43",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "config/loader.py:46-61 always raises on shipped params.yaml (D-1/D-2/D-3 None) \u2014 zero production callers exist (verified by grep)",
+    "params.yaml uses percent units (2.5), research_nightly.yaml uses decimals (0.025) for identically-named *_pct keys",
+    "waterfall.py reads params.yaml raw (load_params), bypassing validation; runner reads research_nightly.yaml with no schema at all",
+    "research_nightly.yaml keys never consumed: impact.* (adv_btc/spread_bps/iv_giveup), strategies.partial_overlay_ratios, ladder_dtes, walk_forward, stress.scenarios list, base_seed, checkpoints"
+   ],
+   "affected": [
+    "config/loader.py",
+    "config/models.py",
+    "config/params.yaml",
+    "config/research_nightly.yaml",
+    "research/runner.py",
+    "execution/waterfall.py"
+   ],
+   "governing": [
+    "AGENTS.md (params.yaml single source of truth)",
+    "contracts.md \u00a716"
+   ],
+   "impact": "'Single source of truth' is false; silent knob-ignoring means configured research designs are not the executed designs.",
+   "depends_on": [],
+   "repair": "One validated config schema for research runs (Pydantic, decimal convention documented); runner must consume it; unknown/unconsumed keys rejected; waterfall reads through the validated layer with dev-mode exception documented; D-gates produce dual-variant outputs instead of blocking research (per contracts D-1 handling).",
+   "acceptance_test": "AT-020",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "None.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-021",
+   "title": "Monte Carlo structural gaps: single-expiry static evaluation, last-model-wins overwrite, wrong CSP capital, unlabeled real-world drift, zero cross-seed variance in robustness suite",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "monte_carlo",
+   "reviewers": [
+    "fable_full_context:F-20,F-30,F-31",
+    "deepseek_validation:DSV-08,DSV-16",
+    "deepseek_fix_reports:DSF-42",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/monte_carlo.py:281 evaluates strategy_pnl at final spot only \u2014 one 30-day option cycle, no premium recycling over the acquisition horizon; horizon and leg expiry not reconciled",
+    "research/runner.py:502-503 mc_results[strategy_id] overwritten per model \u2014 only the last configured model (Merton) reaches comparison/parquet",
+    "monte_carlo.py:349 expected_cash_requirement = btc_held*spot \u2192 0 for CSP; expected_premium_pct always 0.0 (347)",
+    "drift 0.10 and jump params enter risk metrics with no ASSUMED labelling; DSF-42 admits the 36 seed/path robustness runs leave the BACKTEST-derived aggregate columns (total_pnl_pct, itm/touch freq, drawdown, Sharpe, EAC, stress) bit-identical (mechanically inevitable \u2014 the sweep cannot touch the deterministic backtest); MC tail metrics DO vary across seeds (covered_call var_95 spans ~$350.7M-$353.0M) \u2014 so the suite demonstrated only MC convergence, not result robustness to strategy/window/vol/drift assumptions"
+   ],
+   "affected": [
+    "strategy/monte_carlo.py",
+    "research/runner.py:469-505"
+   ],
+   "governing": [
+    "contracts.md \u00a711.2",
+    "FRONTIER_ORCHESTRATION.md \u00a76 (MC outputs unsuitable for recommendation) and \u00a78 (gates)"
+   ],
+   "impact": "MC results answer a different question than the mandate asks (multi-cycle acquisition programme risk) and mix models silently.",
+   "depends_on": [
+    "FRF-005"
+   ],
+   "repair": "Multi-cycle MC consistent with the repaired backtest lifecycle (re-strike, premiums repriced per cycle along each path); model-keyed result storage with no overwrites; CSP capital = strike notional collateral; ASSUMED provenance on drift/jump params with sensitivity reporting; approved simulation-methodology spec before any large run (gate \u00a78).",
+   "acceptance_test": "AT-021",
+   "blocking": {
+    "stage2": false,
+    "historical_research": false,
+    "large_mc": true
+   },
+   "stage": "Stage 3",
+   "residual": "Simulation methodology spec (models, drift policy, calibration source) requires approval \u2014 unresolved pending business/research decision.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-022",
+   "title": "Existing result artefacts are unusable as decision evidence and violate the Monte-Carlo gate; DeepSeek synthesis contains fabricated/wrong material claims; run-pointer hygiene broken",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "reporting_controls",
+   "reviewers": [
+    "fable_full_context:F-29,F-32,F-38,F-42",
+    "deepseek_validation:DSV-15,DSV-20,DSV-21",
+    "deepseek_fix_reports:DSF(placeholder rows, exit-0)",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "results/research/empirical-robustness-20260729T005618Z: 36 MC runs at 0.5M-3M paths executed ~2026-07-29 00:56Z. NOTE (verifier correction): these predate the commit that introduced FRONTIER_ORCHESTRATION.md (92acecf, 10:44Z), so the \u00a78 breach is retroactive; the operative claim is that they are ungated and unusable as decision evidence under the now-controlling hierarchy",
+    ".latest_research_intensive points at empirical-intensive-20260729T000727Z which contains only logs (verified); nightly-20260728T222057Z marked completed with no data_manifest and missing outputs (verified)",
+    "final_empirical_research_synthesis_deepseek.md: wrong window narrative, non-existent regime rows, impossible figures (Fable retraction list); covered_call total_premium_usd $11.3B (~5.7x notional) sits in a completed comparison CSV",
+    "placeholder parquet rows written specifically to satisfy required-output existence gates (runner writes {'note': ...} rows)",
+    "runner CLI observed exiting 0 while producing no output directory (twice, per fix reports)"
+   ],
+   "affected": [
+    "results/research/*",
+    ".latest_research_*",
+    "docs/reports/final_empirical_research_synthesis_deepseek.md",
+    "research/runner.py:_validate_results"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a76 (results are evidence, not validated outputs), \u00a78 (MC gate)",
+    "CLAUDE.md"
+   ],
+   "impact": "Any downstream consumer of results/ or the synthesis reports would act on fabricated or invalid numbers.",
+   "depends_on": [],
+   "repair": "Mark all existing runs superseded/diagnostic in a run registry (no deletion); retract the synthesis claims list before any client-facing use; pointers must reference only gate-passing runs; value-plausibility gates (premium % of notional bounds, ledger reconciliation) replace existence-only gates; CLI must exit non-zero on missing outputs.",
+   "acceptance_test": "AT-022",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 2 (registry/retraction) + Stage 3 (gates)",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-023",
+   "title": "Test suite enforces interfaces, not economics: 17 permanently-skipped required stubs, hasattr-only invariants, self-referential golden vectors, unverified fixture hashes",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "reporting_controls",
+   "reviewers": [
+    "fable_full_context:F-36",
+    "fable_aux:ground rules",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "tests/test_phase0.py: 17 assert-False permanently-skipped stubs including \u00a721.6-required tests (breakeven_btc, oos_runs_by_default, covered_call_not_marked_optimal, provenance_on_every_settlement_result)",
+    "TestNoDoubleCounting/TestLedgerContinuity/TestEffectiveAcquisitionCost assert hasattr or snapshot chaining only (verified test_a3.py:1624-1679)",
+    "test_label_mismatch_flagged asserts classification_warning is None \u2014 engine never emits the warning itself",
+    "QuantLib parity: fixed 10/8 vectors + skipif, not the contracted hypothesis 50-draw property test; inverse tests lock the erroneous e^{-rT} convention",
+    "engine/fixture_loader.py never verifies manifest sha256 at load",
+    "383 tests pass while headline economics are sign-flipped \u2014 demonstrated by the validation runs"
+   ],
+   "affected": [
+    "tests/*",
+    "engine/fixture_loader.py"
+   ],
+   "governing": [
+    "contracts.md \u00a713 (all 27 required tests)",
+    "FRONTIER_ORCHESTRATION.md \u00a711 (acceptance tests before change)"
+   ],
+   "impact": "Green CI provides no protection for the invariants that matter; it certified sign-flipped results.",
+   "depends_on": [],
+   "repair": "Implement the frontier acceptance-test suite (AT-001..AT-030) as real numeric invariants gating Stage 2 completion; convert every skipped required stub into a real test or an explicit contracts amendment; hypothesis-based parity; fixture hash verification at load.",
+   "acceptance_test": "AT-023",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 2",
+   "residual": "None.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-024",
+   "title": "Vol analytics defects: surface fitter guesses strikes; GARCH 'forecast' is in-sample; sqrt(252) vs calendar-365 annualisation bias; Ljung-Box dead code; duplicate DVOL feeds with inconsistent units",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "historical_reconstruction",
+   "reviewers": [
+    "principal_auditor",
+    "fable_full_context:F-15 (adjacent)"
+   ],
+   "evidence": [
+    "vol/surface.py fit_surface derives strikes by heuristic instead of parsing instrument_name; fit_rmse ~0 by construction (spline through own nodes)",
+    "vol/garch.py forecast_vol = sqrt(mean(in-sample conditional variances))*sqrt(252) \u2014 not a forward forecast; BTC trades 365 days and DVOL is calendar-annualised (~-17% comparability bias)",
+    "acorr_ljungbox return handling raises/never executes (dead diagnostic)",
+    "vol/dvol_feed.py duplicates client.py without provenance/retries and returns vol points (37.95) where client.py returns decimals"
+   ],
+   "affected": [
+    "vol/surface.py",
+    "vol/garch.py",
+    "vol/dvol_feed.py"
+   ],
+   "governing": [
+    "contracts.md \u00a78.1, \u00a717.3 A3 corrections (GARCH diagnostics)",
+    "Build plan \u00a7Sprint 1 (surface round-trip 0.5 vol pts)"
+   ],
+   "impact": "Latent for current runs (layer unwired) but blocks Stage 3 vol integration.",
+   "depends_on": [
+    "FRF-008"
+   ],
+   "repair": "Parse strikes from instrument names; out-of-sample GARCH forecasting with working diagnostics; 365-day annualisation consistent with DVOL; single DVOL client with decimal convention; surface fit quality measured on held-out quotes.",
+   "acceptance_test": "AT-024",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 3",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-025",
+   "title": "Venue settlement model incomplete: SettlementResult absent, contract_multiplier ignored, delivery price = daily close not TWAP, CME/linear paths unexercised, mandate strategies all built as OTC USD",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "settlement_inventory",
+   "reviewers": [
+    "principal_auditor",
+    "fable_full_context (adjacent)",
+    "pillar_studies:PL"
+   ],
+   "evidence": [
+    "contracts.md \u00a710.3 SettlementResult (delivery fee, net_to_account, provenance) has no implementation ('SettlementResult' absent from codebase, verified)",
+    "Leg/SettlementSpec.contract_multiplier never used in payoff/backtest arithmetic (CME 5-BTC multiplier would be wrong)",
+    "backtest delivery price = expiry-day close (backtest.py:410), not the venue 30-min TWAP (deribitfilesascopiedtxt.txt:187)",
+    "strategy/definitions.py builds every mandate strategy with _make_usd_option_leg (OTC/CASH/USD); _make_deribit_option_leg exists unused \u2014 inverse settlement never exercised in research"
+   ],
+   "affected": [
+    "engine/settlement.py",
+    "strategy/definitions.py",
+    "strategy/backtest.py:205-222,408-410"
+   ],
+   "governing": [
+    "authoritative_corrections.md \u00a71",
+    "contracts.md \u00a75.2, \u00a710.3",
+    "deribitfilesascopiedtxt.txt:187 (verified)"
+   ],
+   "impact": "Venue-specific exercise/settlement risk \u2014 a mandated analysis dimension \u2014 is structurally absent; all results silently assume an idealised OTC USD product (an implicit D-3 resolution).",
+   "depends_on": [],
+   "repair": "Implement SettlementResult; consume contract_multiplier; delivery-price convention per SettlementSpec (TWAP proxy documented as model_reconstructed when intraday data absent); duplicate key runs across venue variants once D-3 candidates are set.",
+   "acceptance_test": "AT-025",
+   "blocking": {
+    "stage2": true,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "D-3 unresolved; until then both Deribit-inverse and OTC-USD variants must be produced and labelled.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-026",
+   "title": "Mandated loss quantities absent or inconsistent: structural max loss defaults 0.0, curve-truncated 'max_loss', sign/unit inconsistencies across strategies",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "returns_drawdowns",
+   "reviewers": [
+    "fable_full_context:F-33,F-41",
+    "minimax_initial:MM (max-loss cells)",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/payoffs.py:250 max_loss = min(pnl) over a \u00b150% spot curve (not structural); line 263 LBSP max_loss positive magnitude via legs[1] positional access while others are negative curve minima",
+    "engine/strategy.py:89 structural_max_loss default 0.0 \u2014 omission reports zero max loss",
+    "the ten mandate-required loss quantities (theoretical max loss USD/per-BTC/%notional/%capital, ledger-reconciled worst path etc.) are not produced by any output (Fable hand-computed reference: LBSP S0+K-P = $122,779/BTC)"
+   ],
+   "affected": [
+    "strategy/payoffs.py:compute_strategy_payoff",
+    "engine/strategy.py:Strategy",
+    "research/reporting.py"
+   ],
+   "governing": [
+    "ceo_strategy_research_mandate.md \u00a7Required quantitative analysis (downside exposure)",
+    "contracts.md \u00a79.2 (MR-2)"
+   ],
+   "impact": "Downside exposure \u2014 a mandated decision input \u2014 is unreported or wrong in sign/units.",
+   "depends_on": [
+    "FRF-004"
+   ],
+   "repair": "Analytic structural max loss per strategy kind from leg identities (no curve truncation); consistent sign convention (loss reported as positive magnitude with explicit label); loss block in every report (USD, per-BTC, % notional, % capital, ledger-reconciled historical worst).",
+   "acceptance_test": "AT-026",
+   "blocking": {
+    "stage2": true,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "Acceptable-loss budget (D-10) is a business decision, newly registered.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-027",
+   "title": "Stress scenarios misrepresented: synthetic Brownian bridges named as historical replays; settlement-price shock does not model settlement basis",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "stress",
+   "reviewers": [
+    "fable_full_context:F-23",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/scenarios.py:86-176 'replay' scenarios are seeded log-bridges (e.g. 2025_breakout_to_126k = bridge 65k\u2192126k seed 123); no historical path data used although Massive observed data exists in-repo",
+    "settlement_price_shock is an ordinary instantaneous spot drop; no delivery-price-vs-spot basis modelling",
+    "126k\u219265k retrace scenario shows zero loss by construction for covered structures (already capped at entry strikes)"
+   ],
+   "affected": [
+    "strategy/scenarios.py:build_all_scenarios",
+    "strategy/stress.py"
+   ],
+   "governing": [
+    "contracts.md \u00a711.3 (shock_type=replay)",
+    "Build plan \u00a7Sprint 2 (stress replays of actual episodes)"
+   ],
+   "impact": "Stress narrative implies historical validation that never occurred.",
+   "depends_on": [
+    "FRF-006",
+    "FRF-009"
+   ],
+   "repair": "Replay scenarios must consume observed historical windows (dates + spot + DVOL); synthetic bridges relabelled shock_type=synthetic with SIMULATED provenance; settlement shock models delivery-price basis vs spot explicitly.",
+   "acceptance_test": "AT-027",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 3",
+   "residual": "Pre-2024 replay windows depend on D-11 data procurement.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-028",
+   "title": "OOS window construction leaks and diverges from config: cycles assigned by start date settle inside test window; configured train window mostly outside available data",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "out_of_sample",
+   "reviewers": [
+    "principal_auditor",
+    "fable_full_context:F-24 (adjacent)"
+   ],
+   "evidence": [
+    "research/runner.py:421-430 returns_train = cycles with start_date <= train_end (a cycle starting in train settles up to 30 days into test); returns_test symmetric leak",
+    "oos config trains 2023-01-01..2024-12-31 while data begins 2024-07-29 (FRF-009)",
+    "split_train_test(all_dates, 0.70) computed and discarded (line 414)"
+   ],
+   "affected": [
+    "research/runner.py:404-458"
+   ],
+   "governing": [
+    "contracts.md \u00a711.4",
+    "Bailey et al. (chronological separation)"
+   ],
+   "impact": "Even the degraded OOS split is not chronologically clean.",
+   "depends_on": [
+    "FRF-009",
+    "FRF-010"
+   ],
+   "repair": "Assign cycles by settlement date strictly inside window; embargo period \u2265 DTE between train and test; windows validated against actual data coverage.",
+   "acceptance_test": "AT-028",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 3",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-029",
+   "title": "Robustness and hygiene defects (aggregated): timestamp now() fallbacks, nonfinite-to-zero pricing grid, assert-based validators, checksum of mutating log, anonymisation scan gaps, MC distribution memory, breakeven solver edges",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "other",
+   "reviewers": [
+    "principal_auditor",
+    "code agents (multiple)"
+   ],
+   "evidence": [
+    "vol/history.py:476-496 _parse_timestamp returns datetime.now(UTC) for unparseable input \u2014 corrupt rows become plausible data",
+    "pricing/grid.py maps non-finite outputs to 0.0 silently",
+    "config/models.py validators use assert (stripped under python -O)",
+    "runner checksums.sha256 hashes logs/research.log which is appended to after hashing",
+    "scripts/anonymisation_scan.py skips comment lines and lines containing e.g. 'exclude'; binaries unscanned",
+    "MonteCarloResult.pnl_distribution holds full 3M-path lists in memory per strategy-model",
+    "strategy/payoffs.py breakeven brentq interval-shrink can miss boundary roots; strategy_pnl ZeroDivisionError at S_T=0 for inverse legs"
+   ],
+   "affected": [
+    "vol/history.py",
+    "pricing/grid.py",
+    "config/models.py",
+    "research/runner.py",
+    "scripts/anonymisation_scan.py",
+    "strategy/monte_carlo.py",
+    "strategy/payoffs.py"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a711 (working discipline)"
+   ],
+   "impact": "Individually small; collectively erode trust in lineage and edge behaviour.",
+   "depends_on": [],
+   "repair": "Raise on unparseable timestamps; raise PricingError on non-finite prices; ValueError-raising validators; checksum excludes mutable logs or is written last; scan hardening; distribution persistence policy; guarded boundary evaluation.",
+   "acceptance_test": "AT-029",
+   "blocking": {
+    "stage2": false,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "Stage 2/3 (opportunistic, dependency-free)",
+   "residual": "None.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-030",
+   "title": "Premium percentage metric divides by leg count and mixes numeraires",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "premium_intrinsic",
+   "reviewers": [
+    "fable_full_context:F-12",
+    "deepseek_validation:DSV-10",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "strategy/backtest.py:385 premium_pct_of_spot += sign*(premium*q)/(spot*q)/max(len(opt_legs),1) \u2014 halves collar/spread premium pct; for BTC-quoted legs divides BTC premium by USD spot (dimensional error)",
+    "collar total_premium_usd reflects gross short-call premium netting handled inconsistently (DSV-10)"
+   ],
+   "affected": [
+    "strategy/backtest.py:345-404"
+   ],
+   "governing": [
+    "contracts.md \u00a711.1 (premium_received_pct = % of spot)",
+    "mandate 2.5% overlay target tracking"
+   ],
+   "impact": "Cycle-vs-2.5%-target tracker (a mandate deliverable) computed wrong for multi-leg strategies.",
+   "depends_on": [],
+   "repair": "premium_pct = net premium in USD (converted per leg quote currency at entry spot) / (entry spot \u00d7 reference quantity), no leg-count division; per-leg and net reported separately.",
+   "acceptance_test": "AT-030",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 2",
+   "residual": "None.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-031",
+   "title": "Reconciled-audit inverse-BTC formulas (\u00a710.8) and PHYSICAL_USD combined enum",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "superseded",
+   "category": "contracts_schema",
+   "reviewers": [
+    "reconciled:RC-10.8",
+    "deepseek_initial:DS-22",
+    "minimax_initial:MM (settlement enum)"
+   ],
+   "evidence": [
+    "authoritative_corrections.md \u00a71 and \u00a74 explicitly supersede these audit constructs; contracts.md \u00a75.1 and engine/settlement.py implement the corrected decomposition (verified conformant)"
+   ],
+   "affected": [
+    "docs/reports/reconciled_initial_audit.md (evidence only)"
+   ],
+   "governing": [
+    "authoritative_corrections.md \u00a71, \u00a74, \u00a76"
+   ],
+   "impact": "None if kept superseded; must not be re-introduced during inverse-pricer re-derivation.",
+   "depends_on": [],
+   "repair": "No action; annotate in traceability that \u00a710.8 formulas remain forbidden.",
+   "acceptance_test": "n/a",
+   "blocking": {
+    "stage2": false,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "n/a",
+   "residual": "None.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-032",
+   "title": "MiniMax initial-audit inverse modelling errors: physical BTC delivery for cash-settled inverse puts; mixed /S0 vs /S_T denominators; below-strike cost-per-BTC algebra",
+   "severity": "medium",
+   "confidence": "confirmed",
+   "classification": "rejected",
+   "category": "settlement_inventory",
+   "reviewers": [
+    "minimax_initial:MM"
+   ],
+   "evidence": [
+    "Deribit inverse options cash-settle in BTC (deribitfilesascopiedtxt.txt:191,203 \u2014 verified); MiniMax's physical-delivery-at-strike model and its combined settlement enum contradict AC \u00a71; its below-strike 'effective cost = K-P0' conflates put assignment with spot-position economics"
+   ],
+   "affected": [
+    "docs/reports/minimax_initial_audit.md (evidence only)"
+   ],
+   "governing": [
+    "authoritative_corrections.md \u00a71, \u00a76",
+    "deribitfilesascopiedtxt.txt (verified)"
+   ],
+   "impact": "Rejected as modelling guidance; retained as evidence of the fee-base and hypothesis-testing findings it also contains (accepted separately).",
+   "depends_on": [],
+   "repair": "No action beyond annotation.",
+   "acceptance_test": "n/a",
+   "blocking": {
+    "stage2": false,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "n/a",
+   "residual": "None.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-033",
+   "title": "Covered-call-superiority and 3%-per-cycle-at-10-15-delta hypotheses",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "reporting_controls",
+   "reviewers": [
+    "fable_full_context:F-35",
+    "minimax_initial:MM (yield gap)",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "tests/test_engine.py:63 test_target_yield_requires_higher_delta_or_iv already encodes that ~3%/cycle requires ~30-35\u0394 at IV 45%",
+    "contracts.md \u00a71.3 correctly demotes the CEO hypotheses to testable claims; no engine control yet enforces reporting the gap (W-COVERED-CALL-OPTIMALITY-CLAIM unimplemented)"
+   ],
+   "affected": [
+    "research/reporting.py",
+    "contracts.md \u00a71.3"
+   ],
+   "governing": [
+    "ceo_strategy_research_mandate.md \u00a7Hypotheses",
+    "contracts.md MR-8, MR-11"
+   ],
+   "impact": "Without the enforcement control, a future report could echo the unattainable 3%@10-15\u0394 premise or an optimality claim.",
+   "depends_on": [
+    "FRF-017"
+   ],
+   "repair": "Implement MR-11 range-consistency reporting (implied delta/IV needed for target yield) and MR-8 optimality-claim guard in the reporting layer.",
+   "acceptance_test": "AT-017",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": false
+   },
+   "stage": "Stage 3",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-034",
+   "title": "Components independently verified correct and to be preserved",
+   "severity": "low",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "other",
+   "reviewers": [
+    "fable_full_context:F-37",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "pricing/black_scholes.py: golden vectors, parity, delta/strike inversion verified (Hull/Haug values reproduced by tests; formulas inspected)",
+    "static payoff identities incl. LBSP +1/+2 slopes, -(S0+K-P) at zero (strategy/payoffs.py:207-231; tests/test_a3.py:158-208)",
+    "engine/settlement.py enums exactly conform to contracts \u00a75.1 / AC \u00a71",
+    "vol/history.py MassiveSpotProvider: typed bars, OBSERVED provenance, retry/backoff, dedup, monotonicity (modulo FRF-009 pagination)",
+    "execution/waterfall.py arithmetic reproduces mandate economics; classification of the mislabeled 'Covered Put' diagram correctly handled as LONG_BTC_PLUS_SHORT_PUT (definitions.py:209-217)",
+    "config/models.py EngineConfig validator structure conforms to contracts \u00a716.1"
+   ],
+   "affected": [],
+   "governing": [
+    "contracts.md"
+   ],
+   "impact": "Repairs must not regress these verified components; golden tests remain frozen.",
+   "depends_on": [],
+   "repair": "Preservation constraint on all Stage-2 work.",
+   "acceptance_test": "existing golden suites",
+   "blocking": {
+    "stage2": false,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "n/a",
+   "residual": "None.",
+   "verification": {
+    "method": "independent_adversarial_agent",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "skeptic agent re-opened every cited file:line at 92acecf and attempted refutation"
+   }
+  },
+  {
+   "id": "FRF-035",
+   "title": "Unresolved business decisions D-1, D-2, D-3, D-4/D-7, D-8, D-9 plus newly registered D-10 (loss budget), D-11 (historical data procurement), D-12 (CSP acquisition scope / post-settlement BTC purchase)",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "unresolved_pending_business_decision",
+   "category": "other",
+   "reviewers": [
+    "fable_full_context",
+    "minimax_initial",
+    "deepseek_initial",
+    "contracts.md \u00a719",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "contracts.md \u00a719 carries D-1..D-9; config/models.py holds D-1/D-2/D-3 as None (verified)",
+    "D-10: no loss-cap/acceptable-maximum-loss budget exists in any authoritative source (Fable grep, confirmed by requirements review)",
+    "D-11: FRF-009 window truncation requires procure-vs-rescope decision",
+    "D-12: CSP acquires no BTC unless assigned; whether cash-settled ITM outcomes count as 'acquisition' via discretionary repurchase is undefined (FRF-004/FRF-014)"
+   ],
+   "affected": [
+    "contracts.md \u00a719",
+    "config/models.py"
+   ],
+   "governing": [
+    "contracts.md \u00a719",
+    "FRONTIER_ORCHESTRATION.md \u00a711 (stop and document material ambiguity)"
+   ],
+   "impact": "D-1 alone is a $243,750 swing; D-3 determines which settlement/fee model is 'real'; D-11 determines whether 2023 claims are possible at all.",
+   "depends_on": [],
+   "repair": "Register D-10/D-11/D-12 in contracts \u00a719 via versioned amendment; engine continues dual-variant outputs for D-1; venue-variant outputs for D-3; research window explicitly labelled pending D-11.",
+   "acceptance_test": "AT-020 (config gates), reporting D-refs",
+   "blocking": {
+    "stage2": false,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "business decision (mandate issuer)",
+   "residual": "All listed decisions are owned by the mandate issuer.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-036",
+   "title": "Verification-governance failures: no-look-ahead guard weakened after detecting genuine look-ahead; A3 merged against a NOT-READY independent verdict; fix claims self-certified; remediation introduced new defects",
+   "severity": "critical",
+   "confidence": "confirmed",
+   "classification": "accepted",
+   "category": "reporting_controls",
+   "reviewers": [
+    "phase_reports:PH (a3 review chain)",
+    "fable_aux:ground rules",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "phase2 review chain: a3_independent_review_minimax.md verdict NOT READY; a3_remediation_review_minimax.md documents that the no-look-ahead mutation test's is_itm/strike/net_pnl assertions were deleted after they detected genuine look-ahead; current backtest_no_lookahead (strategy/backtest.py:751-799) asserts only premium and entry_spot equality",
+    "a3_final_fix_and_runner_deepseek.md self-certifies 'all 8 blocking + 9 major resolved' with no third-round independent review; MiniMax blocking findings on rolls/CSCV/stress remain unremediated in code (verified: roll dead code, pseudo-CSCV, stress double-count still present)",
+    "remediation round itself introduced defects later found: ES descending-sort bug, EAC impact double-count (per phase reports)"
+   ],
+   "affected": [
+    "strategy/backtest.py:backtest_no_lookahead",
+    "docs/reports/phase2/*",
+    "process controls"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a711 (working discipline)",
+    "Build plan \u00a72 (cross-validation: no single model's arithmetic ships)"
+   ],
+   "impact": "The review loop that was supposed to catch the economic defects was structurally broken: gates weakened to pass, merges against failing verdicts, self-certification. Explains how sign-flipped results shipped with green CI.",
+   "depends_on": [],
+   "repair": "Restore the full mutation-test assertions (is_itm, strike, net_pnl per cycle); institute the red-green repair rule (failing acceptance test precedes each fix); every Stage-2 repair receives independent re-review before merge; no self-certified fix reports accepted as evidence.",
+   "acceptance_test": "AT-031",
+   "blocking": {
+    "stage2": true,
+    "historical_research": true,
+    "large_mc": true
+   },
+   "stage": "Stage 2 (process precondition)",
+   "residual": "None.",
+   "verification": {
+    "method": "principal_auditor_firsthand",
+    "verdict": "CONFIRMED",
+    "note": "cited file:line read directly during Stage 0; adversarial agent for this cluster aborted on spend limit"
+   }
+  },
+  {
+   "id": "FRF-037",
+   "title": "Reference-library and citation integrity: mis-citations in contracts.md (golden vectors, Bailey threshold, section numbers), unusable text caches, stale/duplicate/irrelevant documents, wrong or placeholder primary sources, empty canonical directories",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "contracts_schema",
+   "reviewers": [
+    "lib agents (venue/textbooks/pending/internal)",
+    "principal_auditor"
+   ],
+   "evidence": [
+    "contracts.md \u00a713.1 attributes 10.4506/5.5735 to 'Hull/Haug'; neither text prints these values (they are standard-parameter computed values \u2014 numerically correct, citation wrong); ATM delta 0.6368 not Haug \u00a72.1's printed example (0.5946); put-call parity is Hull \u00a711.4 not \u00a715.8",
+    "contracts.md \u00a711.4 'N\u2265100 per Bailey' \u2014 the paper states N>>10; the 100 threshold is an internal choice needing a business_requirement label",
+    "Bailey listed under Textbooks cache path where no Bailey text exists (paper lives elsewhere in library)",
+    "_text_cache: Glasserman 615B, Cartea 0B, three EPUBs 114B placeholders; pillar_1..3 taxonomy dirs and papers/ empty or sparse; notes/, internal_material/, pillar_5_internal_materials/, docs/data/, docs/model_validation/, docs/venue_rules/, official_docs/deribit/ all empty",
+    "ISDA 'Digital-Asset-Derivatives-Definitions' PDF is a law-firm client memo, not the ISDA booklet; SR 11-7 (2011) retained beside SR 26-2 (2026) without supersession marker; cached CME Ch. 350A dated 2023-05-19 while sibling chapters are 2026-06-03; BRRNY absent from DeliveryPriceConvention; ~60 of ~78 unique pending-links docs are non-BTC CME chapters; 17 md5-identical duplicate sets",
+    "pillar_4 'openapi.json' at one cited path is a Mintlify 'Plant Store' sample spec (real Deribit specs exist at deribit_openapi.json)",
+    "contracts.md \u00a75.2 sources the Deribit linear-option mechanism to fee-schedule lines 3606-3805; \u00a73.4 names BVX (a volatility-futures fixing) among CME BTC settlement fixings; the 0.25 BTC put golden vector is calculated, not printed in the venue doc (correctly derivable)"
+   ],
+   "affected": [
+    "contracts.md \u00a73.4, \u00a75.2, \u00a711.4, \u00a713.1, \u00a720",
+    "private_reference_library/*",
+    "docs/venue_rules/",
+    "docs/data/",
+    "docs/model_validation/"
+   ],
+   "governing": [
+    "FRONTIER_ORCHESTRATION.md \u00a73 (authority), \u00a74 (mandatory context)",
+    "authoritative_corrections.md \u00a76 (venue docs over textbooks)"
+   ],
+   "impact": "Traceability claims in the frozen contract cannot all be trusted as written; several 'primary sources' are not primary; required sources are absent. Numeric behaviour is unaffected today (verified), but future derivations would inherit wrong citations.",
+   "depends_on": [],
+   "repair": "Versioned contracts amendment correcting citations (no numeric changes required \u2014 verified); acquire the missing primary sources (ISDA booklet, CF Benchmarks BRR/BRRNY methodology, current CME Ch.350A/350, FINMA, Binance VIP-OTC, usable Glasserman/Cartea/Natenberg extractions); mark duplicates/superseded; label the N\u2265100 threshold business_requirement; populate or remove empty canonical directories.",
+   "acceptance_test": "AT-032",
+   "blocking": {
+    "stage2": false,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "Stage 2 (contracts amendment) / ongoing procurement",
+   "residual": "Procurement of paid/official sources is a business action (folds into D-11).",
+   "verification": {
+    "method": "reviewer_extracted_partial_firsthand",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "Deribit line-citations and contracts golden vectors re-verified first-hand; the ISDA-memo, md5-duplicate, EPUB-placeholder and empty-directory sub-claims rest on the library audit agents and were not each independently re-opened."
+   }
+  },
+  {
+   "id": "FRF-038",
+   "title": "Confidentiality-control exception: at least one recorded external-model prompt contains firm-identifying information alongside the reference transaction size",
+   "severity": "high",
+   "confidence": "confirmed",
+   "classification": "accepted_with_correction",
+   "category": "reporting_controls",
+   "reviewers": [
+    "lib_internal agent",
+    "principal_auditor (existence check only)"
+   ],
+   "evidence": [
+    "identified by the internal-materials audit within the recorded prompt series under prompts/ (details intentionally not reproduced here per confidentiality rules); anonymisation scan gaps (FRF-029) allowed it to pass"
+   ],
+   "affected": [
+    "prompts/ (one file)",
+    "scripts/anonymisation_scan.py"
+   ],
+   "governing": [
+    "mandate_sanitized.md \u00a7Confidentiality",
+    "AGENTS.md (no deal-identifying information in prompts)",
+    "FRONTIER_ORCHESTRATION.md \u00a710"
+   ],
+   "impact": "A confidentiality rule the mandate marks absolute was breached in the historical orchestration record; the scanning control did not catch it.",
+   "depends_on": [],
+   "repair": "Harden anonymisation_scan (remove comment/keyword exemptions, scan prompts/ and binaries); review the prompt series and redact/quarantine the affected file(s) upon owner approval (do not silently rewrite history); record the exception.",
+   "acceptance_test": "AT-033",
+   "blocking": {
+    "stage2": false,
+    "historical_research": false,
+    "large_mc": false
+   },
+   "stage": "Stage 2 (control hardening); disclosure to owner immediate",
+   "residual": "Whether the historical artefact is redacted, quarantined or accepted is the owner's decision.",
+   "verification": {
+    "method": "reviewer_extracted_partial_firsthand",
+    "verdict": "CONFIRMED_WITH_CORRECTIONS",
+    "note": "Single-source (internal-materials audit agent). Deliberately NOT re-verified first-hand to avoid reproducing the flagged content. Routed to the owner for confidential review; treat as reported, not independently confirmed."
+   }
+  }
+ ]
+}
