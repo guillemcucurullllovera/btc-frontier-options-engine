@@ -184,7 +184,7 @@ class _ExtendedPerPath:
 
 def _extended_cycles_vectorized(
     kind: str, paths: np.ndarray, config: MultiCycleMCConfig, fee: float,
-    unit_prems: list[float],
+    unit_prems: list[float], holder_basis: bool = False,
 ) -> _ExtendedPerPath:
     """Rolling-lifecycle economics over a (m, total_steps+1) path block.
 
@@ -201,7 +201,9 @@ def _extended_cycles_vectorized(
     total_steps = config.total_steps
     qty = config.btc_quantity
     s0 = config.initial_spot
-    btc = qty if kind in HOLDING_KINDS else 0.0
+    # holder_basis: the client already owns 30,000 BTC, so every structure (incl. CSP /
+    # call spread) sits on top of the holding — a consistent total-portfolio (holder) basis.
+    btc = qty if (kind in HOLDING_KINDS or holder_basis) else 0.0
     prim = next((i for i, leg in enumerate(legs) if leg[1] == "SHORT"), 0)
 
     cash = np.full(m, -fee)               # fee charged once up-front; net option cash accrues here
@@ -314,6 +316,7 @@ def run_hero_lifecycle_mc(
     *,
     kind: str | None = None,
     pricing_vol: float | None = None,
+    holder_basis: bool = False,
     volatility_source: str = "calibrated: per-tenor ATM IV (snapshot)",
     risk_free_source: str = "observed (deribit interest_rate)",
     bootstrap_samples: int = 200,
@@ -342,7 +345,9 @@ def run_hero_lifecycle_mc(
     }
     for chunk_index, _start, count in plan:
         paths = _generate_chunk_paths(config, chunk_index, count)
-        ext = _extended_cycles_vectorized(effective_kind, paths, config, fee, unit_prems)
+        ext = _extended_cycles_vectorized(
+            effective_kind, paths, config, fee, unit_prems, holder_basis,
+        )
         parts["pnl"].append(ext.pnl_post_fee)
         parts["hold"].append(ext.holding_pnl)
         parts["overlay"].append(ext.overlay_gross)
