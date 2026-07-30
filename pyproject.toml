@@ -5,6 +5,18 @@ description = "Asymmetrica BTC 30k options-overlay comparison engine"
 requires-python = ">=3.12"
 readme = "README.md"
 authors = [{ name = "Asymmetrica" }]
+# U21 (SR 11-7): pin runtime + validation deps so the checks are reproducible and
+# never silently skipped. QuantLib (external pricing anchor) + hypothesis
+# (property fuzzing) are validation deps in the dev group.
+dependencies = [
+    "numpy>=2.5.1",
+    "scipy>=1.18.0",
+    "requests>=2.34.2",
+    "pydantic>=2.13.4",
+    "PyYAML>=6.0.3",
+    "arch>=8.0.0",
+    "statsmodels>=0.14.6",
+]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -22,7 +34,7 @@ markers = [
 ]
 
 [tool.mypy]
-files = ["config", "engine", "execution", "pricing", "research", "scripts", "strategy", "tests", "vol"]
+files = ["config", "engine", "execution", "pricing", "research", "risk", "scripts", "strategy", "tests", "vol"]
 exclude = "^(private_reference_library|reference)/"
 strict = true
 python_version = "3.12"
@@ -100,4 +112,8 @@ skip-magic-trailing-comma = false
 dev = [
     "scipy-stubs>=1.18.0.1",
     "types-pyyaml>=6.0.12.20260724",
+    # U21 / U8: validation deps — the external pricing anchor (QuantLib) and
+    # property-based fuzzing (hypothesis) must always be present so the checks run.
+    "QuantLib>=1.43",
+    "hypothesis>=6.161.6",
 ]

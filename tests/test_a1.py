@@ -535,14 +535,12 @@ def test_a1_pricing_no_yaml_read() -> None:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-try:
-    import QuantLib as ql
-    _QL_AVAILABLE = True
-except ImportError:
-    _QL_AVAILABLE = False
+# U8 (SR 11-7): QuantLib is a DECLARED, pinned validation dependency — the external
+# pricing anchor must ALWAYS run in CI, never silently skip. A missing QuantLib is a
+# hard collection error (loud), not a skip.
+import QuantLib as ql  # noqa: E402
 
 
-@pytest.mark.skipif(not _QL_AVAILABLE, reason="QuantLib not installed")
 def test_quantlib_bs_parity() -> None:
     """Black-Scholes vs QuantLib: max abs diff < 1e-6."""
     today = ql.Date(15, 7, 2026)
@@ -595,7 +593,6 @@ def test_quantlib_bs_parity() -> None:
     assert max_err < 1e-6, f"Max QuantLib BS diff: {max_err:.2e}"
 
 
-@pytest.mark.skipif(not _QL_AVAILABLE, reason="QuantLib not installed")
 def test_quantlib_black76_parity() -> None:
     """Black-76 vs QuantLib: max abs diff < 1e-4 (per contracts.md §7.5)."""
     today = ql.Date(15, 7, 2026)

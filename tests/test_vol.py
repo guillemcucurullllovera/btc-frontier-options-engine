@@ -393,6 +393,16 @@ def test_garch_fit_converges() -> None:
     assert result.forecast_vol > 0
 
 
+def test_garch_annualises_365_not_252() -> None:
+    # T0-1: GARCH must annualise with sqrt(365) (24/7 BTC), consistent with realised vol.
+    returns = _generate_returns(500, 0.02)
+    result = GarchEstimator(returns).fit()
+    daily = math.sqrt(sum(result.conditional_variances) / len(result.conditional_variances))
+    assert result.forecast_vol == pytest.approx(daily * math.sqrt(365.0), rel=1e-9)
+    # sqrt(365)/sqrt(252) ~ 1.204: the 252 convention would be ~20% lower.
+    assert result.forecast_vol > daily * math.sqrt(252.0)
+
+
 def test_garch_short_series_raises() -> None:
     with pytest.raises(Exception):
         GarchEstimator([0.01, 0.02]).fit()

@@ -30,23 +30,51 @@ import numpy as np
 from config.models import Provenance
 from engine.errors import ValidationError
 from engine.strategy import Strategy
+from pricing.black_scholes import price as bs_price
 from strategy.multi_cycle_mc import (
     MultiCycleMCConfig,
     _generate_chunk_paths,
     _iter_chunks,
     _seller_discount_threshold,
-    _unit_premiums,
 )
 
-# Rolling re-strike is well-defined for these holding-inclusive archetypes. The three
-# mandate archetypes are covered_call (premium), long_btc_plus_short_put (accumulation)
-# and collar (protection); partial_overlay is a coverage-varied covered call.
-ARCHETYPE_KINDS: frozenset[str] = frozenset(
-    {"covered_call", "partial_overlay", "long_btc_plus_short_put", "collar"}
+# The full grid of structures now runs through the rolling-lifecycle MC.
+HOLDING_KINDS: frozenset[str] = frozenset(
+    {"covered_call", "partial_overlay", "long_btc_plus_short_put", "collar", "strike_ladder"}
 )
-HERO_KINDS = ARCHETYPE_KINDS  # backwards-compatible alias
+CASH_KINDS: frozenset[str] = frozenset({"cash_secured_put"})
+OPTION_ONLY_KINDS: frozenset[str] = frozenset({"call_spread"})
+ALL_MC_KINDS: frozenset[str] = HOLDING_KINDS | CASH_KINDS | OPTION_ONLY_KINDS
+ARCHETYPE_KINDS = ALL_MC_KINDS   # backwards-compatible alias (now the full grid)
+HERO_KINDS = ALL_MC_KINDS
 PARTIAL_OVERLAY_RATIO: float = 0.5
+CALL_SPREAD_LONG_MULTIPLE: float = 2.0        # credit spread: long call at 1 + 2p
+LADDER_STRIKE_MULTS: tuple[float, ...] = (1.05, 1.10, 1.15)  # short-call rungs, equal weight
 PENDING_DECISION_REFS: tuple[str, ...] = ("D-1", "D-4", "D-7", "D-9", "D-10", "MS-25", "MS-26")
+
+# A leg = (option_kind, side, strike_multiple, notional_weight). Strike = entry * multiple.
+LegSpec = tuple[str, str, float, float]
+
+
+def leg_specs(kind: str, p: float) -> list[LegSpec]:
+    """Rolling-cycle option legs for a structure at strike distance *p*."""
+    if kind == "covered_call":
+        return [("call", "SHORT", 1.0 + p, 1.0)]
+    if kind == "partial_overlay":
+        return [("call", "SHORT", 1.0 + p, PARTIAL_OVERLAY_RATIO)]
+    if kind == "long_btc_plus_short_put":
+        return [("put", "SHORT", 1.0 - p, 1.0)]
+    if kind == "collar":
+        return [("call", "SHORT", 1.0 + p, 1.0), ("put", "LONG", 1.0 - p, 1.0)]
+    if kind == "cash_secured_put":
+        return [("put", "SHORT", 1.0 - p, 1.0)]
+    if kind == "call_spread":  # CREDIT: short lower strike / long higher strike
+        return [("call", "SHORT", 1.0 + p, 1.0),
+                ("call", "LONG", 1.0 + CALL_SPREAD_LONG_MULTIPLE * p, 1.0)]
+    if kind == "strike_ladder":
+        w = 1.0 / len(LADDER_STRIKE_MULTS)
+        return [("call", "SHORT", m, w) for m in LADDER_STRIKE_MULTS]
+    raise ValidationError(f"MC does not support structure kind {kind!r}")
 
 
 @dataclass(frozen=True)
@@ -67,6 +95,12 @@ class HeroMCResult:
     drift: float
     cycle_length_days: float
     strike_target_pct: float
+    # VRP: paths diffuse at diffusion_vol; premia priced at pricing_vol.
+    diffusion_vol: float = 0.0
+    pricing_vol: float = 0.0
+    vol_regime: str = "fair_value"       # "fair_value" (implied=implied) | "vrp" (implied>realised)
+    # Bootstrap SE + 95% CI per metric: {metric: {se, ci_lo, ci_hi}} (U5).
+    metric_ci: dict[str, dict[str, float]] = field(default_factory=dict)
 
     # ── Slide-5 diagnostic metric framework (SIMULATED) ──
     probability_of_loss: float = 0.0
@@ -74,6 +108,8 @@ class HeroMCResult:
     var_95_pct_capital: float = 0.0
     expected_shortfall_975_usd: float = 0.0      # ES97.5 = mean loss in worst 2.5% tail
     expected_shortfall_975_pct_capital: float = 0.0
+    cvar_95_usd: float = 0.0                      # CVaR95 (coherent) for the loss-budget frontier
+    cvar_99_usd: float = 0.0
     # Diagnostic rolling-programme effective cost under simulation (NOT the Slide-1
     # acquisition EAC); drift-dependent - see eac_note.
     mean_rolling_programme_eac_usd_per_btc: float = 0.0
@@ -147,30 +183,31 @@ class _ExtendedPerPath:
 
 
 def _extended_cycles_vectorized(
-    kind: str, paths: np.ndarray, config: MultiCycleMCConfig, fee: float
+    kind: str, paths: np.ndarray, config: MultiCycleMCConfig, fee: float,
+    unit_prems: list[float],
 ) -> _ExtendedPerPath:
-    """Rolling-lifecycle economics for one hero over a (m, total_steps+1) path block.
+    """Rolling-lifecycle economics over a (m, total_steps+1) path block.
 
-    Options are cash-settled (BTC inventory constant); each cycle re-strikes at
-    entry*(1 +/- p). Tracks per-cycle ITM (exit past strike) and touch (intra-cycle
-    extremum past strike), and the portfolio MTM drawdown across cycle boundaries.
+    Generic over the structure's option legs (``leg_specs``). Premiums use the
+    supplied per-leg unit premia (priced at the PRICING vol); payouts use the
+    simulated (DIFFUSION-vol) paths — decoupling them yields the variance-risk-
+    premium case. Options are cash-settled; each cycle re-strikes at entry*mult.
+    Tracks per-cycle ITM/touch on the primary short leg and the cumulative-P&L
+    drawdown across cycle boundaries (uniform for holding and no-holding kinds).
     """
-    if kind not in ARCHETYPE_KINDS:
-        raise ValidationError(f"hero MC supports {sorted(ARCHETYPE_KINDS)}, got {kind!r}")
+    legs = leg_specs(kind, config.strike_target_pct)
     m = paths.shape[0]
     steps = config.n_steps_per_cycle
     total_steps = config.total_steps
     qty = config.btc_quantity
-    overlay_qty = qty * PARTIAL_OVERLAY_RATIO if kind == "partial_overlay" else qty
-    p = config.strike_target_pct
     s0 = config.initial_spot
-    call_u, put_u = _unit_premiums(config)
+    btc = qty if kind in HOLDING_KINDS else 0.0
+    prim = next((i for i, leg in enumerate(legs) if leg[1] == "SHORT"), 0)
 
-    cash = np.full(m, -fee)               # premiums accumulate here; fee charged once up-front
+    cash = np.full(m, -fee)               # fee charged once up-front; net option cash accrues here
     itm = np.zeros(m)
     touch = np.zeros(m)
-    v0 = qty * s0 - fee                   # portfolio MTM at t0 (after fee)
-    peak = np.full(m, v0)
+    peak = np.full(m, -fee)               # cumulative-P&L drawdown from V0 = -fee
     max_dd = np.zeros(m)
 
     for c in range(config.n_cycles):
@@ -178,116 +215,125 @@ def _extended_cycles_vectorized(
         end_idx = min((c + 1) * steps, total_steps)
         exit_ = paths[:, end_idx]
         seg = paths[:, c * steps : end_idx + 1]
-        if kind in ("covered_call", "partial_overlay"):
-            strike = entry * (1.0 + p)
-            cash = cash + entry * call_u * overlay_qty
-            cash = cash - np.maximum(exit_ - strike, 0.0) * overlay_qty
-            itm = itm + (exit_ > strike)
-            touch = touch + (seg.max(axis=1) >= strike)
-        elif kind == "long_btc_plus_short_put":
-            strike = entry * (1.0 - p)
-            cash = cash + entry * put_u * qty
-            cash = cash - np.maximum(strike - exit_, 0.0) * qty
-            itm = itm + (exit_ < strike)
-            touch = touch + (seg.min(axis=1) <= strike)
-        else:  # collar: short call at +p (cap) + long put at -p (floor), symmetric
-            strike_c = entry * (1.0 + p)
-            strike_p = entry * (1.0 - p)
-            cash = cash + (entry * call_u - entry * put_u) * qty
-            cash = cash - np.maximum(exit_ - strike_c, 0.0) * qty
-            cash = cash + np.maximum(strike_p - exit_, 0.0) * qty
-            itm = itm + (exit_ > strike_c)               # short-call cap exercised
-            touch = touch + (seg.max(axis=1) >= strike_c)
-        v = cash + qty * exit_            # MTM at cycle boundary
+        for i, (opt, side, mult, w) in enumerate(legs):
+            strike = entry * mult
+            premium = entry * unit_prems[i]
+            if opt == "call":
+                payout = np.maximum(exit_ - strike, 0.0)
+            else:
+                payout = np.maximum(strike - exit_, 0.0)
+            credit = 1.0 if side == "SHORT" else -1.0
+            cash = cash + w * qty * credit * (premium - payout)
+            if i == prim:
+                if opt == "call":
+                    itm = itm + (exit_ > strike)
+                    touch = touch + (seg.max(axis=1) >= strike)
+                else:
+                    itm = itm + (exit_ < strike)
+                    touch = touch + (seg.min(axis=1) <= strike)
+        v = btc * (exit_ - s0) + cash     # cumulative P&L at the cycle boundary
         peak = np.maximum(peak, v)
         max_dd = np.maximum(max_dd, peak - v)
 
     final_spot = paths[:, -1]
-    holding_pnl = qty * (final_spot - s0)
-    overlay_gross = cash + fee            # premiums - payouts (strip the fee back out)
+    holding_pnl = btc * (final_spot - s0)
+    overlay_gross = cash + fee            # net premiums - payouts (strip the fee back out)
     pnl_post_fee = holding_pnl + overlay_gross - fee
-    initial_capital = qty * s0
-    eac = (initial_capital - cash) / qty  # cost basis net of accumulated option cash, per BTC
+    # rolling-programme cost basis per BTC held; undefined (nan) when no BTC accumulated.
+    eac = (qty * s0 - cash) / qty if btc > 0.0 else np.full(m, np.nan)
     return _ExtendedPerPath(
-        pnl_post_fee=pnl_post_fee,
-        holding_pnl=holding_pnl,
-        overlay_gross=overlay_gross,
-        max_drawdown=max_dd,
-        itm_count=itm,
-        touch_count=touch,
-        eac=eac,
+        pnl_post_fee=pnl_post_fee, holding_pnl=holding_pnl, overlay_gross=overlay_gross,
+        max_drawdown=max_dd, itm_count=itm, touch_count=touch, eac=eac,
     )
 
 
 def _extended_path_scalar(
-    kind: str, path: np.ndarray, config: MultiCycleMCConfig, fee: float
+    kind: str, path: np.ndarray, config: MultiCycleMCConfig, fee: float,
+    unit_prems: list[float],
 ) -> tuple[float, float, float, float, int, int, float]:
     """Independent scalar reference for ONE path (test oracle).
 
     Returns (pnl_post_fee, holding_pnl, overlay_gross, max_drawdown, itm, touch, eac).
     """
+    legs = leg_specs(kind, config.strike_target_pct)
     steps = config.n_steps_per_cycle
     total_steps = config.total_steps
     qty = config.btc_quantity
-    overlay_qty = qty * PARTIAL_OVERLAY_RATIO if kind == "partial_overlay" else qty
-    p = config.strike_target_pct
     s0 = config.initial_spot
-    call_u, put_u = _unit_premiums(config)
+    btc = qty if kind in HOLDING_KINDS else 0.0
+    prim = next((i for i, leg in enumerate(legs) if leg[1] == "SHORT"), 0)
 
     cash = -fee
     itm = 0
     touch = 0
-    peak = qty * s0 - fee
+    peak = -fee
     max_dd = 0.0
     for c in range(config.n_cycles):
         entry = float(path[c * steps])
         end_idx = min((c + 1) * steps, total_steps)
         exit_ = float(path[end_idx])
         seg = path[c * steps : end_idx + 1]
-        if kind in ("covered_call", "partial_overlay"):
-            strike = entry * (1.0 + p)
-            cash += entry * call_u * overlay_qty
-            cash -= max(exit_ - strike, 0.0) * overlay_qty
-            itm += int(exit_ > strike)
-            touch += int(float(seg.max()) >= strike)
-        elif kind == "long_btc_plus_short_put":
-            strike = entry * (1.0 - p)
-            cash += entry * put_u * qty
-            cash -= max(strike - exit_, 0.0) * qty
-            itm += int(exit_ < strike)
-            touch += int(float(seg.min()) <= strike)
-        else:  # collar
-            strike_c = entry * (1.0 + p)
-            strike_p = entry * (1.0 - p)
-            cash += (entry * call_u - entry * put_u) * qty
-            cash -= max(exit_ - strike_c, 0.0) * qty
-            cash += max(strike_p - exit_, 0.0) * qty
-            itm += int(exit_ > strike_c)
-            touch += int(float(seg.max()) >= strike_c)
-        v = cash + qty * exit_
+        for i, (opt, side, mult, w) in enumerate(legs):
+            strike = entry * mult
+            premium = entry * unit_prems[i]
+            payout = max(exit_ - strike, 0.0) if opt == "call" else max(strike - exit_, 0.0)
+            credit = 1.0 if side == "SHORT" else -1.0
+            cash += w * qty * credit * (premium - payout)
+            if i == prim:
+                if opt == "call":
+                    itm += int(exit_ > strike)
+                    touch += int(float(seg.max()) >= strike)
+                else:
+                    itm += int(exit_ < strike)
+                    touch += int(float(seg.min()) <= strike)
+        v = btc * (exit_ - s0) + cash
         peak = max(peak, v)
         max_dd = max(max_dd, peak - v)
 
     final_spot = float(path[-1])
-    holding_pnl = qty * (final_spot - s0)
+    holding_pnl = btc * (final_spot - s0)
     overlay_gross = cash + fee
     pnl_post_fee = holding_pnl + overlay_gross - fee
-    eac = (qty * s0 - cash) / qty
+    eac = (qty * s0 - cash) / qty if btc > 0.0 else float("nan")
     return pnl_post_fee, holding_pnl, overlay_gross, max_dd, itm, touch, eac
 
 
 # ── driver ─────────────────────────────────────────────────────────────────────
 
 
+def unit_premiums_for(kind: str, config: MultiCycleMCConfig, pricing_vol: float) -> list[float]:
+    """Per-leg spot-normalised premia priced at *pricing_vol* (homogeneity: * entry)."""
+    legs = leg_specs(kind, config.strike_target_pct)
+    r, t = config.risk_free_rate, config.cycle_length_years
+    return [bs_price(1.0, mult, r, pricing_vol, t, opt) for (opt, _side, mult, _w) in legs]
+
+
 def run_hero_lifecycle_mc(
     strategy: Strategy,
     config: MultiCycleMCConfig,
     *,
+    kind: str | None = None,
+    pricing_vol: float | None = None,
     volatility_source: str = "calibrated: per-tenor ATM IV (snapshot)",
     risk_free_source: str = "observed (deribit interest_rate)",
+    bootstrap_samples: int = 200,
 ) -> HeroMCResult:
-    """Run the rolling-lifecycle diagnostic MC for one hero and finalise Slide-5 metrics."""
-    kind = strategy.canonical.value
+    """Run the rolling-lifecycle diagnostic MC for one structure.
+
+    Paths diffuse at ``config.volatility`` (the DIFFUSION vol); option premia are
+    priced at ``pricing_vol`` (the PRICING vol; defaults to the diffusion vol).
+    When they differ the run models the **variance risk premium** (sell at implied,
+    realise at physical); when equal it is the **pure-implied fair-value** anchor.
+
+    *kind* overrides the structure kind (needed for strike_ladder, whose legs
+    classify as covered_call); defaults to ``strategy.canonical.value``.
+    """
+    effective_kind = kind or strategy.canonical.value
+    if effective_kind not in ALL_MC_KINDS:
+        raise ValidationError(f"MC does not support {effective_kind!r}")
+    pv = config.volatility if pricing_vol is None else pricing_vol
+    vol_regime = "fair_value" if abs(pv - config.volatility) < 1e-12 else "vrp"
+    unit_prems = unit_premiums_for(effective_kind, config, pv)
     fee = config.asym_fee_usd
     plan = _iter_chunks(config.n_paths, config.chunk_size, config.use_antithetic)
 
@@ -296,7 +342,7 @@ def run_hero_lifecycle_mc(
     }
     for chunk_index, _start, count in plan:
         paths = _generate_chunk_paths(config, chunk_index, count)
-        ext = _extended_cycles_vectorized(kind, paths, config, fee)
+        ext = _extended_cycles_vectorized(effective_kind, paths, config, fee, unit_prems)
         parts["pnl"].append(ext.pnl_post_fee)
         parts["hold"].append(ext.holding_pnl)
         parts["overlay"].append(ext.overlay_gross)
@@ -313,13 +359,49 @@ def run_hero_lifecycle_mc(
     touch = np.concatenate(parts["touch"])
     eac = np.concatenate(parts["eac"])
     return _finalize_hero(
-        strategy, config, pnl, hold, overlay, dd, itm, touch, eac, fee,
-        volatility_source, risk_free_source,
+        strategy, effective_kind, config, pnl, hold, overlay, dd, itm, touch, eac, fee,
+        volatility_source, risk_free_source, pv, vol_regime, bootstrap_samples,
     )
+
+
+def _bootstrap_ci(
+    pnl: np.ndarray, eac: np.ndarray, b_samples: int, seed: int,
+) -> dict[str, dict[str, float]]:
+    """Vectorised bootstrap SE + 95% CI for every MC metric (Glasserman 1.1.3)."""
+    n = pnl.shape[0]
+    out: dict[str, dict[str, float]] = {}
+    if n < 2 or b_samples < 2:
+        return out
+    rng = np.random.default_rng([int(seed), 20260730])
+    idx = rng.integers(0, n, size=(b_samples, n))
+    s = np.sort(pnl[idx], axis=1)                       # ascending, per resample
+    k_es = max(1, int(np.ceil(0.025 * n)))
+    k_var = min(n - 1, max(0, int(0.05 * n)))
+    k_p95 = min(n - 1, int(0.95 * n))
+    metrics = {
+        "mean_pnl": s.mean(axis=1),
+        "var_95_usd": -s[:, k_var],
+        "es_975_usd": -s[:, :k_es].mean(axis=1),
+        "prob_loss": (s < 0.0).mean(axis=1),
+        "pnl_p5": s[:, k_var],
+        "pnl_p95": s[:, k_p95],
+    }
+    finite = eac[np.isfinite(eac)]
+    if finite.size >= 2:
+        eidx = rng.integers(0, finite.size, size=(b_samples, finite.size))
+        metrics["eac_mean"] = finite[eidx].mean(axis=1)
+    for name, arr in metrics.items():
+        out[name] = {
+            "se": float(np.std(arr)),
+            "ci_lo": float(np.percentile(arr, 2.5)),
+            "ci_hi": float(np.percentile(arr, 97.5)),
+        }
+    return out
 
 
 def _finalize_hero(
     strategy: Strategy,
+    effective_kind: str,
     config: MultiCycleMCConfig,
     pnl: np.ndarray,
     hold: np.ndarray,
@@ -331,11 +413,15 @@ def _finalize_hero(
     fee: float,
     volatility_source: str,
     risk_free_source: str,
+    pricing_vol: float,
+    vol_regime: str,
+    bootstrap_samples: int,
 ) -> HeroMCResult:
     n = pnl.shape[0]
     capital = config.capital_base
     block = config.btc_quantity
     n_non_finite = int(np.count_nonzero(~np.isfinite(pnl)))
+    metric_ci = _bootstrap_ci(pnl, eac, bootstrap_samples, config.seed)
 
     p1 = float(np.percentile(pnl, 1))
     p5 = float(np.percentile(pnl, 5))
@@ -348,6 +434,9 @@ def _finalize_hero(
     losses = -pnl
     tail_cut = float(np.percentile(losses, 97.5))
     es975 = float(np.mean(losses[losses >= tail_cut])) if n else 0.0
+    # CVaR (coherent) at 95/99 for the loss-budget frontier: mean loss beyond VaR_beta.
+    cvar95 = float(np.mean(losses[losses >= float(np.percentile(losses, 95))])) if n else 0.0
+    cvar99 = float(np.mean(losses[losses >= float(np.percentile(losses, 99))])) if n else 0.0
 
     valid_eac = eac[np.isfinite(eac)]
     mean_eac = float(np.mean(valid_eac)) if valid_eac.size else float("nan")
@@ -359,7 +448,7 @@ def _finalize_hero(
 
     return HeroMCResult(
         strategy_id=strategy.strategy_id,
-        strategy_kind=strategy.canonical.value,
+        strategy_kind=effective_kind,
         business_label=strategy.business_label,
         n_paths=n,
         n_cycles=config.n_cycles,
@@ -368,6 +457,10 @@ def _finalize_hero(
         initial_spot=config.initial_spot,
         volatility=config.volatility,
         volatility_source=volatility_source,
+        diffusion_vol=config.volatility,
+        pricing_vol=pricing_vol,
+        vol_regime=vol_regime,
+        metric_ci=metric_ci,
         risk_free_rate=config.risk_free_rate,
         risk_free_source=risk_free_source,
         drift=config.drift,
@@ -378,6 +471,8 @@ def _finalize_hero(
         var_95_pct_capital=100.0 * var95 / capital,
         expected_shortfall_975_usd=es975,
         expected_shortfall_975_pct_capital=100.0 * es975 / capital,
+        cvar_95_usd=cvar95,
+        cvar_99_usd=cvar99,
         mean_rolling_programme_eac_usd_per_btc=mean_eac,
         rolling_programme_eac_5_usd_per_btc=eac5,
         rolling_programme_eac_95_usd_per_btc=eac95,

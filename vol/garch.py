@@ -161,7 +161,10 @@ class GarchEstimator:
         cond_var = (np.asarray(res.conditional_volatility, dtype=np.float64) / 100.0) ** 2
         std_resid = list(np.asarray(res.resid, dtype=np.float64) / (np.asarray(res.conditional_volatility, dtype=np.float64) + 1e-12))
 
-        forecast_vol_annualised = float(np.sqrt(np.mean(cond_var)) * np.sqrt(252))
+        # T0-1: annualise with sqrt(365) for the 24/7 BTC market, consistent with
+        # vol/realised.py and the engine 365-day convention (Sinclair Ch.2). The
+        # earlier sqrt(252) introduced a ~20% GARCH-vs-DVOL/realised inconsistency.
+        forecast_vol_annualised = float(np.sqrt(np.mean(cond_var)) * np.sqrt(365))
 
         log_likelihood_val = getattr(res, "log_likelihood", getattr(res, "loglikelihood", 0.0))
         return GarchResult(

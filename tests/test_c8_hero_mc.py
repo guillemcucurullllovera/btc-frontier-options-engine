@@ -12,6 +12,7 @@ variance, zero non-finite outputs.  All MC outputs are SIMULATED / diagnostic.
 
 from __future__ import annotations
 
+import math
 import pathlib
 import sys
 
@@ -22,15 +23,19 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from engine.errors import ValidationError
 from strategy.definitions import (
+    build_call_spread,
+    build_cash_secured_put,
     build_collar,
     build_covered_call,
     build_long_btc_plus_short_put,
     build_partial_overlay,
+    build_strike_ladder,
 )
 from strategy.hero_lifecycle_mc import (
     _extended_cycles_vectorized,
     _extended_path_scalar,
     run_hero_lifecycle_mc,
+    unit_premiums_for,
 )
 from strategy.multi_cycle_mc import (
     MultiCycleMCConfig,
@@ -81,12 +86,15 @@ def test_base_reconciles_c7_engine() -> None:
 def test_scalar_oracle_matches_vectorized() -> None:
     cfg = _cfg(n_paths=64)
     fee = cfg.asym_fee_usd
-    for kind in ("covered_call", "long_btc_plus_short_put", "collar", "partial_overlay"):
+    kinds = ("covered_call", "long_btc_plus_short_put", "collar", "partial_overlay",
+             "cash_secured_put", "call_spread", "strike_ladder")
+    for kind in kinds:
+        up = unit_premiums_for(kind, cfg, cfg.volatility)
         paths = _generate_chunk_paths(cfg, 0, 40)
-        ext = _extended_cycles_vectorized(kind, paths, cfg, fee)
+        ext = _extended_cycles_vectorized(kind, paths, cfg, fee, up)
         for i in range(paths.shape[0]):
             pnl, hold, overlay, dd, itm, touch, eac = _extended_path_scalar(
-                kind, paths[i], cfg, fee
+                kind, paths[i], cfg, fee, up
             )
             assert ext.pnl_post_fee[i] == pytest.approx(pnl, rel=1e-9, abs=1e-3)
             assert ext.holding_pnl[i] == pytest.approx(hold, rel=1e-9, abs=1e-3)
@@ -94,7 +102,10 @@ def test_scalar_oracle_matches_vectorized() -> None:
             assert ext.max_drawdown[i] == pytest.approx(dd, rel=1e-9, abs=1e-3)
             assert int(ext.itm_count[i]) == itm
             assert int(ext.touch_count[i]) == touch
-            assert ext.eac[i] == pytest.approx(eac, rel=1e-9, abs=1e-6)
+            if math.isnan(eac):
+                assert math.isnan(ext.eac[i])  # CSP / call spread: no BTC -> undefined EAC
+            else:
+                assert ext.eac[i] == pytest.approx(eac, rel=1e-9, abs=1e-6)
 
 
 def test_leg_decomposition_identity() -> None:
@@ -184,8 +195,64 @@ def test_calibrated_vol_wiring() -> None:
     assert hero.assumptions["provenance"] == "SIMULATED"
 
 
-def test_only_archetypes_supported() -> None:
+def test_unsupported_kind_raises() -> None:
     cfg = _cfg(n_paths=64)
     paths = _generate_chunk_paths(cfg, 0, 8)
-    with pytest.raises(ValidationError):  # cash_secured_put has no long-BTC leg -> not an archetype
-        _extended_cycles_vectorized("cash_secured_put", paths, cfg, cfg.asym_fee_usd)
+    up = [0.01]
+    with pytest.raises(ValidationError):  # protective_put is not modelled by the rolling MC
+        _extended_cycles_vectorized("protective_put", paths, cfg, cfg.asym_fee_usd, up)
+
+
+def test_full_grid_runs_and_reconciles() -> None:
+    # Every grid structure runs; the C7-supported kinds reconcile in fair-value.
+    from strategy.multi_cycle_mc import run_multi_cycle_monte_carlo
+    cfg = _cfg()
+    cases = [
+        (CC, None), (LB, None), (CO, None), (PO, None),
+        (build_cash_secured_put(), None), (build_call_spread(), None),
+        (build_strike_ladder(), "strike_ladder"),
+    ]
+    for strat, kind in cases:
+        hero = run_hero_lifecycle_mc(strat, cfg, kind=kind)
+        assert hero.n_non_finite == 0
+        if kind is None and strat.canonical.value in (
+            "covered_call", "long_btc_plus_short_put", "collar",
+            "partial_overlay", "cash_secured_put",
+        ):
+            c7 = run_multi_cycle_monte_carlo(strat, cfg)
+            assert hero.mean_outcome_usd == pytest.approx(c7.mean_outcome_usd, rel=1e-9)
+
+
+def test_strike_ladder_distinct_from_covered_call() -> None:
+    # kind override is required: the ladder's legs classify as covered_call.
+    cfg = _cfg(seed=101)
+    ladder = run_hero_lifecycle_mc(build_strike_ladder(), cfg, kind="strike_ladder")
+    covered = run_hero_lifecycle_mc(CC, cfg)
+    assert ladder.strategy_kind == "strike_ladder"
+    assert ladder.mean_overlay_gross_pnl_usd != covered.mean_overlay_gross_pnl_usd
+
+
+def test_vrp_edge_positive_fair_value_zero() -> None:
+    # Fair-value (implied==diffusion): overlay edge ~ 0 (minus fee). VRP (sell implied,
+    # realise physical): overlay edge strictly positive. The tail must remain in both.
+    implied, realised = 0.34, 0.297
+    fv = run_hero_lifecycle_mc(CC, _cfg(volatility=implied))                       # fair value
+    vrp = run_hero_lifecycle_mc(CC, _cfg(volatility=realised), pricing_vol=implied)  # VRP
+    assert fv.vol_regime == "fair_value" and vrp.vol_regime == "vrp"
+    assert vrp.pricing_vol == implied and vrp.diffusion_vol == realised
+    assert vrp.mean_overlay_gross_pnl_usd > fv.mean_overlay_gross_pnl_usd
+    assert vrp.mean_overlay_gross_pnl_usd > 0.0
+    assert abs(fv.mean_overlay_gross_pnl_usd) < abs(vrp.mean_overlay_gross_pnl_usd)
+    assert vrp.expected_shortfall_975_usd > 0.0  # crash-risk tail remains under realised vol
+
+
+def test_bootstrap_se_ci_present_and_bracket() -> None:
+    hero = run_hero_lifecycle_mc(LB, _cfg(), bootstrap_samples=200)
+    for m in ("mean_pnl", "var_95_usd", "es_975_usd", "prob_loss", "pnl_p5", "pnl_p95"):
+        assert m in hero.metric_ci
+        ci = hero.metric_ci[m]
+        assert ci["se"] > 0.0
+        assert ci["ci_lo"] <= ci["ci_hi"]
+    # The point estimate lies within its own 95% CI (sanity).
+    var_ci = hero.metric_ci["var_95_usd"]
+    assert var_ci["ci_lo"] <= hero.var_95_usd <= var_ci["ci_hi"]

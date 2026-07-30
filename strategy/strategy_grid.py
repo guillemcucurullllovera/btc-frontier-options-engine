@@ -65,6 +65,17 @@ STRUCTURING_FEE_PCT: float = 0.5          # Asymmetrica execution fee (config ex
 # Pending decisions attached to every grid row + the grid (never resolved here).
 PENDING_DECISION_REFS: tuple[str, ...] = ("D-1", "D-4", "D-7", "D-9", "D-10", "MS-25", "MS-26")
 
+# T0-5 / MS-11: BTC carry (convenience yield) q is ASSUMED 0. USD premiums are EXACT at q=0
+# (linear-USD Black-Scholes); a non-zero q shifts the USD-equivalent inverse price
+# (q=2/5/10% -> approx -1.4/-3.4/-6.7%). Surfaced as a provenance-tagged assumption, not silent.
+CARRY_Q_ASSUMPTION: dict[str, object] = {
+    "carry_q": 0.0,
+    "provenance": "ASSUMED (MS-11)",
+    "rationale": "no observed BTC convenience-yield source; USD premium is exact at q=0",
+    "sensitivity_usd_equiv_pct": {"q_2pct": -1.4, "q_5pct": -3.4, "q_10pct": -6.7},
+    "audit_path": "pricing.inverse.price_inverse_btc(q=...) for the exact inverse identity",
+}
+
 HERO_STRUCTURES: frozenset[str] = frozenset({"covered_call", "long_btc_plus_short_put"})
 
 ATTRACTIVE_WHEN: dict[str, str] = {
@@ -337,6 +348,7 @@ class StrategyGrid:
     disclaimer: str = DISCLAIMER
     pending_gates: tuple[str, ...] = PENDING_GATES
     pending_decision_refs: tuple[str, ...] = PENDING_DECISION_REFS
+    carry_assumption: dict[str, object] = field(default_factory=lambda: dict(CARRY_Q_ASSUMPTION))
 
 
 # ── Pricing primitives (linear-USD BS bridge) ──────────────────────────────
@@ -890,6 +902,8 @@ def build_grid(
         "over the structure's own committed capital (see max_loss.capital_basis).",
         "Structuring fee (0.5%) is a SEPARATE line, pre-fee grid; both D-1 bases emitted.",
         "Grid is unhedged (D-9): greeks shown, no delta-hedge P&L applied.",
+        "BTC carry q ASSUMED 0 (MS-11); USD premiums exact at q=0; see grid.carry_assumption "
+        "for the q-sensitivity and the exact inverse-identity audit path.",
         "opportunity_cost = max(0, unhedged_total - structure_total) on the total-portfolio view "
         "(net of premium; the brief's gross max(0,S_T-K)*q differs by the premium received).",
         "unhedged_baseline is an internal benchmark only - never a featured/recommended row.",

@@ -464,6 +464,15 @@ def test_pending_decision_refs_attached() -> None:
         assert required <= set(row.pending_decision_refs)
 
 
+def test_carry_q_assumption_surfaced() -> None:
+    # T0-5 / MS-11: q=0 is an explicit provenance-tagged assumption, not silent.
+    ca = GRID.carry_assumption
+    assert ca["carry_q"] == 0.0
+    assert "ASSUMED" in str(ca["provenance"])
+    assert "sensitivity_usd_equiv_pct" in ca
+    assert any("carry q ASSUMED 0" in n for n in GRID.framing_notes)
+
+
 def test_denominator_labels_present() -> None:
     for row in GRID.rows:
         assert "portfolio_notional" in row.max_loss.notional_basis
