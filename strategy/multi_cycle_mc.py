@@ -58,7 +58,7 @@ DEFAULT_CHUNK_SIZE = 50_000
 
 FeeBase = Literal["reference_notional", "executed_volume"]
 D12Interp = Literal["cash_settled", "post_purchase"]
-ModelName = Literal["GBM", "Merton"]
+ModelName = Literal["GBM", "Merton", "Heston"]
 
 
 @dataclass(frozen=True)
@@ -76,6 +76,14 @@ class MultiCycleMCConfig:
     jump_intensity: float = 2.0
     jump_mean: float = -0.05
     jump_std: float = 0.10
+    # C9 · M2.2 Heston (stochastic-vol) parameters; used only when model == "Heston".
+    # CALIBRATED values come from vol/calibrate.py. BTC violates Feller (2*kappa*theta >= volvol^2),
+    # so the variance SDE is integrated by full-truncation Euler (mandatory).
+    heston_v0: float = 0.20
+    heston_kappa: float = 1.5
+    heston_theta: float = 0.20
+    heston_vol_of_vol: float = 0.6
+    heston_rho: float = -0.5
     n_steps_per_cycle: int = 30
 
     strike_target_pct: float = 0.15
@@ -138,8 +146,23 @@ class MultiCycleMCConfig:
             raise ValidationError(f"jump_std must be non-negative, got {self.jump_std}")
         if self.chunk_size <= 0:
             raise ValidationError(f"chunk_size must be positive, got {self.chunk_size}")
-        if self.model not in ("GBM", "Merton"):
-            raise ValidationError(f"model must be 'GBM' or 'Merton', got {self.model!r}")
+        if self.model not in ("GBM", "Merton", "Heston"):
+            raise ValidationError(f"model must be 'GBM', 'Merton' or 'Heston', got {self.model!r}")
+        if self.model == "Heston":
+            if not (self.heston_v0 > 0 and self.heston_theta > 0 and self.heston_kappa > 0
+                    and self.heston_vol_of_vol > 0):
+                raise ValidationError("Heston requires v0, kappa, theta, vol_of_vol > 0")
+            if not -1.0 < self.heston_rho < 1.0:
+                raise ValidationError(f"heston_rho must be in (-1, 1), got {self.heston_rho}")
+
+    @property
+    def heston_feller_ratio(self) -> float:
+        """2*kappa*theta / vol_of_vol^2; >= 1 satisfies Feller (variance stays > 0)."""
+        return 2.0 * self.heston_kappa * self.heston_theta / (self.heston_vol_of_vol ** 2)
+
+    @property
+    def heston_feller_ok(self) -> bool:
+        return self.heston_feller_ratio >= 1.0
 
     @property
     def total_horizon_years(self) -> float:
@@ -300,6 +323,11 @@ def _chunk_children(seed: int, chunk_index: int, model: ModelName) -> dict[str, 
             "jcount": np.random.default_rng(jc),
             "jsize": np.random.default_rng(jz),
         }
+    if model == "Heston":
+        # Own spawn slot for the variance Brownian (orthogonal component W_perp), so the
+        # variance stream is independent of and reproducible alongside the spot stream.
+        diff, var = ss.spawn(2)
+        return {"diff": np.random.default_rng(diff), "var": np.random.default_rng(var)}
     (diff,) = ss.spawn(1)
     return {"diff": np.random.default_rng(diff)}
 
@@ -330,6 +358,9 @@ def _generate_chunk_paths(
     S0 = config.initial_spot
     children = _chunk_children(config.seed, chunk_index, config.model)
 
+    if config.model == "Heston":
+        return _generate_heston_chunk(config, children, m, n_steps, dt, sqdt, mu, S0)
+
     z = _diffusion_normals(children["diff"], m, n_steps, config.use_antithetic)
     rets = (mu - 0.5 * sigma * sigma) * dt + sigma * sqdt * z
 
@@ -348,6 +379,43 @@ def _generate_chunk_paths(
     paths = np.empty((m, n_steps + 1), dtype=np.float64)
     paths[:, 0] = S0
     paths[:, 1:] = S0 * np.exp(np.cumsum(rets, axis=1))
+    return paths
+
+
+def _generate_heston_chunk(
+    config: MultiCycleMCConfig, children: dict[str, np.random.Generator],
+    m: int, n_steps: int, dt: float, sqdt: float, mu: float, S0: float,
+) -> np.ndarray:
+    """Full-truncation Euler Heston chunk (C9 · M2.2). Shape (m, n_steps+1).
+
+    CIR variance dv = kappa(theta - v)dt + volvol*sqrt(v) dW2, spot d(logS) = (mu - v/2)dt +
+    sqrt(v) dW1, corr(dW1,dW2)=rho. Feller is violated on BTC, so v is floored via full
+    truncation (v^+ under the drift/diffusion) — the variance path never goes negative/NaN.
+
+    Reproducibility: W1 from the 'diff' substream, the orthogonal W_perp from the 'var'
+    substream; antithetic negates BOTH (odd rows), so W2 = rho*W1 + sqrt(1-rho^2)*W_perp is
+    negated on the antithetic partner too (handled explicitly via _diffusion_normals).
+    """
+    kappa = config.heston_kappa
+    theta = config.heston_theta
+    volvol = config.heston_vol_of_vol
+    rho = config.heston_rho
+    z1 = _diffusion_normals(children["diff"], m, n_steps, config.use_antithetic)   # W1 (spot)
+    zp = _diffusion_normals(children["var"], m, n_steps, config.use_antithetic)    # W_perp
+    sqrt_1mr2 = math.sqrt(1.0 - rho * rho)
+
+    logS = np.full(m, math.log(S0), dtype=np.float64)
+    v = np.full(m, config.heston_v0, dtype=np.float64)
+    paths = np.empty((m, n_steps + 1), dtype=np.float64)
+    paths[:, 0] = S0
+    for t in range(n_steps):
+        vp = np.maximum(v, 0.0)                         # full truncation
+        sq = np.sqrt(vp * dt)
+        w1 = z1[:, t]
+        w2 = rho * w1 + sqrt_1mr2 * zp[:, t]
+        logS += (mu - 0.5 * vp) * dt + sq * w1
+        v = v + kappa * (theta - vp) * dt + volvol * np.sqrt(vp) * sqdt * w2
+        paths[:, t + 1] = np.exp(logS)
     return paths
 
 
