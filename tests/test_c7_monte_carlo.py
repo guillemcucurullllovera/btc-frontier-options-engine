@@ -45,6 +45,7 @@ from strategy.multi_cycle_mc import (
     benchmark_mc,
     run_c7_fasttrack_suite,
     run_multi_cycle_monte_carlo,
+    run_multi_cycle_monte_carlo_multi,
 )
 
 _SEED = 42
@@ -441,6 +442,23 @@ class TestChunkingAndCheckpoint:
         other = _cfg(n_paths=1000, n_cycles=4, drift=0.5)
         assert _load_checkpoint(ckpt, other, s.strategy_id) is None
         assert _load_checkpoint(ckpt, cfg, s.strategy_id) is not None
+
+    def test_multi_strategy_shares_paths(self) -> None:
+        # Evaluating N strategies on shared paths must equal N single runs on the
+        # same seed/config (paths generated once → path count NOT multiplied).
+        cfg = _cfg(n_paths=3000, n_cycles=5, model="Merton", chunk_size=1000)
+        strategies = [s for _, s in _UNIVERSE]
+        multi = run_multi_cycle_monte_carlo_multi(strategies, cfg)
+        assert len(multi) == len(strategies)
+        for s in strategies:
+            single = run_multi_cycle_monte_carlo(s, cfg)
+            assert multi[s.strategy_id].pnl_distribution == single.pnl_distribution
+            assert multi[s.strategy_id].n_paths == cfg.n_paths  # not * n_strategies
+
+    def test_multi_strategy_rejects_duplicate_ids(self) -> None:
+        s = build_unhedged_baseline(quantity=100.0, entry_spot=65000.0)
+        with pytest.raises(ValidationError):
+            run_multi_cycle_monte_carlo_multi([s, s], _cfg(n_paths=100, btc_quantity=100.0))
 
     def test_aggregate_path_count_reconciliation(self) -> None:
         s = build_unhedged_baseline(quantity=100.0, entry_spot=65000.0)

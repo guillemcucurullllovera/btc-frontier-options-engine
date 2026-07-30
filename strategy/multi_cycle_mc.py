@@ -814,6 +814,60 @@ def run_multi_cycle_monte_carlo(
     )
 
 
+def run_multi_cycle_monte_carlo_multi(
+    strategies: list[Strategy],
+    config: MultiCycleMCConfig,
+    *,
+    progress_cb: Any = None,
+) -> dict[str, MultiCycleMCResult]:
+    """Evaluate several strategies on the SAME simulated paths.
+
+    Each chunk of spot paths is generated once and every strategy is evaluated on
+    it, so the number of *simulated paths* is exactly ``config.n_paths`` regardless
+    of how many strategies are analysed — the strategy dimension does NOT multiply
+    the aggregate path count (a campaign-integrity requirement). Returns a dict
+    keyed by ``strategy.strategy_id``.
+    """
+    if not strategies:
+        raise ValidationError("run_multi_cycle_monte_carlo_multi requires >=1 strategy")
+    ids = [s.strategy_id for s in strategies]
+    if len(set(ids)) != len(ids):
+        raise ValidationError(f"strategy_ids must be unique, got {ids}")
+
+    plan = _iter_chunks(config.n_paths, config.chunk_size, config.use_antithetic)
+    fields = ("pnl", "fv", "btc", "prem", "fees", "eac", "pp_usd", "pp_btc")
+    acc: dict[str, dict[str, list[np.ndarray]]] = {
+        sid: {f: [] for f in fields} for sid in ids
+    }
+    done = 0
+    for chunk_index, start, count in plan:
+        paths = _generate_chunk_paths(config, chunk_index, count)
+        for s in strategies:
+            out = _run_cycles_vectorized(s, paths, config)
+            a = acc[s.strategy_id]
+            a["pnl"].append(out.pnl)
+            a["fv"].append(out.final_value)
+            a["btc"].append(out.final_btc)
+            a["prem"].append(out.premium_pct)
+            a["fees"].append(out.fees)
+            a["eac"].append(out.eac)
+            a["pp_usd"].append(out.post_purchase_usd)
+            a["pp_btc"].append(out.post_purchase_btc)
+        done = start + count
+        if progress_cb is not None:
+            progress_cb(done, config.n_paths)
+
+    results: dict[str, MultiCycleMCResult] = {}
+    for s in strategies:
+        a = acc[s.strategy_id]
+        merged = {f: (np.concatenate(a[f]) if a[f] else np.zeros(0)) for f in fields}
+        results[s.strategy_id] = _finalize(
+            s, config, merged["pnl"], merged["btc"], merged["prem"],
+            merged["fees"], merged["eac"], merged["pp_usd"], merged["pp_btc"],
+        )
+    return results
+
+
 def run_c7_fasttrack_suite(
     strategies: list[Strategy],
     strategy_labels: list[str],
