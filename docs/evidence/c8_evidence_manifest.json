@@ -1,0 +1,50 @@
+{
+  "provenance": "computed off frozen snapshot",
+  "snapshot_dir": "/home/francisco/btc/worktrees/c8-strategy-grid/market_snapshots/2026-07-30T104316Z",
+  "as_of_utc": "2026-07-30T10:43:16.778096+00:00",
+  "s0": 64509.34,
+  "grid_rows": 210,
+  "pending_decision_refs": [
+    "D-1",
+    "D-4",
+    "D-7",
+    "D-9",
+    "D-10",
+    "MS-25",
+    "MS-26"
+  ],
+  "mc_diagnostic": "SIMULATED (MS-26 pending); see c8_hero_mc_manifest.json for MC provenance",
+  "files": {
+    "c8_slide2_data_pack.md": {
+      "path": "docs/evidence/c8_slide2_data_pack.md",
+      "sha256": "6c82837ab60e026123ef2b0f3f9e5cbd51a1f3e9b31391c8b81165af19e041d5",
+      "committed": true
+    },
+    "c8_slide5_mc_pack.md": {
+      "path": "docs/evidence/c8_slide5_mc_pack.md",
+      "sha256": "8f6d0d7097c7ff9c9eb961f7d0c598149f5c181fef9528a5fbfcd3485f0b6aa5",
+      "committed": true
+    },
+    "c8_disclaimer.md": {
+      "path": "docs/evidence/c8_disclaimer.md",
+      "sha256": "5bba4be1e3b5c46b5003d376b088ad3d5d08c6b0f22bf84bcc0f20532f171701",
+      "committed": true
+    },
+    "grid.json": {
+      "path": "exports/c8_evidence_pack/grid.json",
+      "sha256": "096f8503d5469f6920894f07559f030d4dc7261c240472a53ca56176f4c640ac",
+      "committed": false
+    },
+    "grid_summary.csv": {
+      "path": "exports/c8_evidence_pack/grid_summary.csv",
+      "sha256": "ff824a71c53f80765ff878e2b526b5ebabb64d61d5e804a3ad49f95c34b664d4",
+      "committed": false
+    },
+    "grid_scenarios.csv": {
+      "path": "exports/c8_evidence_pack/grid_scenarios.csv",
+      "sha256": "5e4ad07197c8034ddd0d23c6a1de1d95f63270673c45dbefae40781e1cea6ae0",
+      "committed": false
+    }
+  },
+  "note": "Bulk grid CSV/JSON are git-ignored under exports/ (regenerable); deck-input packs are committed under docs/evidence/."
+}
