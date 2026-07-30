@@ -674,6 +674,33 @@ def test_massive_parses_live_response() -> None:
         assert bars[0].symbol == "X:BTCUSD"
 
 
+def test_massive_accepts_delayed_status() -> None:
+    # Massive/Polygon returns status "DELAYED" on delayed-feed tiers; the daily
+    # historical closes are final and observed, so they must be accepted rather
+    # than rejected as a malformed response.  (C8: unblocks realised-vol input.)
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+    bars_data = [
+        _make_bar(1704067200000, 65000, 65500, 64500, 65200),
+        _make_bar(1704153600000, 65200, 66000, 65000, 65800),
+    ]
+    response = _massive_api_response(bars_data)
+    response["status"] = "DELAYED"
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = response
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        bars = provider.fetch_bars(
+            start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC)
+        )
+        assert len(bars) == 2
+        assert bars[0].provenance == Provenance.OBSERVED
+        assert bars[0].origin == "massive"
+
+
 def test_massive_deduplicates_and_sorts() -> None:
     provider = MassiveSpotProvider(api_key=TEST_API_KEY)
     # Duplicate timestamp, out of order

@@ -96,6 +96,8 @@ class MassiveSpotProvider(SpotProvider):
     MAX_DELAY_S: ClassVar[float] = 30.0
     DEFAULT_TIMEOUT_S: ClassVar[float] = 30.0
     PAGE_LIMIT: ClassVar[int] = 5000
+    # Response statuses treated as usable observed data (see fetch_bars).
+    ACCEPTED_STATUSES: ClassVar[frozenset[str]] = frozenset({"OK", "DELAYED"})
 
     def __init__(
         self,
@@ -196,8 +198,12 @@ class MassiveSpotProvider(SpotProvider):
         if raw_response is None:
             raise HistoricalSpotError("All retries exhausted for Massive API")
 
+        # "OK" is the live-feed status; "DELAYED" is returned on delayed-feed
+        # tiers where the daily historical bars are still final and observed
+        # (latency is immaterial for prior-day closes used in realised vol).
+        # Any other status (e.g. "ERROR") is a genuine failure.
         status = raw_response.get("status", "")
-        if status != "OK":
+        if status not in self.ACCEPTED_STATUSES:
             raise MassiveResponseError(f"Massive API returned status '{status}': {raw_response}")
 
         if self._cache_dir is not None:
