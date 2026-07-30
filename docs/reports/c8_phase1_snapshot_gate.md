@@ -190,4 +190,45 @@ The frozen snapshot + `vol/chain` (selection, strike-snap, `iv_for`) + `vol/real
 × strike% × the two distinct expiries × coverage {25/50/75/100}%), each row priced at its own
 live IV, with σ-normalised scenarios per real listed expiry (σ(T) = each expiry's ATM IV), three
 granularities (per-BTC / per-CME-contract / per-portfolio), against an independent oracle.
-**Phase 2 does not begin until this gate is reviewed.**
+
+---
+
+## 9. Post-approval addendum — three decisions applied (orchestrator-directed)
+
+Phase 1 was approved (gates verified independently). The three surfaced decisions were resolved
+and applied; the body above is preserved as the approved record. Net effect on numbers is
+immaterial (spot/DVOL moved a few points on the re-anchor; expiries and realised vol unchanged).
+
+1. **Snapshot committed as the tracked working anchor.** A promoted anchor is now force-added to
+   git; the `market_snapshots/` glob stays ignored so ad-hoc `--refresh` runs remain untracked.
+   Only promoted anchors are committed. The committed anchor supersedes §1's snapshot:
+
+   | Field | Committed anchor |
+   |---|---|
+   | Dir | `market_snapshots/2026-07-30T104316Z/` (pointer: `market_snapshots/ANCHOR`) |
+   | As of (UTC) | `2026-07-30T10:43:16.778096+00:00` |
+   | git SHA | `f7ebc49` (Phase-1 commit) |
+   | Live spot | 64,509.34 USD |
+   | DVOL | 0.3589 (35.89%) |
+   | index_price.json | `93e324f689d4d5cf55ba8ca26ba926ac5a48bc4545b47889de6b4fab5ade44bc` |
+   | dvol.json | `88928f551a547c0f5cb18c8cb8a8a86161c7661bdc0681451d2e83526d339919` |
+   | instruments.json | `e63c593dd62274512b65890145c9851e3b9b2c5f66815a53aae2198e398f7d61` |
+   | book_summary.json | `838e48e84294bcff9d2d6b317ac181a653d1d8a8d4652630de5ac5da313102d5` |
+
+   Replay precedence: promoted anchor → latest ad-hoc → fixtures. `snapshot_market.py --refresh
+   --promote` freezes and promotes in one step.
+
+2. **DELAYED Massive closes accepted as OBSERVED.** The incomplete current-day bar is excluded
+   (any bar dated on/after the reference date); the feed status is recorded in
+   `spot_history_meta.json` (`status: "DELAYED"`, `provenance: "observed"`, `n_bars: 64`,
+   `n_excluded_incomplete_current_day: 0` — the delayed feed already ends at the prior day,
+   2026-07-29). Realised-vol windows match each real tenor (~29d, ~57d) plus the 30d DVOL window.
+
+3. **`vol/surface.py` aligned to 365-day annualisation.** `_expiry_from_name` now uses 365 (was
+   365.25), consistent with pricing `T = days/365`. Test-first: added
+   `test_surface_expiry_uses_365_day_annualisation`. **No frozen test asserted 365.25** (only the
+   code line itself), so nothing was flipped silently; the existing surface tests assert ranges
+   and remain green.
+
+Gates after decisions: **pytest 568 passed / 3 skipped**, mypy strict clean (57 files), ruff
+clean. **Phase 2 proceeds per the locked modeling frame (leg decomposition; per-tenor σ).**

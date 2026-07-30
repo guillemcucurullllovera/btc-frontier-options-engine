@@ -33,6 +33,9 @@ from vol.fixture_recorder import record_fixtures
 SNAPSHOT_META_FILE: str = "snapshot_meta.json"
 MANIFEST_FILE: str = "manifest.json"
 LATEST_POINTER: str = "latest.txt"
+# Promoted anchor: the single committed snapshot the deck reconciles against.
+# Distinct from the ad-hoc LATEST_POINTER, which every --refresh overwrites.
+ANCHOR_POINTER: str = "ANCHOR"
 ENDPOINT_FILES: tuple[str, ...] = (
     "index_price.json",
     "dvol.json",
@@ -216,6 +219,26 @@ def freeze_live_snapshot(
         dvol=dvol,
         instruments=instruments,
         book_summaries=book_summaries,
+    )
+
+
+def promoted_anchor_dir(out_root: pathlib.Path) -> pathlib.Path | None:
+    """Resolve the committed promoted-anchor snapshot directory, or None."""
+    out_root = pathlib.Path(out_root)
+    pointer = out_root / ANCHOR_POINTER
+    if pointer.exists():
+        name = pointer.read_text(encoding="utf-8").strip()
+        candidate = out_root / name
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def promote_snapshot(out_root: pathlib.Path, snapshot_dir: pathlib.Path) -> None:
+    """Mark *snapshot_dir* as the committed anchor (writes the ANCHOR pointer)."""
+    out_root = pathlib.Path(out_root)
+    (out_root / ANCHOR_POINTER).write_text(
+        pathlib.Path(snapshot_dir).name, encoding="utf-8"
     )
 
 

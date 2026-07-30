@@ -25,7 +25,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from unittest import mock
 
 from config.models import Provenance
-from engine.data_models import HistoricalSpotBar
+from engine.data_models import BookSummary, HistoricalSpotBar
 from vol.client import (
     BASE_DELAY_S,
     DeribitApiError,
@@ -290,6 +290,25 @@ def test_surface_from_book_summary() -> None:
         assert p.iv > 0
         assert p.expiry > 0
     client.close()
+
+
+def test_surface_expiry_uses_365_day_annualisation() -> None:
+    # C8 brief §6 / orchestration §5.1: 365-day annualisation everywhere.
+    ref = datetime(2026, 7, 30, tzinfo=UTC)
+    bs = BookSummary(
+        instrument_name="BTC-30JUL27-60000-C",  # exactly 365 days after ref
+        mark_price=0.05,
+        mark_iv=0.5,
+        bid_price=0.04,
+        ask_price=0.06,
+        open_interest=10.0,
+        underlying_price=60000.0,
+        interest_rate=0.0,
+        timestamp=ref,
+    )
+    surface = fit_surface([bs])
+    assert len(surface.points) == 1
+    assert surface.points[0].expiry == pytest.approx(1.0, abs=1e-9)
 
 
 def test_iv_at_returns_float() -> None:

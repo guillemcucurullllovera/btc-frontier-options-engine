@@ -1,0 +1,50 @@
+{
+  "created_at": "2026-07-30T10:43:16.778231+00:00",
+  "description": "Replayable Deribit public API fixtures",
+  "entries": [
+    {
+      "path": "index_price.json",
+      "sha256": "93e324f689d4d5cf55ba8ca26ba926ac5a48bc4545b47889de6b4fab5ade44bc",
+      "retrieval_date": "2026-07-30T10:43:16.778231+00:00",
+      "venue": "deribit",
+      "endpoint": "get_index_price",
+      "record_count": 1,
+      "status_code": 200,
+      "byte_count": 165,
+      "url": "https://www.deribit.com/api/v2/public/get_index_price"
+    },
+    {
+      "path": "dvol.json",
+      "sha256": "88928f551a547c0f5cb18c8cb8a8a86161c7661bdc0681451d2e83526d339919",
+      "retrieval_date": "2026-07-30T10:43:16.778231+00:00",
+      "venue": "deribit",
+      "endpoint": "get_volatility_index_data",
+      "record_count": 1,
+      "status_code": 200,
+      "byte_count": 1124,
+      "url": "https://www.deribit.com/api/v2/public/get_volatility_index_data"
+    },
+    {
+      "path": "instruments.json",
+      "sha256": "e63c593dd62274512b65890145c9851e3b9b2c5f66815a53aae2198e398f7d61",
+      "retrieval_date": "2026-07-30T10:43:16.778231+00:00",
+      "venue": "deribit",
+      "endpoint": "get_instruments",
+      "record_count": 934,
+      "status_code": 200,
+      "byte_count": 779295,
+      "url": "https://www.deribit.com/api/v2/public/get_instruments"
+    },
+    {
+      "path": "book_summary.json",
+      "sha256": "838e48e84294bcff9d2d6b317ac181a653d1d8a8d4652630de5ac5da313102d5",
+      "retrieval_date": "2026-07-30T10:43:16.778231+00:00",
+      "venue": "deribit",
+      "endpoint": "get_book_summary_by_currency",
+      "record_count": 934,
+      "status_code": 200,
+      "byte_count": 417706,
+      "url": "https://www.deribit.com/api/v2/public/get_book_summary_by_currency"
+    }
+  ]
+}

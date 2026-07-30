@@ -113,6 +113,8 @@ class MassiveSpotProvider(SpotProvider):
         self._cache_dir = cache_dir
         self._timeout_s = timeout_s or self.DEFAULT_TIMEOUT_S
         self._session: requests.Session | None = None
+        # Last response status ("OK"/"DELAYED"); recorded for provenance.
+        self.last_status: str = ""
 
     def _get_session(self) -> requests.Session:
         if self._session is None:
@@ -205,6 +207,7 @@ class MassiveSpotProvider(SpotProvider):
         status = raw_response.get("status", "")
         if status not in self.ACCEPTED_STATUSES:
             raise MassiveResponseError(f"Massive API returned status '{status}': {raw_response}")
+        self.last_status = status
 
         if self._cache_dir is not None:
             self._cache_raw(raw_response, from_str, to_str)

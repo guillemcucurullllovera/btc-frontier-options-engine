@@ -194,7 +194,9 @@ def _expiry_from_name(name: str, reference: datetime | None = None) -> float:
         return 0.0
     ref = reference or datetime.now(UTC)
     delta = exp - ref
-    return max(delta.total_seconds() / (365.25 * 86400), 1e-10)
+    # 365-day annualisation (C8 brief §6 / orchestration §5.1) — consistent with
+    # pricing T = days / 365 used elsewhere in the engine.
+    return max(delta.total_seconds() / (365.0 * 86400), 1e-10)
 
 
 def _group_by_expiry(points: list[VolPoint]) -> dict[float, list[VolPoint]]:

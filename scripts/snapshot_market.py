@@ -44,6 +44,8 @@ from vol.snapshot import (
     freeze_live_snapshot,
     latest_snapshot_dir,
     load_snapshot,
+    promote_snapshot,
+    promoted_anchor_dir,
 )
 from vol.surface import SurfaceError, fit_surface
 
@@ -56,6 +58,7 @@ CANONICAL_ENV: pathlib.Path = pathlib.Path(
     "/home/francisco/btc/btc_engine_frontier/.env"
 )
 SPOT_HISTORY_FILE: str = "spot_history.json"
+SPOT_HISTORY_META_FILE: str = "spot_history_meta.json"
 PHASE1_SUMMARY_FILE: str = "phase1_summary.json"
 
 # LOCKED grid dimensions (C8 brief §2): calls/puts at these %OTM off live spot.
@@ -68,13 +71,27 @@ DVOL_COMPARISON_WINDOW_DAYS: int = 30
 # ── Snapshot resolution ────────────────────────────────────────────────────
 
 
-def resolve_snapshot(refresh: bool, out_root: pathlib.Path) -> MarketSnapshot:
-    """Freeze a live snapshot (--refresh) or replay the latest frozen one."""
+def resolve_snapshot(
+    refresh: bool, out_root: pathlib.Path, promote: bool = False
+) -> MarketSnapshot:
+    """Freeze a live snapshot (--refresh) or replay the promoted/latest one.
+
+    Replay precedence: committed promoted anchor (ANCHOR) → latest ad-hoc
+    frozen snapshot → offline fixtures.
+    """
     if refresh:
         logger.info("Refreshing: pulling live Deribit public endpoints...")
         snap = freeze_live_snapshot(out_root)
         logger.info("Froze snapshot at %s", snap.directory)
+        if promote:
+            promote_snapshot(out_root, snap.directory)
+            logger.info("Promoted %s as the committed anchor (ANCHOR).", snap.directory.name)
         return snap
+
+    anchor = promoted_anchor_dir(out_root)
+    if anchor is not None:
+        logger.info("Replaying promoted anchor: %s", anchor)
+        return load_snapshot(anchor)
 
     frozen = latest_snapshot_dir(out_root)
     if frozen is not None:
@@ -108,11 +125,13 @@ def _massive_api_key() -> str | None:
 
 def _fetch_spot_history(
     reference: datetime, lookback_days: int
-) -> list[HistoricalSpotBar] | None:
+) -> tuple[list[HistoricalSpotBar], dict[str, Any]] | None:
     """Best-effort daily spot history from Massive; None if unavailable.
 
-    Only the exception *type* is logged (never the message), because Massive
-    error messages can embed the API key in the request URL.
+    Excludes the incomplete current-day bar (any bar dated on/after the
+    reference date) so realised vol uses only final observed closes.  Only the
+    exception *type* is logged (never the message), because Massive error
+    messages can embed the API key in the request URL.
     """
     key = _massive_api_key()
     if not key:
@@ -121,47 +140,83 @@ def _fetch_spot_history(
     provider = MassiveSpotProvider(api_key=key)
     start = reference - timedelta(days=lookback_days)
     try:
-        bars = provider.fetch_bars(start=start, end=reference)
+        raw_bars = provider.fetch_bars(start=start, end=reference)
     except Exception as exc:  # degrade gracefully; log only the exception type
         logger.warning(
             "Massive spot-history fetch failed (%s); realised vol UNAVAILABLE.",
             type(exc).__name__,
         )
         return None
-    logger.info("Fetched %d daily spot bars from Massive.", len(bars))
-    return bars
+    complete = [b for b in raw_bars if b.timestamp.date() < reference.date()]
+    n_excluded = len(raw_bars) - len(complete)
+    meta: dict[str, Any] = {
+        "origin": "massive",
+        "status": provider.last_status,
+        "provenance": "observed",
+        "n_bars": len(complete),
+        "n_excluded_incomplete_current_day": n_excluded,
+        "start": complete[0].timestamp.isoformat() if complete else None,
+        "end": complete[-1].timestamp.isoformat() if complete else None,
+        "annualisation_days": 365,
+        "note": (
+            "Massive daily closes; DELAYED feed accepted as OBSERVED (closes are "
+            "final; latency immaterial for prior-day closes); incomplete "
+            "current-day bar excluded."
+        ),
+    }
+    logger.info(
+        "Fetched %d Massive bars (status=%s); excluded %d incomplete current-day.",
+        len(raw_bars),
+        provider.last_status,
+        n_excluded,
+    )
+    return complete, meta
 
 
-def _freeze_spot_history(snap_dir: pathlib.Path, bars: list[HistoricalSpotBar]) -> None:
+def _freeze_spot_history(
+    snap_dir: pathlib.Path, bars: list[HistoricalSpotBar], meta: dict[str, Any]
+) -> None:
     payload = [b.model_dump(mode="json") for b in bars]
     (snap_dir / SPOT_HISTORY_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (snap_dir / SPOT_HISTORY_META_FILE).write_text(
+        json.dumps(meta, indent=2), encoding="utf-8"
+    )
 
 
 def _load_frozen_spot_history(
     snap_dir: pathlib.Path,
-) -> list[HistoricalSpotBar] | None:
+) -> tuple[list[HistoricalSpotBar], dict[str, Any]] | None:
     path = snap_dir / SPOT_HISTORY_FILE
     if not path.exists():
         return None
     data: list[dict[str, Any]] = json.loads(path.read_text(encoding="utf-8"))
-    return [HistoricalSpotBar.model_validate(d) for d in data]
+    bars = [HistoricalSpotBar.model_validate(d) for d in data]
+    meta_path = snap_dir / SPOT_HISTORY_META_FILE
+    meta: dict[str, Any] = (
+        json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    )
+    return bars, meta
 
 
 def resolve_spot_history(
     snap: MarketSnapshot, refresh: bool, reference: datetime, lookback_days: int
-) -> list[HistoricalSpotBar] | None:
+) -> tuple[list[HistoricalSpotBar], dict[str, Any]]:
     """Frozen history on replay; fetch + freeze on --refresh into a real snapshot."""
     frozen = _load_frozen_spot_history(snap.directory)
     if frozen is not None:
-        logger.info("Using frozen spot history (%d bars).", len(frozen))
-        return frozen
+        bars, meta = frozen
+        logger.info("Using frozen spot history (%d bars).", len(bars))
+        return bars, meta
     if not refresh:
-        return None
-    bars = _fetch_spot_history(reference, lookback_days)
+        return [], {}
+    fetched = _fetch_spot_history(reference, lookback_days)
+    if fetched is None:
+        return [], {}
+    bars, meta = fetched
     if bars and snap.directory.parent == DEFAULT_OUT_ROOT:
-        _freeze_spot_history(snap.directory, bars)
+        _freeze_spot_history(snap.directory, bars, meta)
         logger.info("Froze spot history into %s", snap.directory / SPOT_HISTORY_FILE)
-    return bars
+    return bars, meta
 
 
 # ── Phase-1 derivations ────────────────────────────────────────────────────
@@ -266,6 +321,7 @@ def build_summary(
     snap: MarketSnapshot,
     selection: ExpirySelection,
     realised: list[RealisedVol],
+    spot_history_meta: dict[str, Any],
     reference: datetime,
 ) -> dict[str, Any]:
     dvol_latest = snap.meta.dvol_latest
@@ -307,6 +363,7 @@ def build_summary(
         "realised_vol_comparison": {
             "annualisation_days": 365,
             "estimator": "close_to_close_log_return_sample_std",
+            "spot_history": spot_history_meta,
             "windows": _realised_dict(realised),
             "dvol_vs_realised_30d": (
                 None
@@ -387,8 +444,8 @@ def _print_human(summary: dict[str, Any]) -> None:
 # ── Entry point ────────────────────────────────────────────────────────────
 
 
-def run(refresh: bool, out_root: pathlib.Path) -> dict[str, Any]:
-    snap = resolve_snapshot(refresh, out_root)
+def run(refresh: bool, out_root: pathlib.Path, promote: bool = False) -> dict[str, Any]:
+    snap = resolve_snapshot(refresh, out_root, promote=promote)
     reference = snap.meta.created_at
 
     selection = select_expiries(
@@ -398,17 +455,19 @@ def run(refresh: bool, out_root: pathlib.Path) -> dict[str, Any]:
         targets_days=TARGETS_DAYS,
     )
 
+    # Realised-vol windows match each real tenor (~29d, ~57d) plus the 30d DVOL
+    # comparison window (coherence guard b).
     windows = sorted(
         {round(e.days_to_expiry) for e in selection.distinct}
         | {DVOL_COMPARISON_WINDOW_DAYS}
     )
     lookback = max(windows) + 7
-    bars = resolve_spot_history(snap, refresh, reference, lookback)
+    bars, spot_history_meta = resolve_spot_history(snap, refresh, reference, lookback)
     realised = realised_vol_windows(
-        bars or [], windows, reference=reference, annualisation_days=365.0
+        bars, windows, reference=reference, annualisation_days=365.0
     )
 
-    summary = build_summary(snap, selection, realised, reference)
+    summary = build_summary(snap, selection, realised, spot_history_meta, reference)
 
     summary_dir = (
         snap.directory
@@ -440,6 +499,11 @@ def main() -> int:
         help="Root directory for frozen snapshots (default: market_snapshots/)",
     )
     parser.add_argument(
+        "--promote",
+        action="store_true",
+        help="Mark the freshly frozen snapshot as the committed anchor (ANCHOR)",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -449,7 +513,7 @@ def main() -> int:
         level=getattr(logging, args.log_level),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    run(refresh=args.refresh, out_root=args.out_root)
+    run(refresh=args.refresh, out_root=args.out_root, promote=args.promote)
     return 0
 
 

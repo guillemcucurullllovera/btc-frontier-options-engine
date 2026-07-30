@@ -1,0 +1,11 @@
+{
+  "origin": "massive",
+  "status": "DELAYED",
+  "provenance": "observed",
+  "n_bars": 64,
+  "n_excluded_incomplete_current_day": 0,
+  "start": "2026-05-27T00:00:00+00:00",
+  "end": "2026-07-29T00:00:00+00:00",
+  "annualisation_days": 365,
+  "note": "Massive daily closes; DELAYED feed accepted as OBSERVED (closes are final; latency immaterial for prior-day closes); incomplete current-day bar excluded."
+}

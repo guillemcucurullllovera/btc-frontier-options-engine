@@ -1,0 +1,376 @@
+{
+  "phase": "C8 Phase 1 \u2014 live market snapshot + IV surface",
+  "snapshot": {
+    "as_of_utc": "2026-07-30T10:43:16.778096+00:00",
+    "directory": "/home/francisco/btc/worktrees/c8-strategy-grid/market_snapshots/2026-07-30T104316Z",
+    "git_sha": "f7ebc4927092c06e07b12b960de9dd24775af9eb",
+    "git_branch": "sprint/c8-strategy-grid",
+    "endpoints": [
+      "get_index_price",
+      "get_volatility_index_data",
+      "get_instruments",
+      "get_book_summary_by_currency"
+    ],
+    "checksums_sha256": {
+      "index_price.json": "93e324f689d4d5cf55ba8ca26ba926ac5a48bc4545b47889de6b4fab5ade44bc",
+      "dvol.json": "88928f551a547c0f5cb18c8cb8a8a86161c7661bdc0681451d2e83526d339919",
+      "instruments.json": "e63c593dd62274512b65890145c9851e3b9b2c5f66815a53aae2198e398f7d61",
+      "book_summary.json": "838e48e84294bcff9d2d6b317ac181a653d1d8a8d4652630de5ac5da313102d5"
+    },
+    "provenance": {
+      "spot": "observed",
+      "dvol": "observed",
+      "instruments": "observed",
+      "book_summary": "observed"
+    },
+    "origin": "deribit"
+  },
+  "reference_anchors": {
+    "live_spot_usd": 64509.34,
+    "live_spot_provenance": "observed",
+    "mandate_reference_spot_usd": 65000.0,
+    "note": "Compute off live spot; $65,000 retained only as the stated mandate reference."
+  },
+  "headline_vol": {
+    "dvol_latest": 0.3589,
+    "dvol_provenance": "observed",
+    "note": "DVOL is the 30-day BTC implied-vol index (headline only); per-tenor scenario sigma uses each expiry's own ATM IV (Phase 2)."
+  },
+  "expiry_selection": {
+    "reference": "2026-07-30T10:43:16.778096+00:00",
+    "targets_days": [
+      30.0,
+      45.0,
+      60.0
+    ],
+    "collapsed": true,
+    "notes": [
+      "Targets 45d and 60d both resolve to 25SEP26 (56.9d): no distinct liquid listed expiry near the collapsed target(s)."
+    ],
+    "per_target": [
+      {
+        "target_days": 30.0,
+        "selected_expiry": "28AUG26",
+        "expiry_utc": "2026-08-28T08:00:00+00:00",
+        "days_to_expiry": 28.8866
+      },
+      {
+        "target_days": 45.0,
+        "selected_expiry": "25SEP26",
+        "expiry_utc": "2026-09-25T08:00:00+00:00",
+        "days_to_expiry": 56.8866
+      },
+      {
+        "target_days": 60.0,
+        "selected_expiry": "25SEP26",
+        "expiry_utc": "2026-09-25T08:00:00+00:00",
+        "days_to_expiry": 56.8866
+      }
+    ],
+    "distinct_expiries": [
+      {
+        "label": "28AUG26",
+        "expiry_utc": "2026-08-28T08:00:00+00:00",
+        "days_to_expiry": 28.8866,
+        "n_instruments": 98,
+        "n_liquid": 92,
+        "total_open_interest": 48383.9
+      },
+      {
+        "label": "25SEP26",
+        "expiry_utc": "2026-09-25T08:00:00+00:00",
+        "days_to_expiry": 56.8866,
+        "n_instruments": 120,
+        "n_liquid": 98,
+        "total_open_interest": 88115.1
+      }
+    ]
+  },
+  "otm_grid": {
+    "call_pct_otm": [
+      1.5,
+      3.0,
+      5.0,
+      10.0,
+      15.0
+    ],
+    "put_pct_otm": [
+      3.0,
+      5.0,
+      10.0
+    ]
+  },
+  "iv_preview": [
+    {
+      "expiry": "28AUG26",
+      "days_to_expiry": 28.89,
+      "kind": "call",
+      "requested_pct_otm": 1.5,
+      "requested_strike": 65476.98,
+      "listed_strike": 65000.0,
+      "instrument": "BTC-28AUG26-65000-C",
+      "iv": 0.3402,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-28AUG26-65000-C"
+    },
+    {
+      "expiry": "28AUG26",
+      "days_to_expiry": 28.89,
+      "kind": "call",
+      "requested_pct_otm": 3.0,
+      "requested_strike": 66444.62,
+      "listed_strike": 66000.0,
+      "instrument": "BTC-28AUG26-66000-C",
+      "iv": 0.336,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-28AUG26-66000-C"
+    },
+    {
+      "expiry": "28AUG26",
+      "days_to_expiry": 28.89,
+      "kind": "call",
+      "requested_pct_otm": 5.0,
+      "requested_strike": 67734.81,
+      "listed_strike": 68000.0,
+      "instrument": "BTC-28AUG26-68000-C",
+      "iv": 0.3262,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-28AUG26-68000-C"
+    },
+    {
+      "expiry": "28AUG26",
+      "days_to_expiry": 28.89,
+      "kind": "call",
+      "requested_pct_otm": 10.0,
+      "requested_strike": 70960.27,
+      "listed_strike": 71000.0,
+      "instrument": "BTC-28AUG26-71000-C",
+      "iv": 0.3199,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-28AUG26-71000-C"
+    },
+    {
+      "expiry": "28AUG26",
+      "days_to_expiry": 28.89,
+      "kind": "call",
+      "requested_pct_otm": 15.0,
+      "requested_strike": 74185.74,
+      "listed_strike": 74000.0,
+      "instrument": "BTC-28AUG26-74000-C",
+      "iv": 0.3298,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-28AUG26-74000-C"
+    },
+    {
+      "expiry": "28AUG26",
+      "days_to_expiry": 28.89,
+      "kind": "put",
+      "requested_pct_otm": -3.0,
+      "requested_strike": 62574.06,
+      "listed_strike": 63000.0,
+      "instrument": "BTC-28AUG26-63000-P",
+      "iv": 0.3543,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-28AUG26-63000-P"
+    },
+    {
+      "expiry": "28AUG26",
+      "days_to_expiry": 28.89,
+      "kind": "put",
+      "requested_pct_otm": -5.0,
+      "requested_strike": 61283.87,
+      "listed_strike": 61000.0,
+      "instrument": "BTC-28AUG26-61000-P",
+      "iv": 0.3679,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-28AUG26-61000-P"
+    },
+    {
+      "expiry": "28AUG26",
+      "days_to_expiry": 28.89,
+      "kind": "put",
+      "requested_pct_otm": -10.0,
+      "requested_strike": 58058.41,
+      "listed_strike": 58000.0,
+      "instrument": "BTC-28AUG26-58000-P",
+      "iv": 0.3991,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-28AUG26-58000-P"
+    },
+    {
+      "expiry": "25SEP26",
+      "days_to_expiry": 56.89,
+      "kind": "call",
+      "requested_pct_otm": 1.5,
+      "requested_strike": 65476.98,
+      "listed_strike": 65000.0,
+      "instrument": "BTC-25SEP26-65000-C",
+      "iv": 0.3619,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-25SEP26-65000-C"
+    },
+    {
+      "expiry": "25SEP26",
+      "days_to_expiry": 56.89,
+      "kind": "call",
+      "requested_pct_otm": 3.0,
+      "requested_strike": 66444.62,
+      "listed_strike": 66000.0,
+      "instrument": "BTC-25SEP26-66000-C",
+      "iv": 0.3579,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-25SEP26-66000-C"
+    },
+    {
+      "expiry": "25SEP26",
+      "days_to_expiry": 56.89,
+      "kind": "call",
+      "requested_pct_otm": 5.0,
+      "requested_strike": 67734.81,
+      "listed_strike": 68000.0,
+      "instrument": "BTC-25SEP26-68000-C",
+      "iv": 0.3507,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-25SEP26-68000-C"
+    },
+    {
+      "expiry": "25SEP26",
+      "days_to_expiry": 56.89,
+      "kind": "call",
+      "requested_pct_otm": 10.0,
+      "requested_strike": 70960.27,
+      "listed_strike": 70000.0,
+      "instrument": "BTC-25SEP26-70000-C",
+      "iv": 0.3448,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-25SEP26-70000-C"
+    },
+    {
+      "expiry": "25SEP26",
+      "days_to_expiry": 56.89,
+      "kind": "call",
+      "requested_pct_otm": 15.0,
+      "requested_strike": 74185.74,
+      "listed_strike": 74000.0,
+      "instrument": "BTC-25SEP26-74000-C",
+      "iv": 0.3423,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-25SEP26-74000-C"
+    },
+    {
+      "expiry": "25SEP26",
+      "days_to_expiry": 56.89,
+      "kind": "put",
+      "requested_pct_otm": -3.0,
+      "requested_strike": 62574.06,
+      "listed_strike": 62000.0,
+      "instrument": "BTC-25SEP26-62000-P",
+      "iv": 0.3767,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-25SEP26-62000-P"
+    },
+    {
+      "expiry": "25SEP26",
+      "days_to_expiry": 56.89,
+      "kind": "put",
+      "requested_pct_otm": -5.0,
+      "requested_strike": 61283.87,
+      "listed_strike": 62000.0,
+      "instrument": "BTC-25SEP26-62000-P",
+      "iv": 0.3767,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-25SEP26-62000-P"
+    },
+    {
+      "expiry": "25SEP26",
+      "days_to_expiry": 56.89,
+      "kind": "put",
+      "requested_pct_otm": -10.0,
+      "requested_strike": 58058.41,
+      "listed_strike": 58000.0,
+      "instrument": "BTC-25SEP26-58000-P",
+      "iv": 0.4033,
+      "iv_provenance": "observed",
+      "iv_source": "BTC-25SEP26-58000-P"
+    }
+  ],
+  "iv_surface_diagnostics": {
+    "available": true,
+    "method": "spline",
+    "n_points": 934,
+    "fit_rmse": 3.5810334095161305e-16,
+    "note": "vol/surface.py fits a delta-parameterised smile for diagnostics; grid IV uses direct listed mark_iv (strike-space smile fallback)."
+  },
+  "realised_vol_comparison": {
+    "annualisation_days": 365,
+    "estimator": "close_to_close_log_return_sample_std",
+    "spot_history": {
+      "origin": "massive",
+      "status": "DELAYED",
+      "provenance": "observed",
+      "n_bars": 64,
+      "n_excluded_incomplete_current_day": 0,
+      "start": "2026-05-27T00:00:00+00:00",
+      "end": "2026-07-29T00:00:00+00:00",
+      "annualisation_days": 365,
+      "note": "Massive daily closes; DELAYED feed accepted as OBSERVED (closes are final; latency immaterial for prior-day closes); incomplete current-day bar excluded."
+    },
+    "windows": [
+      {
+        "window_days": 29,
+        "available": true,
+        "sigma_annual": 0.289689,
+        "n_returns": 27,
+        "annualisation_days": 365.0,
+        "start": "2026-07-02T00:00:00+00:00",
+        "end": "2026-07-29T00:00:00+00:00",
+        "provenance": "observed",
+        "origin": "massive"
+      },
+      {
+        "window_days": 30,
+        "available": true,
+        "sigma_annual": 0.296821,
+        "n_returns": 28,
+        "annualisation_days": 365.0,
+        "start": "2026-07-01T00:00:00+00:00",
+        "end": "2026-07-29T00:00:00+00:00",
+        "provenance": "observed",
+        "origin": "massive"
+      },
+      {
+        "window_days": 57,
+        "available": true,
+        "sigma_annual": 0.342018,
+        "n_returns": 55,
+        "annualisation_days": 365.0,
+        "start": "2026-06-04T00:00:00+00:00",
+        "end": "2026-07-29T00:00:00+00:00",
+        "provenance": "observed",
+        "origin": "massive"
+      }
+    ],
+    "dvol_vs_realised_30d": {
+      "dvol": 0.3589,
+      "realised_30d": 0.296821,
+      "spread": 0.062079,
+      "note": "implied (DVOL) minus realised; comparison marker only."
+    }
+  },
+  "provenance_labels": {
+    "iv": "OBSERVED (deribit mark_iv) with MODEL_RECONSTRUCTED smile fallback",
+    "dvol": "OBSERVED (deribit)",
+    "spot": "OBSERVED (deribit index)",
+    "realised_vol": "OBSERVED (massive) / UNAVAILABLE",
+    "36pct_ceo_45pct_engine": "labelled comparison markers only \u2014 not pricing inputs"
+  },
+  "pending_gates_not_resolved_here": [
+    "D-1 fee base",
+    "D-4/D-7 put-sleeve scope",
+    "D-9 hedge model",
+    "D-10 loss budget",
+    "MS-25 objective function",
+    "MS-26 sim methodology",
+    "CSCV/PBO/DSR PENDING_METHOD"
+  ]
+}
