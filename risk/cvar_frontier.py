@@ -58,6 +58,48 @@ def empirical_cvar(pnl: np.ndarray, beta: float = 0.95) -> float:
     return ru_cvar(pnl, beta)[1]
 
 
+@dataclass(frozen=True)
+class CvarEstimate:
+    beta: float
+    var: float
+    cvar: float
+    cvar_se: float                  # seeded bootstrap standard error
+    cvar_ci: tuple[float, float]    # (lo, hi) at ci_level
+    var_se: float
+    ci_level: float
+    n_boot: int
+
+
+def ru_cvar_ci(
+    pnl: np.ndarray, beta: float = 0.95, n_boot: int = 400,
+    ci_level: float = 0.95, seed: int = 20260730,
+) -> CvarEstimate:
+    """CVaR/VaR with seeded nonparametric-bootstrap SE and percentile CI (C9 · M0.3).
+
+    A CVaR figure without sampling uncertainty is not decision-grade (SR 11-7); the CVaR
+    frontier's admissibility (CVaR <= budget) is only as sharp as this SE. Deterministic
+    given ``seed``.
+    """
+    pnl = np.asarray(pnl, dtype=np.float64)
+    var, cvar = ru_cvar(pnl, beta)
+    rng = np.random.default_rng(seed)
+    n = pnl.size
+    cvars = np.empty(n_boot, dtype=np.float64)
+    vars_ = np.empty(n_boot, dtype=np.float64)
+    for b in range(n_boot):
+        sample = pnl[rng.integers(0, n, size=n)]
+        vars_[b], cvars[b] = ru_cvar(sample, beta)
+    lo_q = 100.0 * (1.0 - ci_level) / 2.0
+    hi_q = 100.0 * (1.0 + ci_level) / 2.0
+    return CvarEstimate(
+        beta=beta, var=var, cvar=cvar,
+        cvar_se=float(np.std(cvars, ddof=1)),
+        cvar_ci=(float(np.percentile(cvars, lo_q)), float(np.percentile(cvars, hi_q))),
+        var_se=float(np.std(vars_, ddof=1)),
+        ci_level=ci_level, n_boot=n_boot,
+    )
+
+
 def efficient_frontier(candidates: Sequence[Candidate]) -> list[Candidate]:
     """Pareto-efficient set: no other candidate has CVaR <= and expected >= (one strict).
 

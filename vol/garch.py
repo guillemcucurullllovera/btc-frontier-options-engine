@@ -81,6 +81,13 @@ class GarchResult:
     # Annualised forecast (decimal, e.g. 0.45 = 45%)
     forecast_vol: float = 0.0
 
+    # C9 · M0.3: MLE standard errors on {omega, alpha, beta} (returns-scale units, unscaled
+    # back to decimal-variance). Two covariance estimators (SR 11-7 parameter uncertainty):
+    #   * sandwich  — robust (Bollerslev-Wooldridge) H^-1 J H^-1, valid under misspecification;
+    #   * fisher    — classical inverse observed-information (H^-1), tighter if correctly specified.
+    param_std_errors: dict[str, float] = field(default_factory=dict)         # sandwich/robust
+    param_std_errors_fisher: dict[str, float] = field(default_factory=dict)  # classical
+
 
 @dataclass(frozen=True)
 class GarchDiagnostics:
@@ -153,10 +160,15 @@ class GarchEstimator:
             _dist: str = self._dist
             am = arch_model(self._returns * 100.0, vol="GARCH", p=1, q=1, dist=_dist)  # type: ignore[arg-type]
             res = am.fit(disp="off", show_warning=False)
+            # Second fit only re-estimates the covariance (params identical) for the
+            # classical Fisher SE alongside the default robust sandwich SE.
+            res_fisher = am.fit(disp="off", show_warning=False, cov_type="classic")
 
         omega = float(res.params["omega"]) / 10000.0
         alpha = float(res.params.get("alpha[1]", 0.0))
         beta = float(res.params.get("beta[1]", 0.0))
+        se_sandwich = _unscale_std_errors(res.std_err)
+        se_fisher = _unscale_std_errors(res_fisher.std_err)
 
         cond_var = (np.asarray(res.conditional_volatility, dtype=np.float64) / 100.0) ** 2
         std_resid = list(np.asarray(res.resid, dtype=np.float64) / (np.asarray(res.conditional_volatility, dtype=np.float64) + 1e-12))
@@ -177,7 +189,33 @@ class GarchEstimator:
             n_obs=n,
             convergence=bool(res.convergence_flag == 0),
             forecast_vol=forecast_vol_annualised,
+            param_std_errors=se_sandwich,
+            param_std_errors_fisher=se_fisher,
         )
+
+
+def _unscale_std_errors(std_err: object) -> dict[str, float]:
+    """Map arch (x100-returns-scale) SEs back to decimal-variance units for {omega,alpha,beta}.
+
+    Returns scaled by 100 => variance scaled by 1e4 (omega SE /1e4). alpha/beta are
+    scale-invariant. Missing params are omitted. ``std_err`` is a pandas Series.
+    """
+    def _get(name: str) -> float | None:
+        try:
+            val = std_err[name]  # type: ignore[index]
+        except (KeyError, IndexError, TypeError):
+            return None
+        return float(val) if val is not None else None
+
+    out: dict[str, float] = {}
+    om = _get("omega")
+    if om is not None:
+        out["omega"] = om / 10000.0
+    for scaled_name, key in (("alpha[1]", "alpha"), ("beta[1]", "beta")):
+        v = _get(scaled_name)
+        if v is not None:
+            out[key] = v
+    return out
 
 
 def compute_diagnostics(

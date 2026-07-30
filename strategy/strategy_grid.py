@@ -37,6 +37,7 @@ from datetime import datetime
 from engine.data_models import BookSummary, OptionInstrument
 from pricing.black_scholes import greeks as bs_greeks
 from pricing.black_scholes import price as bs_price
+from pricing.inverse import carry_sensitivity
 from vol.chain import iv_for, snap_to_listed_strike
 
 # ── Locked grid dimensions ─────────────────────────────────────────────────
@@ -65,14 +66,18 @@ STRUCTURING_FEE_PCT: float = 0.5          # Asymmetrica execution fee (config ex
 # Pending decisions attached to every grid row + the grid (never resolved here).
 PENDING_DECISION_REFS: tuple[str, ...] = ("D-1", "D-4", "D-7", "D-9", "D-10", "MS-25", "MS-26")
 
-# T0-5 / MS-11: BTC carry (convenience yield) q is ASSUMED 0. USD premiums are EXACT at q=0
-# (linear-USD Black-Scholes); a non-zero q shifts the USD-equivalent inverse price
-# (q=2/5/10% -> approx -1.4/-3.4/-6.7%). Surfaced as a provenance-tagged assumption, not silent.
+# T0-5 / MS-11 / C9-B4: BTC carry (convenience yield) q is ASSUMED 0. USD premiums are EXACT
+# at q=0 (linear-USD Black-Scholes); a non-zero q shifts the USD-equivalent inverse price.
+# The sensitivity is CALCULATED per-grid (pricing.inverse.carry_sensitivity at the near-expiry
+# ATM call) by build_grid — this dict is the template default. The prior hard-coded
+# {-1.4,-3.4,-6.7} was a tenor/strike-specific approximation that does NOT reproduce under a
+# clean recompute (a 30d ATM call is ≈ -1.5/-3.8/-7.6%); see test_inverse_consistency.
 CARRY_Q_ASSUMPTION: dict[str, object] = {
     "carry_q": 0.0,
-    "provenance": "ASSUMED (MS-11)",
+    "provenance": "ASSUMED (MS-11); sensitivity CALCULATED (C9-B4)",
     "rationale": "no observed BTC convenience-yield source; USD premium is exact at q=0",
-    "sensitivity_usd_equiv_pct": {"q_2pct": -1.4, "q_5pct": -3.4, "q_10pct": -6.7},
+    "sensitivity_usd_equiv_pct": {},  # populated by build_grid (CALCULATED)
+    "sensitivity_provenance": "CALCULATED — pricing.inverse.carry_sensitivity (near-expiry ATM call, r=0)",
     "audit_path": "pricing.inverse.price_inverse_btc(q=...) for the exact inverse identity",
 }
 
@@ -884,6 +889,18 @@ def build_grid(
                 ))
     r_provenance = "; ".join(sorted(r_provs)) if r_provs else "n/a"
 
+    # C9-B4: CALCULATED carry-q sensitivity at the near-expiry ATM call (r=0, Deribit convention).
+    carry_assumption = dict(CARRY_Q_ASSUMPTION)
+    if expiries:
+        near = min(expiries, key=lambda e: e.t_years)
+        carry_assumption["sensitivity_usd_equiv_pct"] = carry_sensitivity(
+            s0, s0, 0.0, near.atm_iv, near.t_years, "call"
+        )
+        carry_assumption["sensitivity_basis"] = (
+            f"near-expiry ATM call: S=K={s0:.0f}, IV={near.atm_iv:.4f}, "
+            f"T={near.t_years * 365:.1f}d, r=0"
+        )
+
     framing_notes = [
         f"t0 = snapshot as-of {as_of_utc}; DTE and greeks computed from t0.",
         "Holding leg = full 30,000-BTC block (client's inherent exposure), MTM from t0 spot.",
@@ -915,4 +932,5 @@ def build_grid(
         mandate_reference_spot=mandate_reference_spot,
         block_btc=block, cme_contract_btc=CME_CONTRACT_BTC,
         expiries=expiries, rows=rows, framing_notes=framing_notes,
+        carry_assumption=carry_assumption,
     )
