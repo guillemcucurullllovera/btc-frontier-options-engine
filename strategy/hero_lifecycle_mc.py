@@ -38,7 +38,14 @@ from strategy.multi_cycle_mc import (
     _unit_premiums,
 )
 
-HERO_KINDS: frozenset[str] = frozenset({"covered_call", "long_btc_plus_short_put"})
+# Rolling re-strike is well-defined for these holding-inclusive archetypes. The three
+# mandate archetypes are covered_call (premium), long_btc_plus_short_put (accumulation)
+# and collar (protection); partial_overlay is a coverage-varied covered call.
+ARCHETYPE_KINDS: frozenset[str] = frozenset(
+    {"covered_call", "partial_overlay", "long_btc_plus_short_put", "collar"}
+)
+HERO_KINDS = ARCHETYPE_KINDS  # backwards-compatible alias
+PARTIAL_OVERLAY_RATIO: float = 0.5
 PENDING_DECISION_REFS: tuple[str, ...] = ("D-1", "D-4", "D-7", "D-9", "D-10", "MS-25", "MS-26")
 
 
@@ -67,18 +74,43 @@ class HeroMCResult:
     var_95_pct_capital: float = 0.0
     expected_shortfall_975_usd: float = 0.0      # ES97.5 = mean loss in worst 2.5% tail
     expected_shortfall_975_pct_capital: float = 0.0
-    mean_eac_usd_per_btc: float = 0.0
-    eac_5_usd_per_btc: float = 0.0
-    eac_95_usd_per_btc: float = 0.0
+    # Diagnostic rolling-programme effective cost under simulation (NOT the Slide-1
+    # acquisition EAC); drift-dependent - see eac_note.
+    mean_rolling_programme_eac_usd_per_btc: float = 0.0
+    rolling_programme_eac_5_usd_per_btc: float = 0.0
+    rolling_programme_eac_95_usd_per_btc: float = 0.0
+    eac_note: str = (
+        "SIMULATED diagnostic rolling-programme effective cost/BTC under the rolling re-strike "
+        "programme; distinct from the Slide-1 one-off acquisition EAC; varies with the ASSUMED drift."
+    )
     mean_max_drawdown_usd: float = 0.0
     mean_max_drawdown_pct_capital: float = 0.0
     p95_max_drawdown_usd: float = 0.0
     mean_itm_frequency: float = 0.0              # mean per-cycle share the short option expired ITM
     mean_touch_frequency: float = 0.0            # mean per-cycle share the path touched the strike
 
+    # ── Total terminal P&L (front-and-centre), USD / per-BTC / % of block ──
+    total_pnl_mean_usd: float = 0.0
+    total_pnl_median_usd: float = 0.0
+    total_pnl_p5_usd: float = 0.0
+    total_pnl_p25_usd: float = 0.0
+    total_pnl_p75_usd: float = 0.0
+    total_pnl_p95_usd: float = 0.0
+    total_pnl_mean_per_btc: float = 0.0
+    total_pnl_median_per_btc: float = 0.0
+    total_pnl_p5_per_btc: float = 0.0
+    total_pnl_p95_per_btc: float = 0.0
+    total_pnl_mean_pct_block: float = 0.0
+    total_pnl_p5_pct_block: float = 0.0
+    total_pnl_p95_pct_block: float = 0.0
+
     # ── BTC-inherent vs overlay (advised) decomposition ──
     mean_holding_pnl_usd: float = 0.0            # qty*(final_spot - S0): inherent BTC exposure
+    median_holding_pnl_usd: float = 0.0
+    mean_holding_pnl_per_btc: float = 0.0
     mean_overlay_gross_pnl_usd: float = 0.0      # premiums - payouts (pre-fee, the advised leg)
+    median_overlay_gross_pnl_usd: float = 0.0
+    mean_overlay_gross_pnl_per_btc: float = 0.0
     structuring_fee_usd: float = 0.0             # deterministic D-1 line (separate)
     mean_total_pnl_pre_fee_usd: float = 0.0
     mean_total_pnl_post_fee_usd: float = 0.0
@@ -123,12 +155,13 @@ def _extended_cycles_vectorized(
     entry*(1 +/- p). Tracks per-cycle ITM (exit past strike) and touch (intra-cycle
     extremum past strike), and the portfolio MTM drawdown across cycle boundaries.
     """
-    if kind not in HERO_KINDS:
-        raise ValidationError(f"hero MC supports {sorted(HERO_KINDS)}, got {kind!r}")
+    if kind not in ARCHETYPE_KINDS:
+        raise ValidationError(f"hero MC supports {sorted(ARCHETYPE_KINDS)}, got {kind!r}")
     m = paths.shape[0]
     steps = config.n_steps_per_cycle
     total_steps = config.total_steps
     qty = config.btc_quantity
+    overlay_qty = qty * PARTIAL_OVERLAY_RATIO if kind == "partial_overlay" else qty
     p = config.strike_target_pct
     s0 = config.initial_spot
     call_u, put_u = _unit_premiums(config)
@@ -145,18 +178,26 @@ def _extended_cycles_vectorized(
         end_idx = min((c + 1) * steps, total_steps)
         exit_ = paths[:, end_idx]
         seg = paths[:, c * steps : end_idx + 1]
-        if kind == "covered_call":
+        if kind in ("covered_call", "partial_overlay"):
             strike = entry * (1.0 + p)
-            cash = cash + entry * call_u * qty
-            cash = cash - np.maximum(exit_ - strike, 0.0) * qty
+            cash = cash + entry * call_u * overlay_qty
+            cash = cash - np.maximum(exit_ - strike, 0.0) * overlay_qty
             itm = itm + (exit_ > strike)
             touch = touch + (seg.max(axis=1) >= strike)
-        else:  # long_btc_plus_short_put
+        elif kind == "long_btc_plus_short_put":
             strike = entry * (1.0 - p)
             cash = cash + entry * put_u * qty
             cash = cash - np.maximum(strike - exit_, 0.0) * qty
             itm = itm + (exit_ < strike)
             touch = touch + (seg.min(axis=1) <= strike)
+        else:  # collar: short call at +p (cap) + long put at -p (floor), symmetric
+            strike_c = entry * (1.0 + p)
+            strike_p = entry * (1.0 - p)
+            cash = cash + (entry * call_u - entry * put_u) * qty
+            cash = cash - np.maximum(exit_ - strike_c, 0.0) * qty
+            cash = cash + np.maximum(strike_p - exit_, 0.0) * qty
+            itm = itm + (exit_ > strike_c)               # short-call cap exercised
+            touch = touch + (seg.max(axis=1) >= strike_c)
         v = cash + qty * exit_            # MTM at cycle boundary
         peak = np.maximum(peak, v)
         max_dd = np.maximum(max_dd, peak - v)
@@ -188,6 +229,7 @@ def _extended_path_scalar(
     steps = config.n_steps_per_cycle
     total_steps = config.total_steps
     qty = config.btc_quantity
+    overlay_qty = qty * PARTIAL_OVERLAY_RATIO if kind == "partial_overlay" else qty
     p = config.strike_target_pct
     s0 = config.initial_spot
     call_u, put_u = _unit_premiums(config)
@@ -202,18 +244,26 @@ def _extended_path_scalar(
         end_idx = min((c + 1) * steps, total_steps)
         exit_ = float(path[end_idx])
         seg = path[c * steps : end_idx + 1]
-        if kind == "covered_call":
+        if kind in ("covered_call", "partial_overlay"):
             strike = entry * (1.0 + p)
-            cash += entry * call_u * qty
-            cash -= max(exit_ - strike, 0.0) * qty
+            cash += entry * call_u * overlay_qty
+            cash -= max(exit_ - strike, 0.0) * overlay_qty
             itm += int(exit_ > strike)
             touch += int(float(seg.max()) >= strike)
-        else:
+        elif kind == "long_btc_plus_short_put":
             strike = entry * (1.0 - p)
             cash += entry * put_u * qty
             cash -= max(strike - exit_, 0.0) * qty
             itm += int(exit_ < strike)
             touch += int(float(seg.min()) <= strike)
+        else:  # collar
+            strike_c = entry * (1.0 + p)
+            strike_p = entry * (1.0 - p)
+            cash += (entry * call_u - entry * put_u) * qty
+            cash -= max(exit_ - strike_c, 0.0) * qty
+            cash += max(strike_p - exit_, 0.0) * qty
+            itm += int(exit_ > strike_c)
+            touch += int(float(seg.max()) >= strike_c)
         v = cash + qty * exit_
         peak = max(peak, v)
         max_dd = max(max_dd, peak - v)
@@ -284,10 +334,16 @@ def _finalize_hero(
 ) -> HeroMCResult:
     n = pnl.shape[0]
     capital = config.capital_base
+    block = config.btc_quantity
     n_non_finite = int(np.count_nonzero(~np.isfinite(pnl)))
 
-    p5 = float(np.percentile(pnl, 5))
     p1 = float(np.percentile(pnl, 1))
+    p5 = float(np.percentile(pnl, 5))
+    p25 = float(np.percentile(pnl, 25))
+    p75 = float(np.percentile(pnl, 75))
+    p95 = float(np.percentile(pnl, 95))
+    mean_pnl = float(np.mean(pnl))
+    median_pnl = float(np.median(pnl))
     var95 = -p5  # VaR95: magnitude of the 5th-percentile loss
     losses = -pnl
     tail_cut = float(np.percentile(losses, 97.5))
@@ -322,21 +378,38 @@ def _finalize_hero(
         var_95_pct_capital=100.0 * var95 / capital,
         expected_shortfall_975_usd=es975,
         expected_shortfall_975_pct_capital=100.0 * es975 / capital,
-        mean_eac_usd_per_btc=mean_eac,
-        eac_5_usd_per_btc=eac5,
-        eac_95_usd_per_btc=eac95,
+        mean_rolling_programme_eac_usd_per_btc=mean_eac,
+        rolling_programme_eac_5_usd_per_btc=eac5,
+        rolling_programme_eac_95_usd_per_btc=eac95,
         mean_max_drawdown_usd=float(np.mean(dd)),
         mean_max_drawdown_pct_capital=100.0 * float(np.mean(dd)) / capital,
         p95_max_drawdown_usd=float(np.percentile(dd, 95)),
         mean_itm_frequency=float(np.mean(itm)) / config.n_cycles,
         mean_touch_frequency=float(np.mean(touch)) / config.n_cycles,
+        total_pnl_mean_usd=mean_pnl,
+        total_pnl_median_usd=median_pnl,
+        total_pnl_p5_usd=p5,
+        total_pnl_p25_usd=p25,
+        total_pnl_p75_usd=p75,
+        total_pnl_p95_usd=p95,
+        total_pnl_mean_per_btc=mean_pnl / block,
+        total_pnl_median_per_btc=median_pnl / block,
+        total_pnl_p5_per_btc=p5 / block,
+        total_pnl_p95_per_btc=p95 / block,
+        total_pnl_mean_pct_block=100.0 * mean_pnl / capital,
+        total_pnl_p5_pct_block=100.0 * p5 / capital,
+        total_pnl_p95_pct_block=100.0 * p95 / capital,
         mean_holding_pnl_usd=float(np.mean(hold)),
+        median_holding_pnl_usd=float(np.median(hold)),
+        mean_holding_pnl_per_btc=float(np.mean(hold)) / block,
         mean_overlay_gross_pnl_usd=float(np.mean(overlay)),
+        median_overlay_gross_pnl_usd=float(np.median(overlay)),
+        mean_overlay_gross_pnl_per_btc=float(np.mean(overlay)) / block,
         structuring_fee_usd=fee,
-        mean_total_pnl_pre_fee_usd=float(np.mean(pnl)) + fee,
-        mean_total_pnl_post_fee_usd=float(np.mean(pnl)),
-        mean_outcome_usd=float(np.mean(pnl)),
-        median_outcome_usd=float(np.median(pnl)),
+        mean_total_pnl_pre_fee_usd=mean_pnl + fee,
+        mean_total_pnl_post_fee_usd=mean_pnl,
+        mean_outcome_usd=mean_pnl,
+        median_outcome_usd=median_pnl,
         std_outcome_usd=std_pnl,
         percentile_5_usd=p5,
         percentile_1_usd=p1,

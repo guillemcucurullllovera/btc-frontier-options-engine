@@ -21,7 +21,12 @@ import pytest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from engine.errors import ValidationError
-from strategy.definitions import build_covered_call, build_long_btc_plus_short_put
+from strategy.definitions import (
+    build_collar,
+    build_covered_call,
+    build_long_btc_plus_short_put,
+    build_partial_overlay,
+)
 from strategy.hero_lifecycle_mc import (
     _extended_cycles_vectorized,
     _extended_path_scalar,
@@ -50,6 +55,9 @@ def _cfg(seed: int = 7, n_paths: int = 6_000, **kw: object) -> MultiCycleMCConfi
 
 CC = build_covered_call()
 LB = build_long_btc_plus_short_put()
+CO = build_collar()
+PO = build_partial_overlay()
+ARCHETYPES = (CC, LB, CO, PO)
 
 
 # ── base reconciliation to the C7 engine ────────────────────────────────────
@@ -57,7 +65,7 @@ LB = build_long_btc_plus_short_put()
 
 def test_base_reconciles_c7_engine() -> None:
     cfg = _cfg()
-    for strat in (CC, LB):
+    for strat in ARCHETYPES:
         hero = run_hero_lifecycle_mc(strat, cfg)
         c7 = run_multi_cycle_monte_carlo(strat, cfg)
         assert hero.mean_outcome_usd == pytest.approx(c7.mean_outcome_usd, rel=1e-9)
@@ -73,7 +81,7 @@ def test_base_reconciles_c7_engine() -> None:
 def test_scalar_oracle_matches_vectorized() -> None:
     cfg = _cfg(n_paths=64)
     fee = cfg.asym_fee_usd
-    for kind in ("covered_call", "long_btc_plus_short_put"):
+    for kind in ("covered_call", "long_btc_plus_short_put", "collar", "partial_overlay"):
         paths = _generate_chunk_paths(cfg, 0, 40)
         ext = _extended_cycles_vectorized(kind, paths, cfg, fee)
         for i in range(paths.shape[0]):
@@ -118,10 +126,33 @@ def test_cross_seed_variance_nonzero() -> None:
 
 
 def test_zero_non_finite() -> None:
-    for strat in (CC, LB):
+    for strat in ARCHETYPES:
         for model in ("GBM", "Merton"):
-            hero = run_hero_lifecycle_mc(strat, _cfg(model=model))
-            assert hero.n_non_finite == 0
+            for drift in (-0.10, 0.0, 0.10):
+                hero = run_hero_lifecycle_mc(strat, _cfg(model=model, drift=drift))
+                assert hero.n_non_finite == 0
+
+
+def test_pnl_and_eac_fields() -> None:
+    hero = run_hero_lifecycle_mc(CC, _cfg())
+    # Explicit P&L: per-BTC and % of block are consistent with the USD figures.
+    assert hero.total_pnl_mean_per_btc == pytest.approx(hero.total_pnl_mean_usd / 30_000, rel=1e-9)
+    assert hero.total_pnl_p5_per_btc == pytest.approx(hero.total_pnl_p5_usd / 30_000, rel=1e-9)
+    assert hero.total_pnl_p5_usd <= hero.total_pnl_median_usd <= hero.total_pnl_p95_usd
+    assert hero.total_pnl_mean_usd == pytest.approx(hero.mean_outcome_usd, rel=1e-12)
+    # EAC is relabelled as a diagnostic rolling-programme effective cost (not Slide-1 EAC).
+    assert "rolling-programme" in hero.eac_note
+    assert "distinct from the Slide-1" in hero.eac_note
+
+
+def test_collar_tail_floored_vs_lbsp() -> None:
+    # Diagnostic (not a ranking): the collar's long-put floor collapses the tail relative to
+    # the un-floored short-put structure at the same drift/strike/model/seed.
+    cfg = _cfg(seed=101)
+    collar = run_hero_lifecycle_mc(CO, cfg)
+    lbsp = run_hero_lifecycle_mc(LB, cfg)
+    assert collar.expected_shortfall_975_usd < lbsp.expected_shortfall_975_usd
+    assert collar.mean_max_drawdown_usd < lbsp.mean_max_drawdown_usd
 
 
 # ── metric sanity + calibration wiring ──────────────────────────────────────
@@ -153,8 +184,8 @@ def test_calibrated_vol_wiring() -> None:
     assert hero.assumptions["provenance"] == "SIMULATED"
 
 
-def test_only_heroes_supported() -> None:
+def test_only_archetypes_supported() -> None:
     cfg = _cfg(n_paths=64)
     paths = _generate_chunk_paths(cfg, 0, 8)
-    with pytest.raises(ValidationError):
-        _extended_cycles_vectorized("collar", paths, cfg, cfg.asym_fee_usd)
+    with pytest.raises(ValidationError):  # cash_secured_put has no long-BTC leg -> not an archetype
+        _extended_cycles_vectorized("cash_secured_put", paths, cfg, cfg.asym_fee_usd)

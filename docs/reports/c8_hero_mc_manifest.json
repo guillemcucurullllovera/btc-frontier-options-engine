@@ -1,0 +1,73 @@
+{
+  "provenance": "SIMULATED",
+  "as_of_utc": "2026-07-30T10:43:16.778096+00:00",
+  "git_sha": "bbbd811ee862b6950003a5bfc50bffe6e2537fc0",
+  "snapshot_dir": "/home/francisco/btc/worktrees/c8-strategy-grid/market_snapshots/2026-07-30T104316Z",
+  "snapshot_checksums": {
+    "index_price.json": "93e324f689d4d5cf55ba8ca26ba926ac5a48bc4545b47889de6b4fab5ade44bc",
+    "dvol.json": "88928f551a547c0f5cb18c8cb8a8a86161c7661bdc0681451d2e83526d339919",
+    "instruments.json": "e63c593dd62274512b65890145c9851e3b9b2c5f66815a53aae2198e398f7d61",
+    "book_summary.json": "838e48e84294bcff9d2d6b317ac181a653d1d8a8d4652630de5ac5da313102d5"
+  },
+  "vol_calibration": {
+    "volatility": 0.34020000000000006,
+    "source": "28AUG26 ATM IV",
+    "dvol": 0.3589,
+    "r": 0.0,
+    "r_source": "observed (deribit interest_rate)",
+    "s0": 64509.34
+  },
+  "campaign": {
+    "n_paths_per_config": 40000,
+    "n_configs": 360,
+    "total_simulated_paths": 14400000,
+    "n_cycles": 12,
+    "cadence_days": 29.0,
+    "drift_band": [
+      -0.1,
+      0.0,
+      0.1
+    ],
+    "seeds": [
+      101,
+      102,
+      103,
+      104,
+      105
+    ],
+    "models": [
+      "GBM",
+      "Merton"
+    ],
+    "strike_tiers": {
+      "covered_call": [
+        0.05,
+        0.1,
+        0.15
+      ],
+      "long_btc_plus_short_put": [
+        0.03,
+        0.05,
+        0.1
+      ],
+      "collar": [
+        0.05,
+        0.1,
+        0.15
+      ],
+      "partial_overlay": [
+        0.05,
+        0.1,
+        0.15
+      ]
+    },
+    "archetype_roles": {
+      "covered_call": "premium",
+      "long_btc_plus_short_put": "accumulation",
+      "collar": "protection",
+      "partial_overlay": "coverage-varied premium"
+    }
+  },
+  "drift_band_sha256": "15dcba7da4fcd2d149de32fcd14aa35b5834face031e5daa763c7eaf518bb593",
+  "note": "Deck numbers reproduce from (snapshot, seeds, config); raw paths git-ignored."
+}

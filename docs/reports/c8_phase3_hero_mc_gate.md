@@ -127,4 +127,47 @@ git-ignored bulk, regenerable via `scripts/run_c8_hero_campaign.py`).
 Phase 4 emits the evidence & deck-input pack (grid CSV+JSON, Slide-2 / Slide-2-continued data pack,
 σ-scenario tables, the Slide-5 MC metric tables above, disclaimer, updated
 `presentation_master_brief.md` figures). Phase 5 runs the whole-system gates + handover.
-**Phase 3 does not begin Phase 4 until this gate is reviewed.**
+
+---
+
+## 8. Post-approval amendment (orchestrator-directed, test-first)
+
+Applied before Phase 4; gates re-verified (pytest **608p/3s**, mypy 63 files, ruff, anon clean;
++2 tests). Frozen deck campaign: **360 configs × 40,000 = 14,400,000 simulated paths**;
+manifest `docs/reports/c8_hero_mc_manifest.json` (snapshot checksums, vol calibration, config,
+drift-band SHA-256 `15dcba7d…`) makes the deck numbers reproducible (raw paths git-ignored).
+
+1. **Three mandate archetypes + partial overlay.** The MC now covers covered_call (premium),
+   long_btc_plus_short_put (accumulation), **collar (protection, mandatory)**, and partial_overlay
+   (coverage-varied). Each reconciles to the C7 engine to rtol 1e-9; the scalar oracle covers all.
+   The collar's long-put floor **collapses the tail** — asserted vs LBSP in tests.
+2. **Drift as a labelled band {−0.10, 0, +0.10}** (ASSUMED; neutral 0 = no-view anchor). No single
+   drift is presented — a single +0.10 would implicitly rank the structures (MS-25). Metrics reported
+   across all three drifts.
+3. **Total P&L front-and-centre**: mean / median / p5 / p25 / p75 / p95, per-BTC and % of block,
+   decomposed holding-vs-overlay, alongside the risk metrics.
+4. **EAC relabelled** as a SIMULATED "diagnostic rolling-programme effective cost/BTC", explicitly
+   distinct from the Slide-1 one-off acquisition EAC and drift-noted (`eac_note`).
+
+### Drift-band metric table (frozen campaign; SIMULATED; % of 1.935B capital)
+
+| Archetype (role) | drift | P&L mean | P&L p5 | P&L p95 | prob-loss | VaR95 | ES97.5 | maxDD | ITM | touch |
+|---|---|---|---|---|---|---|---|---|---|---|
+| covered_call (premium) | −0.10 | −171.8M | −910.3M | +798.2M | 0.671 | 47.0% | 57.3% | 31.0% | 0.16 | 0.28 |
+| | **0.00** | −29.9M | −825.8M | +1,011.1M | **0.572** | 42.7% | 53.7% | 28.7% | 0.17 | 0.31 |
+| | +0.10 | +122.1M | −734.6M | +1,237.0M | 0.468 | 38.0% | 50.0% | 26.6% | 0.19 | 0.33 |
+| long_btc_short_put (accumulation) | −0.10 | −265.2M | −1,427.7M | +1,214.5M | 0.669 | 73.8% | 91.5% | 46.7% | 0.31 | 0.52 |
+| | **0.00** | −43.4M | −1,289.7M | +1,552.0M | **0.568** | 66.6% | 85.6% | 43.0% | 0.29 | 0.49 |
+| | +0.10 | +196.0M | −1,142.3M | +1,918.1M | 0.462 | 59.0% | 79.2% | 39.7% | 0.26 | 0.47 |
+| **collar (protection)** | −0.10 | −116.4M | −684.1M | +675.9M | 0.664 | 35.3% | 42.5% | 24.4% | 0.16 | 0.28 |
+| | **0.00** | −1.9M | −624.2M | +861.4M | **0.564** | 32.3% | 40.1% | 22.8% | 0.17 | 0.31 |
+| | +0.10 | +123.3M | −557.5M | +1,061.3M | 0.461 | 28.8% | 37.4% | 21.3% | 0.19 | 0.33 |
+| partial_overlay (coverage-varied) | −0.10 | −178.7M | −956.6M | +877.3M | 0.675 | 49.4% | 59.6% | 33.1% | 0.16 | 0.28 |
+| | **0.00** | −19.7M | −866.9M | +1,128.5M | **0.572** | 44.8% | 55.9% | 30.6% | 0.17 | 0.31 |
+| | +0.10 | +153.1M | −769.1M | +1,401.2M | 0.464 | 39.7% | 51.8% | 28.4% | 0.19 | 0.33 |
+
+Two facts stand out (diagnostic, **not** a ranking): **prob-of-loss is ~0.57 at drift 0 for every
+archetype** — it is BTC-inherent (dominated by the shared holding leg, not the overlay); and the
+**collar's value is the collapsed tail** (VaR95 32% / ES97.5 40% / maxDD 23% at drift 0, materially
+below the un-floored structures). Holding leg P&L at drift 0 is ~0 (vol drag); the overlay leg is
+where the structures differ. **Phase 4 does not begin until this gate is reviewed.**
