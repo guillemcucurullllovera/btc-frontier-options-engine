@@ -22,6 +22,7 @@ References: Heston (1993); Albrecher et al. (2007); Fang & Oosterlee (2008); Mad
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -123,6 +124,56 @@ class Heston:
         # closed-form Heston c4 is not needed and its transcription is error-prone.
         c1, c2, _ = numerical_cumulants(self, T)
         return c1, c2, 0.0
+
+
+# ── Bates (Heston SV + Merton jumps) ─────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class Bates:
+    """Bates (1996) = Heston stochastic vol + Merton compound-Poisson lognormal jumps.
+
+    phi_Bates(u) = phi_Heston(u) * phi_jump(u), with the jump factor martingale-corrected so
+    phi_jump(-i)=1 (=> phi_Bates(-i)=e^{(r-q)T}). The jump compensator kappa_j = e^{mu_j+sigma_j^2/2}-1
+    is subtracted in the drift, exactly the existing Merton block re-used under stochastic vol.
+    """
+
+    r: float
+    q: float
+    v0: float
+    kappa: float
+    theta: float
+    sigma: float        # vol-of-vol
+    rho: float
+    lam: float          # jump intensity (per year)
+    mu_j: float         # mean log-jump
+    sigma_j: float      # std log-jump
+
+    @property
+    def _heston(self) -> Heston:
+        return Heston(self.r, self.q, self.v0, self.kappa, self.theta, self.sigma, self.rho)
+
+    @property
+    def kappa_j(self) -> float:
+        return float(math.exp(self.mu_j + 0.5 * self.sigma_j ** 2) - 1.0)
+
+    def cf(self, u: complex | Complex, T: float) -> Complex:
+        u = _as_complex(u)
+        heston = self._heston.cf(u, T)
+        jump = np.exp(self.lam * T * (
+            np.exp(1j * u * self.mu_j - 0.5 * self.sigma_j ** 2 * u * u)
+            - 1.0 - 1j * u * self.kappa_j
+        ))
+        return np.asarray(heston * jump, dtype=np.complex128)
+
+    def cumulants(self, T: float) -> CumTuple:
+        # Heston c1,c2 numerically; the (compensated) jump adds analytic c1,c2,c4.
+        hc1, hc2, _ = numerical_cumulants(self._heston, T)
+        mu, sj = self.mu_j, self.sigma_j
+        c1 = hc1 + self.lam * T * (mu - self.kappa_j)
+        c2 = hc2 + self.lam * T * (mu * mu + sj * sj)
+        c4 = self.lam * T * (mu ** 4 + 6.0 * mu * mu * sj * sj + 3.0 * sj ** 4)
+        return c1, c2, c4
 
 
 # ── Variance Gamma ───────────────────────────────────────────────────────────

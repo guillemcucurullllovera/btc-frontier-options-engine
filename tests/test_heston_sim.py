@@ -125,3 +125,58 @@ def test_leverage_effect_reproduced() -> None:
     y = np.abs(r[:, 1:]).ravel()
     corr = float(np.corrcoef(x, y)[0, 1])
     assert corr < 0.0
+
+
+# ── QE (Andersen) low-bias scheme (C9 · M3.3) ─────────────────────────────────
+
+# Calibrated-scale extreme, Feller-badly-violated params (volvol 550%, ratio ~0.12).
+_QE_HP = {"heston_v0": 0.078, "heston_kappa": 8.37, "heston_theta": 0.209,
+          "heston_vol_of_vol": 5.50, "heston_rho": -0.403}
+
+
+def _qe_cfg(scheme: str, n_steps: int) -> MultiCycleMCConfig:
+    return MultiCycleMCConfig(
+        n_paths=300_000, n_cycles=1, cycle_length_years=45.0 / 365.0, n_steps_per_cycle=n_steps,
+        initial_spot=63_402.0, drift=0.0, risk_free_rate=0.0, model="Heston", seed=42,
+        use_antithetic=True, chunk_size=50_000, variance_scheme=scheme, **_QE_HP)  # type: ignore[arg-type]
+
+
+def _cf_vs_mc_max_se(scheme: str, n_steps: int) -> float:
+    from pricing.cf.characteristic_functions import Heston as _H
+    st = _simulate_paths_full(_qe_cfg(scheme, n_steps))[:, -1]
+    model = _H(r=0.0, q=0.0, v0=_QE_HP["heston_v0"], kappa=_QE_HP["heston_kappa"],
+               theta=_QE_HP["heston_theta"], sigma=_QE_HP["heston_vol_of_vol"], rho=_QE_HP["heston_rho"])
+    worst = 0.0
+    for K in (57_000.0, 63_402.0, 70_000.0):
+        po = np.maximum(st - K, 0.0)
+        se = float(po.std() / math.sqrt(po.size))
+        worst = max(worst, abs(cos_call(model, 63_402.0, K, 45.0 / 365.0, N=4096, L=18.0) - float(po.mean())) / se)
+    return worst
+
+
+def test_qe_lower_bias_than_euler_extreme_regime() -> None:
+    """At the same step count, QE's CF-vs-MC bias is far below full-truncation Euler's (Feller ~0.12)."""
+    euler_se = _cf_vs_mc_max_se("full_truncation_euler", 100)
+    qe_se = _cf_vs_mc_max_se("qe", 100)
+    assert euler_se > 3.0                       # Euler badly biased at 100 steps (extreme volvol)
+    assert qe_se < 2.5                          # QE within ~2*SE at the same step count
+    assert qe_se < 0.6 * euler_se               # QE materially lower bias
+
+
+def test_qe_martingale_reproducible_and_feller_safe() -> None:
+    cfg = _qe_cfg("qe", 100)
+    paths = _simulate_paths_full(cfg)
+    assert np.all(np.isfinite(paths)) and np.all(paths > 0.0)       # Feller-safe by construction
+    assert paths[:, -1].mean() == pytest.approx(63_402.0, rel=2e-3)  # martingale
+    assert np.array_equal(_simulate_paths_full(cfg), _simulate_paths_full(cfg))  # reproducible
+
+
+def test_qe_works_for_bates() -> None:
+    """QE composes with the Bates jump block (own uniform substream) and stays a martingale."""
+    cfg = MultiCycleMCConfig(
+        n_paths=200_000, n_cycles=1, cycle_length_years=45.0 / 365.0, n_steps_per_cycle=100,
+        initial_spot=63_402.0, drift=0.0, risk_free_rate=0.0, model="Bates", seed=42,
+        use_antithetic=True, chunk_size=50_000, variance_scheme="qe",
+        jump_intensity=5.0, jump_mean=-0.05, jump_std=0.05, **_QE_HP)  # type: ignore[arg-type]
+    st = _simulate_paths_full(cfg)[:, -1]
+    assert np.all(np.isfinite(st)) and st.mean() == pytest.approx(63_402.0, rel=3e-3)

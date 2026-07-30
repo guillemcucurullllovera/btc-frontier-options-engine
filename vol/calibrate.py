@@ -26,7 +26,7 @@ agree (same optimum). Calibrated params are provenance-tagged CALIBRATED in the 
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -35,10 +35,11 @@ import numpy.typing as npt
 from scipy.optimize import minimize
 
 from pricing.black76 import greeks_black76, price_black76
-from pricing.cf.characteristic_functions import Heston
+from pricing.cf.characteristic_functions import CharModel, Heston
 from vol.chain_surface import ChainSlice
 
 FloatArr = npt.NDArray[np.float64]
+ModelBuilder = Callable[[FloatArr], CharModel]
 
 # Parameter order: (v0, kappa, theta, vol_of_vol, rho).
 _LB = np.array([1e-3, 0.1, 1e-3, 1e-2, -0.95])
@@ -92,11 +93,12 @@ class CalibrationResult:
 # ── Vectorised undiscounted Heston call prices on a forward (z = ln(S_T/F)) ───
 
 
-def _heston_call_slice(p: FloatArr, F: float, strikes: FloatArr, T: float,
-                       N: int = 192, L: float = 14.0) -> FloatArr:
-    """Undiscounted (r=q=0) Heston call prices on forward F for all strikes (vectorised over K)."""
-    v0, kappa, theta, volvol, rho = (float(x) for x in p)
-    model = Heston(r=0.0, q=0.0, v0=v0, kappa=kappa, theta=theta, sigma=volvol, rho=rho)
+def _model_call_slice(model: CharModel, F: float, strikes: FloatArr, T: float,
+                      N: int = 192, L: float = 14.0) -> FloatArr:
+    """Undiscounted (r=q=0) call prices on forward F for all strikes (vectorised over K).
+
+    Model-agnostic: any CharModel priced on the forward via the z=ln(S_T/F) COS convention.
+    """
     c1, c2, c4 = model.cumulants(T)                       # cumulants of z = ln(S_T/F) = R
     width = L * math.sqrt(abs(c2) + math.sqrt(max(c4, 0.0)))
     a, b = c1 - width, c1 + width
@@ -119,6 +121,17 @@ def _heston_call_slice(p: FloatArr, F: float, strikes: FloatArr, T: float,
     psi[1:] = (sb[1:, None] - np.sin(wl[1:])) / w[1:, None]
     Vmat = (2.0 / (b - a)) * (F * chi - strikes[None, :] * psi)   # payoff coeffs (N, S)
     return np.asarray(A @ Vmat, dtype=np.float64)
+
+
+def _heston_build(p: FloatArr) -> Heston:
+    return Heston(r=0.0, q=0.0, v0=float(p[0]), kappa=float(p[1]), theta=float(p[2]),
+                  sigma=float(p[3]), rho=float(p[4]))
+
+
+def _heston_call_slice(p: FloatArr, F: float, strikes: FloatArr, T: float,
+                       N: int = 192, L: float = 14.0) -> FloatArr:
+    """Undiscounted (r=q=0) Heston call prices on forward F (back-compat wrapper)."""
+    return _model_call_slice(_heston_build(p), F, strikes, T, N, L)
 
 
 # ── Market-side prep (computed once) ─────────────────────────────────────────
@@ -155,11 +168,13 @@ def _prep_market(slices: Sequence[ChainSlice], spread_floor: float = 5e-3) -> li
     return out
 
 
-def _iv_residuals(p: FloatArr, market: list[_MarketSlice], N: int, L: float) -> FloatArr:
-    """Vega-weighted IV-space residuals across the whole surface (flattened)."""
+def _iv_residuals(build: ModelBuilder, p: FloatArr, market: list[_MarketSlice],
+                  N: int, L: float) -> FloatArr:
+    """Vega-weighted IV-space residuals across the whole surface (flattened), for any model."""
+    model = build(p)
     parts: list[FloatArr] = []
     for ms in market:
-        call = _heston_call_slice(p, ms.F, ms.strikes, ms.T, N, L)
+        call = _model_call_slice(model, ms.F, ms.strikes, ms.T, N, L)
         # OTM model price: put = call - (F - K) (undiscounted r=0 parity) where kind == 'put'.
         is_put = np.array([kd == "put" for kd in ms.kinds])
         p_model = np.where(is_put, call - (ms.F - ms.strikes), call)
@@ -167,27 +182,87 @@ def _iv_residuals(p: FloatArr, market: list[_MarketSlice], N: int, L: float) -> 
     return np.concatenate(parts)
 
 
-# ── Grid-seeded, bounded Nelder-Mead multi-start calibration ──────────────────
+# ── Grid-seeded, bounded Nelder-Mead multi-start calibration (model-agnostic) ─
 
 
-def _seed_grid(atm_var: float) -> list[FloatArr]:
-    """A fixed, diverse set of start points seeded around the ATM variance (deterministic)."""
+def _heston_seed_grid(atm_var: float) -> list[FloatArr]:
+    """Diverse Heston start points seeded around the ATM variance (deterministic)."""
     v = max(atm_var, 0.02)
-    seeds: list[FloatArr] = []
-    for kappa in (1.0, 3.0, 6.0):
-        for volvol in (0.5, 1.5, 3.0):
-            for rho in (-0.5, 0.0):
-                seeds.append(np.array([v, kappa, v, volvol, rho]))
-    return seeds
+    return [np.array([v, kappa, v, volvol, rho])
+            for kappa in (1.0, 3.0, 6.0) for volvol in (0.5, 1.5, 3.0) for rho in (-0.5, 0.0)]
 
 
-def _objective(p: FloatArr, market: list[_MarketSlice], N: int, L: float,
-               prior: FloatArr | None, tikhonov: float) -> float:
-    res = _iv_residuals(p, market, N, L)
-    obj = float(np.mean(res * res))
+def _objective(p: FloatArr, build: ModelBuilder, market: list[_MarketSlice], N: int, L: float,
+               prior: FloatArr | None, tikhonov: float, scale: FloatArr) -> float:
+    try:
+        res = _iv_residuals(build, p, market, N, L)
+        obj = float(np.mean(res * res))
+    except (ValueError, FloatingPointError):
+        return 1e12
+    if not math.isfinite(obj):        # VG/CGMY invalid regions (martingale/gamma poles) -> reject
+        return 1e12
     if prior is not None and tikhonov > 0.0:
-        obj += tikhonov * float(np.sum(((p - prior) / _TIKHONOV_SCALE) ** 2))
+        obj += tikhonov * float(np.sum(((p - prior) / scale) ** 2))
     return obj
+
+
+@dataclass(frozen=True)
+class GenericCalResult:
+    """Raw model-agnostic calibration result (mapped to CalibrationResult for Heston)."""
+
+    params: FloatArr
+    rmse_usd: float
+    aae_usd: float
+    ape: float
+    arpe: float
+    rmse_iv: float
+    ssr_iv: float                # sum of squared IV residuals (for AIC/BIC)
+    n_options: int
+    n_iterations: int
+    n_starts: int
+    obj: float
+    starts_obj_rel_spread: float
+    starts_param_spread: float
+
+
+def calibrate_generic(
+    build: ModelBuilder, lb: FloatArr, ub: FloatArr, seeds: Sequence[FloatArr],
+    slices: Sequence[ChainSlice], t_floor: float = 14.0 / 365.0, N: int = 192, L: float = 14.0,
+    n_starts: int = 3, prior: FloatArr | None = None, tikhonov: float = 0.0, maxiter: int = 6000,
+) -> GenericCalResult:
+    """Calibrate any model (via ``build``) to the surface with grid-seed -> bounded Nelder-Mead."""
+    usable = [sl for sl in slices if sl.k.size >= 5 and t_floor <= sl.T]
+    if len(usable) < 2:
+        raise ValueError("need >= 2 usable slices with >= 5 strikes to calibrate")
+    market = _prep_market(usable)
+    scale = np.maximum(np.abs(ub - lb), 1e-6)
+
+    seed_scores = sorted(seeds, key=lambda s: _objective(s, build, market, N, L, None, 0.0, scale))
+    starts = seed_scores[:max(n_starts, 1)]
+
+    results: list[tuple[FloatArr, float, int]] = []
+    for x0 in starts:
+        x0c = np.minimum(np.maximum(x0, lb), ub)
+        sol = minimize(_objective, x0c, args=(build, market, N, L, prior, tikhonov, scale),
+                       method="Nelder-Mead", bounds=list(zip(lb, ub, strict=True)),
+                       options={"xatol": 1e-5, "fatol": 1e-10, "maxiter": maxiter})
+        results.append((np.asarray(sol.x, dtype=np.float64), float(sol.fun), int(sol.nit)))
+
+    results.sort(key=lambda r: r[1])
+    best_p, best_obj, best_nit = results[0]
+    objs = np.array([r[1] for r in results])
+    obj_spread = float(objs.max() / objs.min() - 1.0) if objs.min() > 0 else 0.0
+    opt = np.array([r[0] for r in results])
+    param_spread = float(np.max(np.max(np.abs(opt - opt[0]) / scale, axis=1))) if len(opt) > 1 else 0.0
+
+    stats = _fit_stats(build, best_p, market, N, L)
+    return GenericCalResult(
+        params=best_p, rmse_usd=stats["rmse_usd"], aae_usd=stats["aae_usd"], ape=stats["ape"],
+        arpe=stats["arpe"], rmse_iv=stats["rmse_iv"], ssr_iv=stats["ssr_iv"],
+        n_options=int(sum(ms.strikes.size for ms in market)), n_iterations=best_nit,
+        n_starts=len(starts), obj=best_obj, starts_obj_rel_spread=obj_spread,
+        starts_param_spread=param_spread,
+    )
 
 
 def calibrate_heston(
@@ -204,42 +279,19 @@ def calibrate_heston(
     usable = [sl for sl in slices if sl.k.size >= 5 and t_floor <= sl.T]
     if len(usable) < 2:
         raise ValueError("need >= 2 usable slices with >= 5 strikes for Heston calibration")
-    market = _prep_market(usable)
-
-    # ATM variance seed from the shortest slice.
     near = min(usable, key=lambda s: s.T)
     atm_var = float(np.interp(0.0, near.k, near.mark_iv) ** 2)
     prior_arr = prior.as_array() if prior is not None else None
 
-    seeds = _seed_grid(atm_var)
-    seed_scores = sorted(seeds, key=lambda s: _objective(s, market, N, L, prior_arr, tikhonov))
-    starts = seed_scores[:max(n_starts, 1)]
-
-    results: list[tuple[FloatArr, float, int]] = []
-    for x0 in starts:
-        x0c = np.minimum(np.maximum(x0, _LB), _UB)
-        sol = minimize(_objective, x0c, args=(market, N, L, prior_arr, tikhonov),
-                       method="Nelder-Mead", bounds=list(zip(_LB, _UB, strict=True)),
-                       options={"xatol": 1e-5, "fatol": 1e-10, "maxiter": 4000})
-        results.append((np.asarray(sol.x, dtype=np.float64), float(sol.fun), int(sol.nit)))
-
-    results.sort(key=lambda r: r[1])
-    best_p, best_obj, best_nit = results[0]
-    objs = np.array([r[1] for r in results])
-    obj_rel_spread = float(objs.max() / objs.min() - 1.0) if objs.min() > 0 else 0.0
-    opt = np.array([r[0] for r in results])
-    param_spread = float(np.max(np.max(np.abs(opt - opt[0]) / _TIKHONOV_SCALE, axis=1))) if len(opt) > 1 else 0.0
-
-    params = HestonCalParams(*(float(x) for x in best_p))
-    stats = _fit_stats(best_p, market, N, L)
+    g = calibrate_generic(_heston_build, _LB, _UB, _heston_seed_grid(atm_var), slices,
+                          t_floor=t_floor, N=N, L=L, n_starts=n_starts,
+                          prior=prior_arr, tikhonov=tikhonov)
+    params = HestonCalParams(*(float(x) for x in g.params))
     return CalibrationResult(
-        params=params,
-        rmse_usd=stats["rmse_usd"], aae_usd=stats["aae_usd"], ape=stats["ape"],
-        arpe=stats["arpe"], rmse_iv=stats["rmse_iv"],
-        n_options=int(sum(ms.strikes.size for ms in market)),
-        n_iterations=best_nit, n_starts=len(starts), starts_obj_rel_spread=obj_rel_spread,
-        starts_param_spread=param_spread, weighted_objective=best_obj,
-        feller_ratio=params.feller_ratio, feller_ok=params.feller_ok,
+        params=params, rmse_usd=g.rmse_usd, aae_usd=g.aae_usd, ape=g.ape, arpe=g.arpe,
+        rmse_iv=g.rmse_iv, n_options=g.n_options, n_iterations=g.n_iterations, n_starts=g.n_starts,
+        starts_obj_rel_spread=g.starts_obj_rel_spread, starts_param_spread=g.starts_param_spread,
+        weighted_objective=g.obj, feller_ratio=params.feller_ratio, feller_ok=params.feller_ok,
         snapshot_dir=snapshot_dir,
     )
 
@@ -267,18 +319,20 @@ def calibration_manifest(result: CalibrationResult) -> dict[str, object]:
     }
 
 
-def _fit_stats(p: FloatArr, market: list[_MarketSlice], N: int, L: float) -> dict[str, float]:
-    """The MaMaMoMaMa error quartet (RMSE/AAE/APE/ARPE, USD price) + the IV-space RMSE.
+def _fit_stats(build: ModelBuilder, p: FloatArr, market: list[_MarketSlice],
+               N: int, L: float) -> dict[str, float]:
+    """The MaMaMoMaMa error quartet (RMSE/AAE/APE/ARPE, USD price) + IV-space RMSE + SSR(IV).
 
     ARPE averages the per-option relative error; deep-OTM options with a near-zero price are floored
     at 0.1% of the forward so a single ~$0 wing quote cannot blow the metric up (documented).
     """
+    model = build(p)
     dP: list[float] = []
     Pm: list[float] = []
     dIV: list[float] = []
     floors: list[float] = []
     for ms in market:
-        call = _heston_call_slice(p, ms.F, ms.strikes, ms.T, N, L)
+        call = _model_call_slice(model, ms.F, ms.strikes, ms.T, N, L)
         is_put = np.array([kd == "put" for kd in ms.kinds])
         p_model = np.where(is_put, call - (ms.F - ms.strikes), call)
         diff = p_model - ms.p_market
@@ -293,4 +347,5 @@ def _fit_stats(p: FloatArr, market: list[_MarketSlice], N: int, L: float) -> dic
         "ape": float(np.sum(dP_a) / max(np.sum(Pm_a), 1e-8)),
         "arpe": float(np.mean(dP_a / np.maximum(Pm_a, fl))),
         "rmse_iv": float(np.sqrt(np.mean(dIV_a ** 2))),
+        "ssr_iv": float(np.sum(dIV_a ** 2)),
     }

@@ -58,7 +58,7 @@ DEFAULT_CHUNK_SIZE = 50_000
 
 FeeBase = Literal["reference_notional", "executed_volume"]
 D12Interp = Literal["cash_settled", "post_purchase"]
-ModelName = Literal["GBM", "Merton", "Heston"]
+ModelName = Literal["GBM", "Merton", "Heston", "Bates"]
 
 
 @dataclass(frozen=True)
@@ -84,6 +84,9 @@ class MultiCycleMCConfig:
     heston_theta: float = 0.20
     heston_vol_of_vol: float = 0.6
     heston_rho: float = -0.5
+    # C9 · M3.3 variance discretisation: full-truncation Euler (default, O(dt) bias) or Andersen's
+    # QE (2008), the low-bias scheme for the extreme, Feller-violated BTC vol-of-vol regime.
+    variance_scheme: Literal["full_truncation_euler", "qe"] = "full_truncation_euler"
     n_steps_per_cycle: int = 30
 
     strike_target_pct: float = 0.15
@@ -146,12 +149,12 @@ class MultiCycleMCConfig:
             raise ValidationError(f"jump_std must be non-negative, got {self.jump_std}")
         if self.chunk_size <= 0:
             raise ValidationError(f"chunk_size must be positive, got {self.chunk_size}")
-        if self.model not in ("GBM", "Merton", "Heston"):
-            raise ValidationError(f"model must be 'GBM', 'Merton' or 'Heston', got {self.model!r}")
-        if self.model == "Heston":
+        if self.model not in ("GBM", "Merton", "Heston", "Bates"):
+            raise ValidationError(f"model must be 'GBM', 'Merton', 'Heston' or 'Bates', got {self.model!r}")
+        if self.model in ("Heston", "Bates"):
             if not (self.heston_v0 > 0 and self.heston_theta > 0 and self.heston_kappa > 0
                     and self.heston_vol_of_vol > 0):
-                raise ValidationError("Heston requires v0, kappa, theta, vol_of_vol > 0")
+                raise ValidationError(f"{self.model} requires v0, kappa, theta, vol_of_vol > 0")
             if not -1.0 < self.heston_rho < 1.0:
                 raise ValidationError(f"heston_rho must be in (-1, 1), got {self.heston_rho}")
 
@@ -308,12 +311,14 @@ def _unit_premiums(config: MultiCycleMCConfig) -> tuple[float, float]:
 # ── path generation (chunked, vectorised, deterministic per chunk) ─────────────
 
 
-def _chunk_children(seed: int, chunk_index: int, model: ModelName) -> dict[str, np.random.Generator]:
+def _chunk_children(seed: int, chunk_index: int, model: ModelName,
+                    variance_scheme: str = "full_truncation_euler") -> dict[str, np.random.Generator]:
     """Independent RNG substreams for one chunk, keyed by (seed, chunk_index).
 
     Same seed+chunk_index → identical streams (reproducible + resumable). GBM and
     Merton share the diffusion stream (common random numbers); Merton adds two jump
-    streams. Streams are drawn as whole-chunk blocks so a chunk is self-contained.
+    streams. Heston/Bates add a variance-Brownian stream, and QE additionally needs a uniform
+    stream for its exponential branch. Streams are whole-chunk blocks so a chunk is self-contained.
     """
     ss = np.random.SeedSequence([int(seed), int(chunk_index)])
     if model == "Merton":
@@ -323,11 +328,20 @@ def _chunk_children(seed: int, chunk_index: int, model: ModelName) -> dict[str, 
             "jcount": np.random.default_rng(jc),
             "jsize": np.random.default_rng(jz),
         }
-    if model == "Heston":
-        # Own spawn slot for the variance Brownian (orthogonal component W_perp), so the
-        # variance stream is independent of and reproducible alongside the spot stream.
-        diff, var = ss.spawn(2)
-        return {"diff": np.random.default_rng(diff), "var": np.random.default_rng(var)}
+    if model in ("Heston", "Bates"):
+        qe = variance_scheme == "qe"
+        n_jump = 2 if model == "Bates" else 0
+        children_ss = ss.spawn(2 + (1 if qe else 0) + n_jump)
+        out = {"diff": np.random.default_rng(children_ss[0]),
+               "var": np.random.default_rng(children_ss[1])}
+        idx = 2
+        if qe:
+            out["var_u"] = np.random.default_rng(children_ss[idx])
+            idx += 1
+        if model == "Bates":
+            out["jcount"] = np.random.default_rng(children_ss[idx])
+            out["jsize"] = np.random.default_rng(children_ss[idx + 1])
+        return out
     (diff,) = ss.spawn(1)
     return {"diff": np.random.default_rng(diff)}
 
@@ -356,9 +370,11 @@ def _generate_chunk_paths(
     mu = config.drift
     sigma = config.volatility
     S0 = config.initial_spot
-    children = _chunk_children(config.seed, chunk_index, config.model)
+    children = _chunk_children(config.seed, chunk_index, config.model, config.variance_scheme)
 
-    if config.model == "Heston":
+    if config.model in ("Heston", "Bates"):
+        if config.variance_scheme == "qe":
+            return _generate_heston_qe_chunk(config, children, m, n_steps, dt, mu, S0)
         return _generate_heston_chunk(config, children, m, n_steps, dt, sqdt, mu, S0)
 
     z = _diffusion_normals(children["diff"], m, n_steps, config.use_antithetic)
@@ -395,6 +411,10 @@ def _generate_heston_chunk(
     Reproducibility: W1 from the 'diff' substream, the orthogonal W_perp from the 'var'
     substream; antithetic negates BOTH (odd rows), so W2 = rho*W1 + sqrt(1-rho^2)*W_perp is
     negated on the antithetic partner too (handled explicitly via _diffusion_normals).
+
+    model == "Bates" reuses this SV core and adds the existing Merton compound-Poisson jump block
+    (own 'jcount'/'jsize' substreams; jumps are per-path i.i.d., not antithetic), compensated so
+    the discounted spot stays a martingale.
     """
     kappa = config.heston_kappa
     theta = config.heston_theta
@@ -403,6 +423,14 @@ def _generate_heston_chunk(
     z1 = _diffusion_normals(children["diff"], m, n_steps, config.use_antithetic)   # W1 (spot)
     zp = _diffusion_normals(children["var"], m, n_steps, config.use_antithetic)    # W_perp
     sqrt_1mr2 = math.sqrt(1.0 - rho * rho)
+
+    is_bates = config.model == "Bates"
+    if is_bates:
+        lam, mu_j, sigma_j = config.jump_intensity, config.jump_mean, config.jump_std
+        jc_comp = lam * (math.exp(mu_j + 0.5 * sigma_j * sigma_j) - 1.0)           # compensator
+        n_jumps = children["jcount"].poisson(lam * dt, size=(m, n_steps))
+        z2 = children["jsize"].standard_normal((m, n_steps))
+        jumps = mu_j * n_jumps + sigma_j * np.sqrt(n_jumps) * z2
 
     logS = np.full(m, math.log(S0), dtype=np.float64)
     v = np.full(m, config.heston_v0, dtype=np.float64)
@@ -414,7 +442,91 @@ def _generate_heston_chunk(
         w1 = z1[:, t]
         w2 = rho * w1 + sqrt_1mr2 * zp[:, t]
         logS += (mu - 0.5 * vp) * dt + sq * w1
+        if is_bates:
+            logS += jumps[:, t] - jc_comp * dt
         v = v + kappa * (theta - vp) * dt + volvol * np.sqrt(vp) * sqdt * w2
+        paths[:, t + 1] = np.exp(logS)
+    return paths
+
+
+def _antithetic_uniform(gen: np.random.Generator, m: int, n_steps: int, antithetic: bool) -> np.ndarray:
+    """(m, n_steps) uniforms; even rows primary U, odd rows the antithetic partner 1-U."""
+    if not antithetic:
+        return gen.random((m, n_steps))
+    n_prim = (m + 1) // 2
+    up = gen.random((n_prim, n_steps))
+    u = np.empty((m, n_steps), dtype=np.float64)
+    u[0::2] = up
+    n_partner = m // 2
+    if n_partner:
+        u[1::2] = 1.0 - up[:n_partner]
+    return u
+
+
+def _generate_heston_qe_chunk(
+    config: MultiCycleMCConfig, children: dict[str, np.random.Generator],
+    m: int, n_steps: int, dt: float, mu: float, S0: float,
+) -> np.ndarray:
+    """Andersen (2008) Quadratic-Exponential Heston/Bates chunk (low bias). Shape (m, n_steps+1).
+
+    The variance is sampled from its exact conditional moments (quadratic branch for low variance-
+    of-variance psi<=psi_c, exponential branch otherwise) — no time-stepping bias in v — and the
+    log-spot uses Andersen's central discretisation (K0..K4) with the martingale-correcting K0.
+    Feller-safe by construction. Streams: Z_S ('diff'), the variance normal Z_v ('var'), the
+    exponential-branch uniform U ('var_u'); Bates adds the Merton jump streams.
+    """
+    kappa = config.heston_kappa
+    theta = config.heston_theta
+    volvol = config.heston_vol_of_vol
+    rho = config.heston_rho
+    psi_c = 1.5
+    anti = config.use_antithetic
+    zs = _diffusion_normals(children["diff"], m, n_steps, anti)      # orthogonal spot normal
+    zv = _diffusion_normals(children["var"], m, n_steps, anti)       # variance normal (quadratic)
+    uu = _antithetic_uniform(children["var_u"], m, n_steps, anti)    # variance uniform (exponential)
+
+    is_bates = config.model == "Bates"
+    if is_bates:
+        lam, mu_j, sigma_j = config.jump_intensity, config.jump_mean, config.jump_std
+        jc_comp = lam * (math.exp(mu_j + 0.5 * sigma_j * sigma_j) - 1.0)
+        n_jumps = children["jcount"].poisson(lam * dt, size=(m, n_steps))
+        jsz = children["jsize"].standard_normal((m, n_steps))
+        jumps = mu_j * n_jumps + sigma_j * np.sqrt(n_jumps) * jsz
+
+    ekt = math.exp(-kappa * dt)
+    # Andersen central-discretisation spot constants (gamma1 = gamma2 = 0.5).
+    K0 = -rho * kappa * theta * dt / volvol
+    K1 = 0.5 * dt * (kappa * rho / volvol - 0.5) - rho / volvol
+    K2 = 0.5 * dt * (kappa * rho / volvol - 0.5) + rho / volvol
+    K3 = 0.5 * dt * (1.0 - rho * rho)
+    K4 = K3
+
+    logS = np.full(m, math.log(S0), dtype=np.float64)
+    v = np.full(m, config.heston_v0, dtype=np.float64)
+    paths = np.empty((m, n_steps + 1), dtype=np.float64)
+    paths[:, 0] = S0
+    for t in range(n_steps):
+        s2 = (v * volvol * volvol * ekt / kappa * (1.0 - ekt)
+              + theta * volvol * volvol / (2.0 * kappa) * (1.0 - ekt) ** 2)
+        mcond = theta + (v - theta) * ekt
+        psi = s2 / np.maximum(mcond * mcond, 1e-300)
+        # Quadratic branch (psi <= psi_c).
+        inv_psi = 1.0 / np.maximum(psi, 1e-300)
+        b2 = np.maximum(2.0 * inv_psi - 1.0 + np.sqrt(2.0 * inv_psi) * np.sqrt(np.maximum(2.0 * inv_psi - 1.0, 0.0)), 0.0)
+        a = mcond / (1.0 + b2)
+        v_quad = a * (np.sqrt(b2) + zv[:, t]) ** 2
+        # Exponential branch (psi > psi_c).
+        p = np.clip((psi - 1.0) / (psi + 1.0), 0.0, 1.0 - 1e-12)
+        beta = (1.0 - p) / np.maximum(mcond, 1e-300)
+        u = uu[:, t]
+        v_exp = np.where(u <= p, 0.0, np.log(np.maximum((1.0 - p) / np.maximum(1.0 - u, 1e-300), 1e-300)) / beta)
+        v_next = np.where(psi <= psi_c, v_quad, v_exp)
+
+        logS += (mu * dt + K0 + K1 * v + K2 * v_next
+                 + np.sqrt(np.maximum(K3 * v + K4 * v_next, 0.0)) * zs[:, t])
+        if is_bates:
+            logS += jumps[:, t] - jc_comp * dt
+        v = np.maximum(v_next, 0.0)
         paths[:, t + 1] = np.exp(logS)
     return paths
 
