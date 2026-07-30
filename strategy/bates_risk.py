@@ -165,6 +165,117 @@ def bates_risk(structure: Structure, cfg: PhysicalRiskConfig, K: float,
     return out
 
 
+# ── M5.4 · full structure set (leg-based) + P-vol regime band ────────────────
+
+
+@dataclass(frozen=True)
+class StructureLeg:
+    kind: str                    # "call" | "put"
+    side: str                    # "SHORT" (receive premium) | "LONG" (pay premium)
+    strike_pct: float            # signed %OTM off S0 (+ above, - below)
+    weight: float = 1.0
+
+
+@dataclass(frozen=True)
+class StructureDef:
+    name: str
+    has_holding: bool            # includes the long-BTC block (holder-basis)
+    legs: tuple[StructureLeg, ...]
+
+
+# The C8 structure toolkit (holder-basis; single illustrative strike per family).
+STRUCTURES: dict[str, StructureDef] = {
+    "unhedged": StructureDef("unhedged", True, ()),
+    "covered_call": StructureDef("covered_call", True, (StructureLeg("call", "SHORT", 5.0),)),
+    "long_btc_plus_short_put": StructureDef("long_btc_plus_short_put", True,
+                                            (StructureLeg("put", "SHORT", -5.0),)),
+    "cash_secured_put": StructureDef("cash_secured_put", False, (StructureLeg("put", "SHORT", -5.0),)),
+    "collar": StructureDef("collar", True,
+                           (StructureLeg("call", "SHORT", 5.0), StructureLeg("put", "LONG", -10.0))),
+    "call_spread": StructureDef("call_spread", False,
+                                (StructureLeg("call", "SHORT", 3.0), StructureLeg("call", "LONG", 5.0))),
+    "strike_ladder": StructureDef("strike_ladder", True, (
+        StructureLeg("call", "SHORT", 5.0, 1.0 / 3.0),
+        StructureLeg("call", "SHORT", 10.0, 1.0 / 3.0),
+        StructureLeg("call", "SHORT", 15.0, 1.0 / 3.0),
+    )),
+}
+
+
+def _leg_sign(side: str) -> float:
+    return 1.0 if side == "SHORT" else -1.0
+
+
+def structure_pnl(sdef: StructureDef, S0: float, S_T: np.ndarray, T: float,
+                  coverage: float = 1.0) -> np.ndarray:
+    """Holder-basis USD P&L for any structure (Q-marked premiums; holding on the full block)."""
+    pnl = (S_T - S0) if sdef.has_holding else np.zeros_like(S_T)
+    for leg in sdef.legs:
+        K = S0 * (1.0 + leg.strike_pct / 100.0)
+        prem = q_bates_premium(S0, K, T, leg.kind)
+        payoff = np.maximum(S_T - K, 0.0) if leg.kind == "call" else np.maximum(K - S_T, 0.0)
+        pnl = pnl + coverage * leg.weight * _leg_sign(leg.side) * (prem - payoff)
+    return pnl
+
+
+def structure_vrp(sdef: StructureDef, S0: float, S_T: np.ndarray, T: float) -> float:
+    """Net VRP carry = sum_legs sign*weight*(premium - E^P[payoff]) (the option overlay's expected P&L)."""
+    total = 0.0
+    for leg in sdef.legs:
+        K = S0 * (1.0 + leg.strike_pct / 100.0)
+        prem = q_bates_premium(S0, K, T, leg.kind)
+        payoff = np.maximum(S_T - K, 0.0) if leg.kind == "call" else np.maximum(K - S_T, 0.0)
+        total += leg.weight * _leg_sign(leg.side) * (prem - float(np.mean(payoff)))
+    return float(total)
+
+
+@dataclass(frozen=True)
+class RegimeRow:
+    structure: str
+    p_vol: float
+    vol_regime: str              # "current" | "forecast" | "stress"
+    drift: float
+    mean_pnl: float
+    prob_loss: float
+    var95: float
+    es975: float
+    cvar95: float
+    cvar95_se: float
+    vrp_carry: float
+    provenance: str = "SIMULATED"
+
+
+def regime_risk_table(
+    cfg: PhysicalRiskConfig, vol_band: dict[str, float], drift_band: tuple[float, ...],
+    structures: tuple[str, ...] = tuple(STRUCTURES), n_boot: int = 120,
+) -> list[RegimeRow]:
+    """Full-structure risk across the P-vol regime band x the drift band (Bates physical scenarios).
+
+    S_T is simulated ONCE per (vol, drift) regime and reused across structures (the terminal spot is
+    structure-independent) — so the sweep is 3 vols x 3 drifts sims, not per-structure.
+    """
+    from dataclasses import replace
+
+    rows: list[RegimeRow] = []
+    for regime, vol in vol_band.items():
+        for drift in drift_band:
+            st = simulate_terminal(replace(cfg, p_vol=vol, drift=drift), "Bates")
+            for name in structures:
+                sdef = STRUCTURES[name]
+                pnl = structure_pnl(sdef, cfg.S0, st, cfg.T)
+                losses = -pnl
+                var95 = float(np.percentile(losses, 95.0))
+                es975 = float(np.mean(losses[losses >= float(np.percentile(losses, 97.5))]))
+                cv = ru_cvar_ci(pnl, beta=0.95, n_boot=n_boot)
+                rows.append(RegimeRow(
+                    structure=name, p_vol=vol, vol_regime=regime, drift=drift,
+                    mean_pnl=float(np.mean(pnl)), prob_loss=float(np.mean(pnl < 0.0)),
+                    var95=var95, es975=es975, cvar95=cv.cvar, cvar95_se=cv.cvar_se,
+                    vrp_carry=structure_vrp(sdef, cfg.S0, st, cfg.T),
+                ))
+    return rows
+
+
 @dataclass(frozen=True)
 class CvarFrontierPoint:
     structure: str

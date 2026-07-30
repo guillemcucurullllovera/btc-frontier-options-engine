@@ -282,6 +282,30 @@ def compute_diagnostics(
     )
 
 
+def forward_forecast_vol(
+    result: GarchResult, last_return: float, horizon_days: int, annualise: bool = True,
+) -> float:
+    """GARCH(1,1) conditional FORWARD-forecast vol averaged over the option horizon (C9 · M5.4).
+
+    Unlike ``GarchResult.forecast_vol`` (the in-sample average conditional vol, ~unconditional), this
+    is a genuine forward forecast that mean-reverts from the CURRENT conditional variance toward the
+    unconditional level over the horizon:
+        E[sig^2_{t+h}] = uncond + persistence^{h-1} (sig^2_{t+1} - uncond),
+    averaged over h = 1..H. This is the CENTRAL scenario vol for M5.4 (replacing the 2-year
+    unconditional). Returns annualised (sqrt(365)) vol by default.
+    """
+    p = result.params
+    uncond = p.unconditional_variance
+    last_cv = result.conditional_variances[-1] if result.conditional_variances else uncond
+    sig2_next = p.omega + p.alpha * last_return * last_return + p.beta * last_cv
+    persist = p.persistence
+    avg_var = float(np.mean([
+        uncond + persist ** (h - 1) * (sig2_next - uncond) for h in range(1, max(horizon_days, 1) + 1)
+    ]))
+    avg_var = max(avg_var, 1e-12)
+    return float(np.sqrt(avg_var) * np.sqrt(365.0)) if annualise else float(np.sqrt(avg_var))
+
+
 def compute_forecast(
     result: GarchResult,
     dvol: float | None = None,
