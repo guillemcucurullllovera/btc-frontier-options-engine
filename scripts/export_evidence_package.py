@@ -61,7 +61,8 @@ def _sha256_file(filepath: str) -> str:
 
 def _read_json(path: str) -> dict[str, Any]:
     with open(path) as f:
-        return json.load(f)
+        data: dict[str, Any] = json.load(f)
+    return data
 
 
 def export_evidence_package(results_dir: str, package_dir: str) -> int:
@@ -251,6 +252,8 @@ def export_evidence_package(results_dir: str, package_dir: str) -> int:
     }
 
     # Assumptions and provenance
+    # dm: non-optional view of the manifest so field access is total (mypy union-attr).
+    dm: dict[str, Any] = data_manifest or {}
     assumptions = [
         "# Assumptions and Provenance — Stage 3 Fast-Track",
         "",
@@ -259,11 +262,11 @@ def export_evidence_package(results_dir: str, package_dir: str) -> int:
         f"## Generation timestamp: {datetime.now(UTC).isoformat()}",
         "",
         "## Spot Data",
-        f"- Source: {data_manifest.get('actual_provider', 'unknown') if data_manifest else 'unknown'}",
-        f"- Provenance: {data_manifest.get('provenance', 'unknown') if data_manifest else 'unknown'}",
-        f"- Requested window: {data_manifest.get('requested_start', 'unknown')} to {data_manifest.get('requested_end', 'unknown')}",
-        f"- Actual window: {data_manifest.get('actual_start', 'unknown')} to {data_manifest.get('actual_end', 'unknown')}",
-        f"- Observations: {data_manifest.get('observation_count', 0)}",
+        f"- Source: {dm.get('actual_provider', 'unknown')}",
+        f"- Provenance: {dm.get('provenance', 'unknown')}",
+        f"- Requested window: {dm.get('requested_start', 'unknown')} to {dm.get('requested_end', 'unknown')}",
+        f"- Actual window: {dm.get('actual_start', 'unknown')} to {dm.get('actual_end', 'unknown')}",
+        f"- Observations: {dm.get('observation_count', 0)}",
         "",
         "## DVOL / Implied Volatility",
     ]
