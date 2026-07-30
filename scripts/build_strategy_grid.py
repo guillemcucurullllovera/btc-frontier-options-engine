@@ -71,7 +71,8 @@ def _print_row(row: GridRow, s0: float) -> None:
           f"coverage {row.coverage_pct:g}%  strike% {row.strike_pct}")
     for leg in row.option_legs:
         print(f"    leg: {leg.side} {leg.kind} {leg.instrument}  K={leg.listed_strike:g}  "
-              f"iv={leg.iv:.4f} ({leg.iv_provenance})  premium/BTC={leg.premium_per_btc:.2f}")
+              f"iv={leg.iv:.4f} ({leg.iv_provenance})  r={leg.r:.4f} [{leg.r_provenance}]  "
+              f"premium/BTC={leg.premium_per_btc:.2f}")
     pr = row.premium
     print(f"    net premium: {pr.net_per_btc:.2f}/BTC  {pr.pct_of_spot:.3f}% spot  "
           f"{pr.per_contract:.0f}/contract  {pr.per_portfolio:,.0f}/portfolio  "
@@ -84,9 +85,13 @@ def _print_row(row: GridRow, s0: float) -> None:
           f"holding {ml.holding.per_btc:,.0f}/BTC  option {ml.option.per_btc:,.0f}/BTC  "
           f"total {ml.total.per_btc:,.0f}/BTC")
     print(f"        total {ml.total.per_portfolio:,.0f} portfolio  "
-          f"{ml.total_pct_of_notional*100:.1f}% notional  "
-          f"{ml.total_pct_of_capital*100:.1f}% capital (cap {ml.capital_usd:,.0f})"
+          f"{ml.total_pct_of_notional*100:.1f}% of notional [{ml.notional_basis}]  "
+          f"{ml.total_pct_of_capital*100:.1f}% of capital [{ml.capital_basis}]"
           f"{'  UNBOUNDED' if ml.unbounded else ''}")
+    fee = row.structuring_fee
+    print(f"    structuring fee ({fee.fee_pct}%, {fee.decision_ref}, NOT in P&L): "
+          f"reference-notional {fee.on_reference_notional_usd:,.0f}  |  "
+          f"executed-volume {fee.on_executed_volume_usd:,.0f}")
     print(f"    breakevens: strike%OTM={row.breakeven.strike_pct_otm}  "
           f"true={[round(b, 1) for b in row.breakeven.true_breakevens]}")
     if row.effective_net_price is not None:
@@ -98,14 +103,25 @@ def _print_row(row: GridRow, s0: float) -> None:
     p2ml = f"{rr.premium_to_max_loss:.4f}" if rr.premium_to_max_loss is not None else "n/a"
     ud = f"{rr.upside_downside_2sigma:.3f}" if rr.upside_downside_2sigma is not None else "n/a"
     print(f"    risk-reward: premium/max-loss={p2ml}  upside/downside(2sigma)={ud}")
-    print(f"    sigma_h={row.sigma_horizon:.4f}  scenarios (k-sigma | %move | S_T | "
-          f"hold/BTC | option/BTC | TOTAL/BTC | %port):")
-    for tag, cells in (("INSTANT", row.scenarios_instantaneous), ("TERMINAL", row.scenarios_terminal)):
+    print(f"    sigma_h={row.sigma_horizon:.4f}  |  {row.scenario_view_note}")
+    print("    scenarios (k-sigma | %move | S_T | hold/BTC | option/BTC | TOTAL/BTC | %port):")
+    views = [
+        ("STANDALONE-INSTANT", row.scenarios_instantaneous),
+        ("STANDALONE-TERMINAL", row.scenarios_terminal),
+    ]
+    if not row.has_holding:  # total-portfolio view differs only when there's no BTC leg
+        views.append(("PORTFOLIO-TERMINAL (holding + structure)", row.scenarios_terminal_portfolio))
+    for tag, cells in views:
         print(f"      {tag}:")
         for c in cells:
             print(f"        {c.k_sigma:+.0f}s {c.pct_move*100:+6.1f}% S={c.scenario_spot:8.0f}  "
                   f"{c.holding.per_btc:+9.0f}  {c.option.per_btc:+9.0f}  {c.total.per_btc:+9.0f}  "
                   f"{c.pct_of_portfolio*100:+6.1f}%")
+    if row.opportunity_cost:
+        oc = "  ".join(
+            f"{c.k_sigma:+.0f}s={c.foregone.per_btc:,.0f}/BTC" for c in row.opportunity_cost
+        )
+        print(f"    opportunity cost (upside foregone vs unhedged BTC, +sigma): {oc}")
     print(f"    attractive when: {row.attractive_when}")
 
 
@@ -113,8 +129,10 @@ def print_sample_slice(grid: StrategyGrid) -> None:
     print("\n" + "=" * 78)
     print("C8 PHASE 2 — STRATEGY GRID SAMPLE SLICE")
     print("=" * 78)
-    print(f"as of {grid.as_of_utc}  |  S0={grid.s0:,.2f}  r={grid.r}  "
-          f"block={grid.block_btc:,} BTC ({grid.block_btc // grid.cme_contract_btc:,} CME contracts)")
+    print(f"as of {grid.as_of_utc}  |  S0={grid.s0:,.2f}  block={grid.block_btc:,} BTC "
+          f"({grid.block_btc // grid.cme_contract_btc:,} CME contracts)")
+    print(f"  r: {grid.r_provenance}  (fallback {grid.r_fallback})  |  "
+          f"pending decisions: {', '.join(grid.pending_decision_refs)}")
     for e in grid.expiries:
         print(f"  expiry {e.label}: DTE={e.dte_days:.2f}  ATM_IV={e.atm_iv:.4f}  "
               f"sigma_h={e.sigma_horizon:.4f}")

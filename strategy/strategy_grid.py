@@ -50,14 +50,20 @@ SIGMA_STEPS: tuple[float, ...] = (-2.0, -1.0, 0.0, 1.0, 2.0)
 
 # Multi-leg framing conventions (documented; grid-construction detail, not a
 # business decision - surfaced in the gate report for confirmation):
-COLLAR_PROTECTIVE_PUT_PCT: float = 5.0          # long put floor for the collar sweep
+COLLAR_FLOOR_PCTS: tuple[float, ...] = (10.0, 5.0)  # protective-put floors; 10% primary (deck Slide-4)
 CALL_SPREAD_PAIRS: tuple[tuple[float, float], ...] = (
     (1.5, 3.0), (3.0, 5.0), (5.0, 10.0), (10.0, 15.0),
-)  # (short call %OTM, long call %OTM) adjacent widths
+)  # CREDIT call spread: SHORT lower strike / LONG higher strike (premium-generating)
 LADDER_PCTS: tuple[float, ...] = (5.0, 10.0, 15.0)  # short-call rungs, equal-weighted
 
 CEO_REFERENCE_PREMIUM_PCT: float = 2.0   # labelled reference marker only
 DECK_REFERENCE_PREMIUM_PCT: float = 2.5  # labelled reference marker only
+
+MANDATE_REFERENCE_SPOT: float = 65_000.0  # stated mandate reference (not a pricing input)
+STRUCTURING_FEE_PCT: float = 0.5          # Asymmetrica execution fee (config execution_fee_pct)
+
+# Pending decisions attached to every grid row + the grid (never resolved here).
+PENDING_DECISION_REFS: tuple[str, ...] = ("D-1", "D-4", "D-7", "D-9", "D-10", "MS-25", "MS-26")
 
 HERO_STRUCTURES: frozenset[str] = frozenset({"covered_call", "long_btc_plus_short_put"})
 
@@ -135,6 +141,8 @@ class OptionLegSpec:
     iv_provenance: str
     instrument: str
     premium_per_btc: float  # bs_price(S0, K, r, iv, T, kind) - t0 premium, USD/BTC
+    r: float                # risk-free rate used to price this leg
+    r_provenance: str       # "observed (deribit interest_rate)" | "assumed (config 4%)"
     notional_weight: float = 1.0  # fraction of coveragexblock this leg covers
 
     @property
@@ -191,6 +199,8 @@ class MaxLossBlock:
     total_pct_of_capital: float
     capital_usd: float
     unbounded: bool
+    notional_basis: str = "portfolio_notional = 30,000 * S0"
+    capital_basis: str = ""  # set per structure (BTC value / cash collateral / defined risk)
 
 
 @dataclass(frozen=True)
@@ -215,6 +225,29 @@ class RiskRewardBlock:
     premium_to_max_loss: float | None
     upside_downside_2sigma: float | None
     definition: str
+
+
+@dataclass(frozen=True)
+class FeeBlock:
+    """Structuring fee (Asymmetrica 0.5%) — SEPARATE from scenario P&L (pre-fee grid).
+
+    D-1 (fee base) is unresolved: both variants are emitted, never baked in.
+    """
+
+    fee_pct: float
+    on_reference_notional_usd: float   # D-1 variant A: 0.5% * 30,000 * mandate reference spot
+    on_executed_volume_usd: float      # D-1 variant B: 0.5% * coverage * 30,000 * S0 (traded overlay)
+    decision_ref: str = "D-1"
+    note: str = "Structuring fee is a separate line; NOT included in scenario P&L (pre-fee grid)."
+
+
+@dataclass(frozen=True)
+class OpportunityCostCell:
+    """Upside foregone vs unhedged long BTC in a +sigma scenario (foregone gain, not a loss)."""
+
+    k_sigma: float
+    scenario_spot: float
+    foregone: Granular  # max(0, unhedged_total - structure_total_portfolio_view)
 
 
 @dataclass(frozen=True)
@@ -243,6 +276,7 @@ class GridRow:
     structure_id: str
     canonical_kind: str
     is_hero: bool
+    benchmark_only: bool     # unhedged_baseline: internal benchmark, never featured/recommended
     has_holding: bool
     has_cash: bool
     business_label: str
@@ -261,11 +295,20 @@ class GridRow:
     breakeven: BreakevenBlock
     greeks: GreeksBlock
     risk_reward: RiskRewardBlock
+    structuring_fee: FeeBlock
+    # Standalone view: the structure as defined (no-holding structures show no BTC leg).
     scenarios_instantaneous: list[ScenarioCell]
     scenarios_terminal: list[ScenarioCell]
+    # Total-portfolio view: existing 30,000-BTC holding + the structure (comparability basis
+    # so no-holding structures are comparable to holding-inclusive ones).
+    scenarios_instantaneous_portfolio: list[ScenarioCell]
+    scenarios_terminal_portfolio: list[ScenarioCell]
+    scenario_view_note: str
+    opportunity_cost: list[OpportunityCostCell]
     theta_decay: list[DecayPoint]
     effective_net_price: float | None   # cash-secured put only
     attractive_when: str
+    pending_decision_refs: tuple[str, ...] = PENDING_DECISION_REFS
 
 
 @dataclass(frozen=True)
@@ -283,7 +326,9 @@ class StrategyGrid:
     as_of_utc: str
     snapshot_dir: str
     s0: float
-    r: float
+    r_fallback: float               # config ASSUMED rate; per-leg r is OBSERVED where available
+    r_provenance: str
+    mandate_reference_spot: float
     block_btc: int
     cme_contract_btc: int
     expiries: list[GridExpiry]
@@ -291,6 +336,7 @@ class StrategyGrid:
     framing_notes: list[str] = field(default_factory=list)
     disclaimer: str = DISCLAIMER
     pending_gates: tuple[str, ...] = PENDING_GATES
+    pending_decision_refs: tuple[str, ...] = PENDING_DECISION_REFS
 
 
 # ── Pricing primitives (linear-USD BS bridge) ──────────────────────────────
@@ -318,20 +364,18 @@ def _norm_cdf(x: float) -> float:
 # ── Per-leg / per-structure economics (closed form, per option-notional BTC) ─
 
 
-def _leg_pnl_per_btc(leg: OptionLegSpec, s: float, r: float, t: float, mode: str) -> float:
-    """Option-leg P&L per BTC of that leg's notional at spot *s*.
+def _leg_pnl_per_btc(leg: OptionLegSpec, s: float, t: float, mode: str) -> float:
+    """Option-leg P&L per BTC of that leg's notional at spot *s* (uses the leg's own r).
 
     SHORT: premium received - current value.  LONG: -premium paid + current value.
     """
-    value = _option_value(s, leg.listed_strike, r, leg.iv, t, leg.kind, mode)
+    value = _option_value(s, leg.listed_strike, leg.r, leg.iv, t, leg.kind, mode)
     return leg.side_sign * (leg.premium_per_btc - value)
 
 
-def _option_pnl_per_notional_btc(
-    spec: StructureSpec, s: float, r: float, t: float, mode: str
-) -> float:
+def _option_pnl_per_notional_btc(spec: StructureSpec, s: float, t: float, mode: str) -> float:
     return sum(
-        leg.notional_weight * _leg_pnl_per_btc(leg, s, r, t, mode) for leg in spec.option_legs
+        leg.notional_weight * _leg_pnl_per_btc(leg, s, t, mode) for leg in spec.option_legs
     )
 
 
@@ -350,16 +394,17 @@ def _cell(
     spec: StructureSpec,
     s: float,
     s0: float,
-    r: float,
     t: float,
     coverage: float,
     block: int,
     mode: str,
     k_sigma: float,
     sigma_h: float,
+    holding_always: bool = False,
 ) -> ScenarioCell:
-    holding_pp = (block * _holding_pnl_per_block_btc(s, s0)) if spec.has_holding else 0.0
-    option_pp = coverage * block * _option_pnl_per_notional_btc(spec, s, r, t, mode)
+    include_holding = spec.has_holding or holding_always
+    holding_pp = (block * _holding_pnl_per_block_btc(s, s0)) if include_holding else 0.0
+    option_pp = coverage * block * _option_pnl_per_notional_btc(spec, s, t, mode)
     cash_pp = 0.0
     total_pp = holding_pp + option_pp + cash_pp
     notional = block * s0
@@ -378,14 +423,13 @@ def _cell(
 
 
 def _scenarios(
-    spec: StructureSpec, s0: float, r: float, t: float, coverage: float, block: int,
-    sigma_h: float, mode: str,
+    spec: StructureSpec, s0: float, t: float, coverage: float, block: int,
+    sigma_h: float, mode: str, holding_always: bool = False,
 ) -> list[ScenarioCell]:
     cells: list[ScenarioCell] = []
     for k in SIGMA_STEPS:
-        s = s0 * (1.0 + k * sigma_h)
-        s = max(s, 1e-6)
-        cells.append(_cell(spec, s, s0, r, t, coverage, block, mode, k, sigma_h))
+        s = max(s0 * (1.0 + k * sigma_h), 1e-6)
+        cells.append(_cell(spec, s, s0, t, coverage, block, mode, k, sigma_h, holding_always))
     return cells
 
 
@@ -399,13 +443,11 @@ def _terminal_total_per_portfolio(
     spec: StructureSpec, s: float, s0: float, coverage: float, block: int
 ) -> float:
     holding = (block * _holding_pnl_per_block_btc(s, s0)) if spec.has_holding else 0.0
-    option = coverage * block * _option_pnl_per_notional_btc(spec, s, 0.0, 0.0, "terminal")
+    option = coverage * block * _option_pnl_per_notional_btc(spec, s, 0.0, "terminal")
     return holding + option
 
 
-def _max_loss(
-    spec: StructureSpec, s0: float, r: float, coverage: float, block: int,
-) -> MaxLossBlock:
+def _max_loss(spec: StructureSpec, s0: float, coverage: float, block: int) -> MaxLossBlock:
     kinks = _kinks(spec, s0)
     # Piecewise-linear terminal P&L: global min over S in [0,inf) is at a kink unless
     # the slope stays negative past the last kink (uncapped short-call exposure).
@@ -417,10 +459,16 @@ def _max_loss(
     unbounded = slope < -1e-6
     worst = min(kinks, key=lambda s: _terminal_total_per_portfolio(spec, s, s0, coverage, block))
     holding_pp = (block * _holding_pnl_per_block_btc(worst, s0)) if spec.has_holding else 0.0
-    option_pp = coverage * block * _option_pnl_per_notional_btc(spec, worst, r, 0.0, "terminal")
+    option_pp = coverage * block * _option_pnl_per_notional_btc(spec, worst, 0.0, "terminal")
     total_pp = holding_pp + option_pp
     capital = _capital_usd(spec, s0, coverage, block)
     notional = block * s0
+    if spec.has_cash:
+        capital_basis = "cash collateral = coverage * 30,000 * put strike"
+    elif spec.has_holding:
+        capital_basis = "value of held BTC = 30,000 * S0"
+    else:
+        capital_basis = "structural max loss (defined-risk, option-only)"
     return MaxLossBlock(
         worst_case_spot=worst,
         holding=_granular(holding_pp, block),
@@ -431,6 +479,7 @@ def _max_loss(
         total_pct_of_capital=(total_pp / capital) if capital > 0 else 0.0,
         capital_usd=capital,
         unbounded=unbounded,
+        capital_basis=capital_basis,
     )
 
 
@@ -469,20 +518,20 @@ def _breakevens(spec: StructureSpec, s0: float, coverage: float, block: int) -> 
     return deduped
 
 
-def _prob_win(spec: StructureSpec, s0: float, r: float, t: float) -> ProbWin | None:
+def _prob_win(spec: StructureSpec, s0: float, t: float) -> ProbWin | None:
     if spec.primary_leg_index is None:
         return None
     leg = spec.option_legs[spec.primary_leg_index]
     if leg.side != "SHORT":
         return None
-    d2 = _d2(s0, leg.listed_strike, r, leg.iv, t)
+    d2 = _d2(s0, leg.listed_strike, leg.r, leg.iv, t)
     if leg.kind == "call":
         value = _norm_cdf(-d2)
         measure = "risk_neutral P(S_T<K_call)=N(-d2)"
     else:
         value = _norm_cdf(d2)
         measure = "risk_neutral P(S_T>K_put)=N(d2)"
-    g = bs_greeks(s0, leg.listed_strike, r, leg.iv, t, leg.kind)
+    g = bs_greeks(s0, leg.listed_strike, leg.r, leg.iv, t, leg.kind)
     return ProbWin(
         measure=measure,
         value=value,
@@ -491,10 +540,10 @@ def _prob_win(spec: StructureSpec, s0: float, r: float, t: float) -> ProbWin | N
     )
 
 
-def _greeks(spec: StructureSpec, s0: float, r: float, t: float, coverage: float) -> GreeksBlock:
+def _greeks(spec: StructureSpec, s0: float, t: float, coverage: float) -> GreeksBlock:
     delta = gamma = vega = theta = 0.0
     for leg in spec.option_legs:
-        g = bs_greeks(s0, leg.listed_strike, r, leg.iv, t, leg.kind)
+        g = bs_greeks(s0, leg.listed_strike, leg.r, leg.iv, t, leg.kind)
         w = leg.notional_weight * leg.position_sign
         delta += w * g.delta
         gamma += w * g.gamma
@@ -511,19 +560,20 @@ def _greeks(spec: StructureSpec, s0: float, r: float, t: float, coverage: float)
     )
 
 
-def _theta_decay(spec: StructureSpec, s0: float, r: float, t: float) -> list[DecayPoint]:
+def _theta_decay(spec: StructureSpec, s0: float, t: float) -> list[DecayPoint]:
     """Net structure option value at t0 spot as remaining time decays (5 points)."""
     points: list[DecayPoint] = []
     for frac in (1.0, 0.75, 0.5, 0.25, 0.0):
         t_rem = max(t * frac, 1e-6)
         value = sum(
             leg.notional_weight * leg.side_sign
-            * (leg.premium_per_btc - _option_value(s0, leg.listed_strike, r, leg.iv, t_rem, leg.kind, "instantaneous"))
+            * (leg.premium_per_btc
+               - _option_value(s0, leg.listed_strike, leg.r, leg.iv, t_rem, leg.kind, "instantaneous"))
             for leg in spec.option_legs
         )
         theta = 0.0
         for leg in spec.option_legs:
-            g = bs_greeks(s0, leg.listed_strike, r, leg.iv, t_rem, leg.kind)
+            g = bs_greeks(s0, leg.listed_strike, leg.r, leg.iv, t_rem, leg.kind)
             theta += leg.notional_weight * leg.position_sign * g.theta
         points.append(DecayPoint(
             dte_days=t_rem * 365.0,
@@ -570,24 +620,53 @@ def _premium_block(spec: StructureSpec, s0: float, coverage: float, block: int) 
     )
 
 
+def _fee_block(coverage: float, block: int, mandate_ref: float, s0: float) -> FeeBlock:
+    fee = STRUCTURING_FEE_PCT / 100.0
+    return FeeBlock(
+        fee_pct=STRUCTURING_FEE_PCT,
+        on_reference_notional_usd=fee * block * mandate_ref,
+        on_executed_volume_usd=fee * coverage * block * s0,
+    )
+
+
+def _opportunity_cost(
+    portfolio_terminal: list[ScenarioCell], block: int, s0: float,
+) -> list[OpportunityCostCell]:
+    """Upside foregone vs unhedged long BTC in the +sigma scenarios (total-portfolio view)."""
+    cells: list[OpportunityCostCell] = []
+    for c in portfolio_terminal:
+        if c.k_sigma <= 0.0:
+            continue
+        unhedged_pp = block * (c.scenario_spot - s0)
+        foregone_pp = max(0.0, unhedged_pp - c.total.per_portfolio)
+        cells.append(OpportunityCostCell(
+            k_sigma=c.k_sigma, scenario_spot=c.scenario_spot,
+            foregone=_granular(foregone_pp, block),
+        ))
+    return cells
+
+
 def _compute_row(
     spec: StructureSpec,
     business_label: str,
     exp: GridExpiry,
     coverage_pct: float,
     s0: float,
-    r: float,
     block: int,
+    mandate_ref: float,
 ) -> GridRow:
     coverage = coverage_pct / 100.0
     t = exp.t_years
+    sh = exp.sigma_horizon
     premium = _premium_block(spec, s0, coverage, block)
-    inst = _scenarios(spec, s0, r, t, coverage, block, exp.sigma_horizon, "instantaneous")
-    term = _scenarios(spec, s0, r, t, coverage, block, exp.sigma_horizon, "terminal")
-    max_loss = _max_loss(spec, s0, r, coverage, block)
+    inst = _scenarios(spec, s0, t, coverage, block, sh, "instantaneous")
+    term = _scenarios(spec, s0, t, coverage, block, sh, "terminal")
+    inst_pf = _scenarios(spec, s0, t, coverage, block, sh, "instantaneous", holding_always=True)
+    term_pf = _scenarios(spec, s0, t, coverage, block, sh, "terminal", holding_always=True)
+    max_loss = _max_loss(spec, s0, coverage, block)
     breakevens = _breakevens(spec, s0, coverage, block)
-    greeks = _greeks(spec, s0, r, t, coverage)
-    prob_win = _prob_win(spec, s0, r, t)
+    greeks = _greeks(spec, s0, t, coverage)
+    prob_win = _prob_win(spec, s0, t)
     risk_reward = _risk_reward(premium.per_portfolio, max_loss, term)
 
     effective_net_price: float | None = None
@@ -595,10 +674,18 @@ def _compute_row(
         leg = spec.option_legs[spec.primary_leg_index]
         effective_net_price = leg.listed_strike - leg.premium_per_btc
 
+    same = spec.has_holding
+    view_note = (
+        "Standalone == total-portfolio (this structure already includes the 30,000-BTC holding)."
+        if same else
+        "Standalone excludes the BTC holding; total-portfolio view = 30,000-BTC holding + structure."
+    )
+
     return GridRow(
         structure_id=spec.structure_id,
         canonical_kind=spec.canonical_kind,
         is_hero=spec.structure_id in HERO_STRUCTURES,
+        benchmark_only=(spec.structure_id == "unhedged_baseline"),
         has_holding=spec.has_holding,
         has_cash=spec.has_cash,
         business_label=business_label,
@@ -609,7 +696,7 @@ def _compute_row(
         coverage_pct=coverage_pct,
         strike_pct=spec.primary_strike_pct,
         atm_iv=exp.atm_iv,
-        sigma_horizon=exp.sigma_horizon,
+        sigma_horizon=sh,
         option_legs=list(spec.option_legs),
         premium=premium,
         prob_win=prob_win,
@@ -621,9 +708,14 @@ def _compute_row(
         ),
         greeks=greeks,
         risk_reward=risk_reward,
+        structuring_fee=_fee_block(coverage, block, mandate_ref, s0),
         scenarios_instantaneous=inst,
         scenarios_terminal=term,
-        theta_decay=_theta_decay(spec, s0, r, t),
+        scenarios_instantaneous_portfolio=inst_pf,
+        scenarios_terminal_portfolio=term_pf,
+        scenario_view_note=view_note,
+        opportunity_cost=_opportunity_cost(term_pf, block, s0),
+        theta_decay=_theta_decay(spec, s0, t),
         effective_net_price=effective_net_price,
         attractive_when=ATTRACTIVE_WHEN.get(spec.structure_id, ""),
     )
@@ -632,8 +724,18 @@ def _compute_row(
 # ── Structure-spec builders ────────────────────────────────────────────────
 
 
+def _resolve_leg_r(
+    name: str, books: Sequence[BookSummary], fallback_r: float,
+) -> tuple[float, str]:
+    """Per-instrument r: OBSERVED Deribit interest_rate if the book exists, else ASSUMED config."""
+    for b in books:
+        if b.instrument_name == name:
+            return b.interest_rate, "observed (deribit interest_rate)"
+    return fallback_r, f"assumed (config {fallback_r * 100:g}%)"
+
+
 def _leg(
-    kind: str, side: str, pct_signed: float, s0: float, r: float, t: float,
+    kind: str, side: str, pct_signed: float, s0: float, fallback_r: float, t: float,
     expiry_utc: str, instruments: Sequence[OptionInstrument], books: Sequence[BookSummary],
     notional_weight: float = 1.0,
 ) -> OptionLegSpec:
@@ -641,16 +743,17 @@ def _leg(
     requested = s0 * (1.0 + pct_signed / 100.0)
     listed, name = snap_to_listed_strike(instruments, expiry, kind, requested)
     lk = iv_for(listed, expiry, kind, instruments, books)
+    r, r_prov = _resolve_leg_r(name, books, fallback_r)
     prem = bs_price(s0, listed, r, lk.iv, t, kind)
     return OptionLegSpec(
         kind=kind, side=side, requested_pct=pct_signed, listed_strike=listed,
         iv=lk.iv, iv_provenance=lk.provenance.value, instrument=name,
-        premium_per_btc=prem, notional_weight=notional_weight,
+        premium_per_btc=prem, r=r, r_provenance=r_prov, notional_weight=notional_weight,
     )
 
 
 def _specs_for_expiry(
-    exp: GridExpiry, s0: float, r: float,
+    exp: GridExpiry, s0: float, fallback_r: float,
     instruments: Sequence[OptionInstrument], books: Sequence[BookSummary],
 ) -> list[tuple[StructureSpec, str]]:
     """All (StructureSpec, business_label) for one expiry, sweeping strike%."""
@@ -659,7 +762,7 @@ def _specs_for_expiry(
     out: list[tuple[StructureSpec, str]] = []
 
     def opt(kind: str, side: str, pct: float, w: float = 1.0) -> OptionLegSpec:
-        return _leg(kind, side, pct, s0, r, t, e, instruments, books, w)
+        return _leg(kind, side, pct, s0, fallback_r, t, e, instruments, books, w)
 
     # Unhedged baseline (holding only) - one reference row per expiry.
     out.append((StructureSpec(
@@ -696,14 +799,16 @@ def _specs_for_expiry(
             primary_strike_pct=-pct, primary_leg_index=0,
         ), "Cash-Secured Put"))
 
-    # Collar - holding + short call at +pct + long protective put at -COLLAR_PROTECTIVE_PUT_PCT.
-    for pct in CALL_OTM_PCT:
-        out.append((StructureSpec(
-            structure_id="collar", canonical_kind="collar",
-            has_holding=True, has_cash=False,
-            option_legs=[opt("call", "SHORT", pct), opt("put", "LONG", -COLLAR_PROTECTIVE_PUT_PCT)],
-            primary_strike_pct=pct, primary_leg_index=0,
-        ), "Collar (Long BTC + Short Call + Long Put)"))
+    # Collar - holding + short call at +pct + long protective put at a floor.
+    # Primary floor 10% OTM (deck Slide-4 ~ -10%); a labelled 5% floor variant is also emitted.
+    for floor in COLLAR_FLOOR_PCTS:
+        for pct in CALL_OTM_PCT:
+            out.append((StructureSpec(
+                structure_id="collar", canonical_kind="collar",
+                has_holding=True, has_cash=False,
+                option_legs=[opt("call", "SHORT", pct), opt("put", "LONG", -floor)],
+                primary_strike_pct=pct, primary_leg_index=0,
+            ), f"Collar (Long BTC + Short Call + Long Put, {floor:g}% floor)"))
 
     # Call spread - short call + long call, adjacent widths (no holding).
     for short_pct, long_pct in CALL_SPREAD_PAIRS:
@@ -741,38 +846,59 @@ def build_grid(
     as_of_utc: str,
     snapshot_dir: str,
     s0: float,
-    r: float,
+    r_fallback: float,
     expiries: list[GridExpiry],
     instruments: Sequence[OptionInstrument],
     books: Sequence[BookSummary],
     block: int = PORTFOLIO_BTC,
+    mandate_reference_spot: float = MANDATE_REFERENCE_SPOT,
 ) -> StrategyGrid:
-    """Build the full deterministic strategy grid off a frozen snapshot."""
+    """Build the full deterministic strategy grid off a frozen snapshot.
+
+    Each option leg prices with its own OBSERVED Deribit interest_rate where the
+    book summary exists, else *r_fallback* (ASSUMED, labelled per leg).
+    """
     rows: list[GridRow] = []
+    r_provs: set[str] = set()
     for exp in expiries:
-        for spec, label in _specs_for_expiry(exp, s0, r, instruments, books):
+        for spec, label in _specs_for_expiry(exp, s0, r_fallback, instruments, books):
             if not spec.has_holding and not spec.option_legs:
                 continue
+            r_provs.update(leg.r_provenance for leg in spec.option_legs)
             coverages = COVERAGE_PCT if spec.option_legs else (100.0,)
             for coverage_pct in coverages:
-                rows.append(_compute_row(spec, label, exp, coverage_pct, s0, r, block))
+                rows.append(_compute_row(
+                    spec, label, exp, coverage_pct, s0, block, mandate_reference_spot,
+                ))
+    r_provenance = "; ".join(sorted(r_provs)) if r_provs else "n/a"
 
     framing_notes = [
         f"t0 = snapshot as-of {as_of_utc}; DTE and greeks computed from t0.",
         "Holding leg = full 30,000-BTC block (client's inherent exposure), MTM from t0 spot.",
         "Option leg notional = coverage x 30,000 BTC (the advised overlay).",
         "partial_overlay = covered_call family at coverage<100% (canonical kind reflects it).",
-        f"collar sweep: short call over strike%, protective long put fixed at "
-        f"{COLLAR_PROTECTIVE_PUT_PCT:g}% OTM (grid-construction convention).",
-        "call_spread: short call over strike%, long call at the next adjacent width.",
-        f"strike_ladder: equal-weighted short calls at {LADDER_PCTS} %OTM, single expiry.",
+        f"collar: short call over strike%, protective long put floors {COLLAR_FLOOR_PCTS} %OTM "
+        f"(10% primary per deck Slide-4; 5% variant also emitted).",
+        "call_spread: CREDIT spread - SHORT lower strike / LONG higher strike (premium-generating).",
+        f"strike_ladder: equal-weighted short calls at {LADDER_PCTS} %OTM, single expiry "
+        f"(multi-DTE ladder is Phase 3).",
         "Scenario sigma per tenor: sigma_h(T)=ATM_IV(T)*sqrt(T/365); each expiry uses its own ATM IV.",
-        "Pricing bridge: linear-USD Black-Scholes with Deribit mark_iv and USD r; "
+        f"Pricing bridge: linear-USD Black-Scholes with Deribit mark_iv and r [{r_provenance}]; "
         "Deribit is inverse/BTC-settled, CME is linear/USD-settled.",
+        "Two scenario views per row: standalone + total-portfolio (30,000-BTC holding + structure).",
+        "Denominators labelled: scenario % over portfolio notional (30,000*S0); max-loss %capital "
+        "over the structure's own committed capital (see max_loss.capital_basis).",
+        "Structuring fee (0.5%) is a SEPARATE line, pre-fee grid; both D-1 bases emitted.",
+        "Grid is unhedged (D-9): greeks shown, no delta-hedge P&L applied.",
+        "opportunity_cost = max(0, unhedged_total - structure_total) on the total-portfolio view "
+        "(net of premium; the brief's gross max(0,S_T-K)*q differs by the premium received).",
+        "unhedged_baseline is an internal benchmark only - never a featured/recommended row.",
         "CEO 2% / deck 2.5% premium and 36%/45% vol are labelled reference markers only.",
     ]
     return StrategyGrid(
-        as_of_utc=as_of_utc, snapshot_dir=snapshot_dir, s0=s0, r=r,
+        as_of_utc=as_of_utc, snapshot_dir=snapshot_dir, s0=s0,
+        r_fallback=r_fallback, r_provenance=r_provenance,
+        mandate_reference_spot=mandate_reference_spot,
         block_btc=block, cme_contract_btc=CME_CONTRACT_BTC,
         expiries=expiries, rows=rows, framing_notes=framing_notes,
     )

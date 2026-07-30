@@ -172,5 +172,41 @@ heroes.
 
 `multi_cycle_mc` runs both heroes (covered_call, long_btc_plus_short_put) with the live-IV inputs
 established here, across seeds × tiers, surfacing prob-of-loss / VaR / ES / EAC to complement this
-deterministic grid — the rolling, re-strike-at-each-expiry lifecycle. **Phase 3 does not begin
-until this gate is reviewed.**
+deterministic grid — the rolling, re-strike-at-each-expiry lifecycle.
+
+---
+
+## 10. Post-approval amendment (orchestrator-directed, test-first)
+
+Applied before Phase 3; gates re-verified (pytest **596p/3s**, mypy 60 files, ruff, anon clean;
++10 amendment tests; independent oracle extended to the new fields). Grid is now **210 rows**.
+
+1. **Collar floor → 10% OTM** (deck Slide-4 ≈ −10%), short call still swept; a labelled **5%-floor
+   variant** is also emitted (collar rows: 5 calls × 2 floors × 2 expiries × 4 coverage = 80).
+2. **Call spread confirmed CREDIT** — SHORT lower strike / LONG higher strike (premium-generating);
+   asserted per-row (`short.strike < long.strike`, net premium > 0).
+3. **Strike ladder** stays single-expiry equal-weight {5,10,15}%; multi-DTE ladder is Phase 3.
+4. **Risk-free r** now sourced **per-leg from Deribit `interest_rate` (OBSERVED)** where the book
+   exists, else 4% config (ASSUMED, labelled per leg). On the anchor all listed legs resolve to
+   **r = 0.0 OBSERVED** — more consistent with Deribit's own `mark_iv` forward; the covered-call
+   5%-OTM premium moves 1,126.90 → **1,068.16/BTC**. `r_provenance` recorded on every leg + the grid.
+5. **%-denominators labelled** per cell: `max_loss.notional_basis` (portfolio notional = 30,000×S0)
+   and `max_loss.capital_basis` (BTC value / cash collateral / defined risk).
+6. **Opportunity-cost field** added: `max(0, unhedged_total − structure_total)` on the total-portfolio
+   view at +σ (net of premium — the brief's gross `max(0,S_T−K)·q` differs by the premium; noted).
+   Covered-call 5% OTM: +1σ 1,615/BTC, +2σ 7,789/BTC. LBSP: 0 (matches/beats unhedged upside).
+7. **Total-portfolio comparability**: every row emits BOTH a standalone view and a total-portfolio
+   view (30,000-BTC holding + structure), so cash-secured put / call spread are comparable to
+   holding-inclusive structures. Reconciled to the engine (`test_portfolio_view_reconciles_engine`).
+   `unhedged_baseline` flagged `benchmark_only` (never featured/recommended).
+8. **Structuring fee (D-1)**: a SEPARATE `FeeBlock` per row, **pre-fee grid** (never in scenario
+   P&L), with both D-1 bases — reference-notional **$9,750,000** (0.5%×30,000×65,000) and
+   executed-volume (0.5%×coverage×30,000×S0). References D-1.
+
+**Decision-gate discipline honoured:** overlay grid is pre-structuring-fee (D-1 both variants
+emitted separately); unhedged (D-9 — greeks shown, no delta-hedge P&L); full loss spectrum across
+structures × strikes × coverage (D-10 neutral, no assumed budget); every structure analysed at
+parity as scope-neutral (D-4/D-7 — none presented as the committed live trade).
+**`pending_decision_refs` = (D-1, D-4, D-7, D-9, D-10, MS-25, MS-26)** attached to the grid and
+every row. No claim requiring MS-25 (ranking/objective), MS-26 (approved sim methodology), or
+CSCV/PBO/DSR is made. **Phase 3 does not begin until reviewed.**
