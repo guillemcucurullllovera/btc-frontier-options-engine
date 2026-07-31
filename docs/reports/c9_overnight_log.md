@@ -20,6 +20,10 @@ Nothing forced — results are reported as the data gives them.
 | D2 | A | Compare rough-at-H vs Heston at IDENTICAL settings (same N, L, slices, starts, maxiter) | The canonical "Heston 8.08%" was at N=192; the rough scan must use the same COS/optimizer budget as its own H=0.5 baseline, or the comparison is confounded. Baseline recomputed here as rough-H=0.5 (exact closed form) → 8.05% (matches 8.08%). |
 | D3 | A | Report the corrected free-H optimum as **H≈0.20 (strong rough), ARPE 7.39%** — NOT the earlier "weakly rough H≈0.45" | Converged free-H (7.385%) independently matches fixed-H=0.20 (7.384%) — two separate optimizations agree → real attractor. The earlier "8.8%/H≈0.45" was an optimizer failure (8.8% > Heston 8.05% is impossible for a converged free-H). The fragile intermediate points H=0.30/0.25 (multi-start spread 1.4/0.75) are documented as the computational limit and reported as *unreliable*, bracketed by converged neighbors — not silently dropped. |
 | D4 | A | Verdict UNCHANGED (skip heavy sim) despite the roughness-direction correction | Gate criterion = "rough beats Bates AND H≪0.5" (both required). H≪0.5 now holds, but rough 7.39% still ≫ Bates 5.55% → the Bates test fails → skip. The BTC surface IS rough (leans Xia-Li), but roughness is a weaker fit lever than jumps. Honest: this corrects my pre-compaction "closer to Alòs" to "rough direction, but jump-dominated." |
+| D5 | B | Commit daily bars in full + all meta (force-add past the root `market_snapshots/` ignore, matching the existing snapshot pattern); leave the 16/31 MB hourly/1m raw arrays uncommitted | Repo-friendly: the large intraday arrays are reproducible via `scripts/fetch_binance_history.py` + the committed sha256. Daily (808 KB), all three `meta.json`, and derived estimates ARE committed. |
+| D6 | B | Label Binance BTCUSDT OBSERVED with a prominent basis caveat (not a new provenance class) | It IS observed exchange data. The USDT-vs-Deribit-index difference is a *levels* basis; log-RETURNS (the estimation input) are an excellent BTC/USD proxy. Caveat recorded in every `meta.json` + the provider docstring. |
+| D7 | B | Report the downside jump asymmetry as a LONG-HISTORY (sample-length) effect, correcting M4.6 — the data drove this | Same detector (α=0.05): full 2017-2026 η=1.42 vs last-2yr η=1.09. The M4.6 "symmetric daily" was a 2yr-window artifact (missed the crashes). Not forced — reported as the multi-frequency + multi-window evidence gives it. The Phase D risk model should carry η≈1.4-1.5, not the symmetric 2yr estimate. |
+| D8 | B | Daily GARCH is the vol anchor; hourly GARCH unconditional (168%) flagged UNRELIABLE; 1m λ flagged microstructure-inflated | Honesty: hourly persistence is near-integrated (0.997) → unstable unconditional; 1m λ is FP-rate × 130k obs. Reported for completeness with explicit caveats, not used as anchors. |
 
 ---
 
@@ -41,4 +45,24 @@ diffusive vol-of-vol).
 
 New/changed: `docs/reports/c9_m6_rough_finalize.{md,json}`; corrected `tests/test_rough_calibration.py`
 docstring + added `test_rough_finalize_not_worse_than_heston` (anti-regression for the optimizer-failure).
+**Gate: 836 passed / 3 skipped, mypy clean (115 files), ruff clean, anon clean, git diff --check clean.
+Committed `aabc909`.** Tracker M6.0a/b/c → ✅; M6.1–6.3 → SKIP.
+
+### Phase B — Binance data + physical re-estimation ✅
+Full evidence: `c9_binance_reestimation.md` (+ `.json`). New: `vol/binance.py` (provider, ms/µs/s-safe),
+`scripts/fetch_binance_history.py`, `scripts/binance_reestimation.py`, `tests/test_binance_provider.py`,
+`tests/test_binance_reestimation.py`; snapshots `market_snapshots/binance_history/{1d,1h,1m}/`.
+
+**Data:** 3 270 daily (2017-08→2026-07, vs M4.6's 728), 66 378 hourly (2019→now), 129 599 1-min (last 90d).
+OBSERVED, checksummed, basis-caveat labelled; frozen Q anchor untouched.
+
+**MATERIAL FINDING (jump picture):** the downside jump asymmetry is a **long-history / daily-scale** effect,
+NOT a high-frequency one. Same detector (α=0.05): full-history **η=1.42** (40 jumps) vs last-2yr **η=1.09**
+(10 jumps); at 1-min jumps are symmetric microstructure (η=0.98). **Corrects M4.6** — its "symmetric daily"
+(η≈1.04) was a 2-year-window artifact (missed 2018 / Mar-2020 / 2021 / 2022 crashes). The asymmetry is in
+jump *size* (fewer but bigger down-moves). Vol level higher over the long history (realized 0.68 / GARCH
+uncond 0.77 / UKF 0.52 / PF 0.61). Q-vs-P: Q 0.50 vs full-history P 0.77 → negative long-run VRP
+(reinforces M5.4's regime-dependent VRP sign). Honesty flags: 1m λ microstructure-inflated; hourly GARCH
+unconditional (168%, persistence 0.997) unreliable → daily GARCH is the anchor.
+
 Gate: *(appended after self-gate)*

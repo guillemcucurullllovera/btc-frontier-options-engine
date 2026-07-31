@@ -1,0 +1,15 @@
+{
+  "source": "binance",
+  "symbol": "BTCUSDT",
+  "interval": "1m",
+  "provenance": "OBSERVED",
+  "n_bars": 129599,
+  "start": "2026-05-02T05:40:00+00:00",
+  "end": "2026-07-31T05:38:00+00:00",
+  "sha256": "67b9730b71959490f128dc1833422613be4c2d76f74bf065ba7a972d28807fd1",
+  "fetched_at": "2026-07-31",
+  "bulk_source": "data.binance.vision",
+  "rest_source": "api.binance.com/api/v3/klines",
+  "basis_caveat": "BTCUSDT (USDT-quoted Binance spot) vs the Deribit USD index: price LEVELS differ by the small/stationary USDT basis + exchange composition; LOG-RETURNS (the input to all physical dynamics estimation) are an excellent BTC/USD proxy. Frozen option/DVOL anchor untouched.",
+  "note": "incomplete current bar excluded; timestamps normalised (ms/\u00b5s->s)."
+}
