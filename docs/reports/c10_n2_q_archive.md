@@ -19,17 +19,20 @@ Archiver `scripts/deribit_surface_archiver.py`; pipeline `scripts/cross_temporal
 3. **A scheduling recipe** for daily accrual (below) and **the backfill procurement options for the
    operator's call** (below).
 
-## Scheduling (daily accrual) — INSTALLED ✅
-A daily cron entry (00:10 UTC) has been **installed** in the operator's crontab (existing jobs preserved):
+## Scheduling (daily accrual) — INSTALLED ✅ (durable path, N3.0)
+The archiver + its accruing data dir now live at a **stable canonical path outside the ephemeral worktree**
+(`/home/francisco/btc/deribit_surface_archive/`); the deployed copy imports `vol.client` from the canonical
+repo, so it **survives worktree removal**. Daily cron (00:10 UTC, existing jobs preserved):
 ```
-10 0 * * * /home/francisco/btc/btc_engine_frontier/.venv/bin/python \
-  /home/francisco/btc/worktrees/c9-advanced-methods/scripts/deribit_surface_archiver.py \
-  >> /home/francisco/btc/worktrees/c9-advanced-methods/logs/deribit_archiver.log 2>&1
+10 0 * * * DERIBIT_ARCHIVE_DIR=/home/francisco/btc/deribit_surface_archive \
+  /home/francisco/btc/btc_engine_frontier/.venv/bin/python \
+  /home/francisco/btc/deribit_surface_archive/deribit_surface_archiver.py \
+  >> /home/francisco/btc/deribit_surface_archive/archiver.log 2>&1
 ```
-Idempotent (a same-day re-run is a no-op), so a missed slot is harmless. **From today the archive accrues
-one OBSERVED, checksummed surface per day** — the historical-Q clock is running. ⚠️ The path points at this
-sprint **worktree**; if the worktree is removed or the branch is merged to `main`, update the cron path to
-the canonical location (noted for the operator).
+Idempotent (a same-day re-run is a no-op). **From today the archive accrues one OBSERVED, checksummed
+surface per day** at the durable path — the historical-Q clock is running, worktree-independent. (The
+in-repo `market_snapshots/deribit_surface_archive/2026-07-31/` day-1 snapshot is retained as the committed
+test fixture / seed-of-record.)
 
 ## Backfill options — PROCUREMENT DECISION for the operator (do NOT purchase)
 The live archive accrues forward; a **paid backfill** would give an immediate multi-year history (Deribit

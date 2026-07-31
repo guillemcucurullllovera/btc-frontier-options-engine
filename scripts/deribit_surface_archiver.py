@@ -18,16 +18,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import pathlib
 import sys
 from datetime import UTC, datetime
 from typing import Any
 
+# Durable imports: prefer the local tree, but also expose the CANONICAL repo so a copy deployed OUTSIDE
+# the ephemeral worktree (N3.0) can still import vol.client after the worktree is removed.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+sys.path.append("/home/francisco/btc/btc_engine_frontier")
 
 from vol.client import DeribitClient
 
-_ARCHIVE = pathlib.Path(__file__).resolve().parents[1] / "market_snapshots" / "deribit_surface_archive"
+# Accruing archive lives at a STABLE canonical path outside the ephemeral worktree (N3.0), overridable
+# via DERIBIT_ARCHIVE_DIR (tests point it at the committed in-repo fixture).
+_ARCHIVE = pathlib.Path(os.environ.get("DERIBIT_ARCHIVE_DIR", "/home/francisco/btc/deribit_surface_archive"))
 
 
 def _dump(models: list[Any]) -> list[dict[str, Any]]:

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import pathlib
 import sys
 from datetime import UTC, datetime
@@ -28,7 +29,8 @@ from engine.data_models import BookSummary, OptionInstrument
 from vol.calibrate import calibrate_heston
 from vol.chain_surface import ingest_chain_slices
 
-_ARCHIVE = pathlib.Path(__file__).resolve().parents[1] / "market_snapshots" / "deribit_surface_archive"
+# Reads the STABLE external archive (N3.0) by default; overridable via DERIBIT_ARCHIVE_DIR.
+_ARCHIVE = pathlib.Path(os.environ.get("DERIBIT_ARCHIVE_DIR", "/home/francisco/btc/deribit_surface_archive"))
 _OUT = pathlib.Path(__file__).resolve().parents[1] / "docs" / "reports" / "c10_n2_q_archive.json"
 
 
