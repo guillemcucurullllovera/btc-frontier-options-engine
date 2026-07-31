@@ -51,5 +51,5 @@
     "shows": "ILLUSTRATIVE: defined-risk collar floor vs covered-call open downside",
     "note": "separate from the 7 per-structure figures; illustrative only"
   },
-  "footer_text": "SIMULATED / diagnostic \u00b7 MS-26-gated \u00b7 holder-basis \u00b7 illustrative, not advice \u00b7 no best/optimal.\nPremiums COS-Bates-consistent; downside per the SVJJ observed co-jump. Reference render, not a slide."
+  "footer_text": "SIMULATED / diagnostic \u00b7 MS-26-gated \u00b7 holder-basis \u00b7 illustrative, not advice \u00b7 no best/optimal.\nPremium & max-loss per the shared deck-input grid cell (spot 63,402 \u00b7 near expiry \u00b7 100% coverage).\nDefined-risk = bounded floor; others = max-loss-to-spot-0. Reference render, not a deck slide."
 }

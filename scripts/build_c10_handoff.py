@@ -22,6 +22,8 @@ from typing import Any
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
+from execution.waterfall import _compute_waterfall, load_params
+
 _R = pathlib.Path(__file__).resolve().parents[1]
 _GRID = _R / "exports" / "c10_deck_input" / "grid.json"
 _DECK_MANIFEST = _R / "docs" / "reports" / "c10_deck_input" / "manifest.json"
@@ -31,6 +33,15 @@ _OUT = _R / "docs" / "handoff"
 _FIGDST = _OUT / "figures"
 _STRUCTS = ("unhedged", "covered_call", "long_btc_plus_short_put", "cash_secured_put",
             "collar", "call_spread", "strike_ladder")
+
+# N6.5d — reference basis. The engine grid already separates the LIVE snapshot spot (s0) from the
+# documented deal reference (mandate_reference_spot). The whole deck re-anchors to the live snapshot;
+# $65,000 is kept as the labelled "deal reference" (it is a documented reference in
+# docs/requirements/BTC_30K_Build_Plan_Parallel_Agents.md, not a merely-illustrative round number).
+# Execution-friction line items (spread / venue / market-impact / collateral-carry) as bps, read off the
+# old Slide-1 per-BTC figures at the $65,000 reference so they re-anchor with the spot.
+_FRICTIONS = (("Spread", 2.0), ("Venue trading & delivery fees", 4.0),
+              ("Market impact, tranched", 6.0), ("Collateral carry", 1.0))
 
 
 def _g(x: Any, *keys: str) -> Any:
@@ -54,6 +65,19 @@ def _f(v: Any, nd: int = 0, pct: bool = False) -> str:
 
 def _pct(v: Any) -> str:  # pct_of_spot is stored already as a percent number (1.85 = 1.85%), not a fraction
     return "—" if v is None else f"{float(v):.2f}%"
+
+
+def _spct(v: Any, nd: int = 1) -> str:  # signed percent; collapses tiny +/-0 to "~0%"
+    if v is None:
+        return "—"
+    return "~0%" if abs(float(v)) < 0.05 else f"{float(v):+.{nd}f}%"
+
+
+def _usd(v: Any, div: float = 1.0, nd: int = 0, suffix: str = "") -> str:  # signed money, minus before $
+    if v is None:
+        return "—"
+    x = float(v) / div
+    return f"{'-' if x < 0 else ''}${abs(x):,.{nd}f}{suffix}"
 
 
 # ── prose (inline; the design session cannot open the repo) ──────────────────
@@ -88,6 +112,73 @@ CORRECTIONS = [
      "back-tested, uncertainty-banded. State this institutional-grade fidelity plainly."),
 ]
 
+# N6.5b — the corrections above are INTERNAL editing instructions (how to turn the old slide into the new
+# one). The SLIDES THEMSELVES must read as one definitive system, never as a before/after.
+STANDALONE_DIRECTIVE = (
+    "STANDALONE-SYSTEM FRAMING (applies to every slide). Present the current engine as THE singular, "
+    "definitive system — positive, secure, extensive. NO slide uses \"we used to / previously / in the old "
+    "version / now upgraded / has been improved\" language: there is no before/after on the slides. The "
+    "five corrections in section (c) are editing instructions for you, NOT slide copy. Let the "
+    "EXTENSIVENESS be the credibility headline: an 8-structure toolkit, a 210-row priced grid, "
+    "multi-scenario physical simulation, frontier models (calibrated Bates + SVJJ co-jump), 8 years of "
+    "data, textbook/QuantLib validation, and 881 automated tests. Confident, not boastful; ranges, not "
+    "false precision; no best/optimal/recommended."
+)
+_DUAL_OBJECTIVE = (
+    "DUAL-OBJECTIVE NARRATIVE (the spine of Slides 2, 2b and 4). Present two confident, clearly-labelled, "
+    "objective-matched paths — the full toolkit is analysed for both; nothing is omitted or ranked as "
+    "universally best:\n"
+    "- **Accumulation objective -> Long BTC + short put is the natural central structure.** Uncapped "
+    "upside above the strike + premium at inception + deliberate accumulation below the strike (assignment "
+    "adds BTC at an effective level near the strike less premium). Its amplified sub-strike downside is "
+    "shown HONESTLY as a quantified, understood exposure (the observed co-jump widens the tail), not hidden.\n"
+    "- **Protection objective -> the collar / defined-risk structures are the natural choice.** A bounded, "
+    "model-INVARIANT floor: the capped tail holds across the whole parameter-uncertainty band. This is the "
+    "security story — highlight the defined-risk floor.\n"
+    "Language is objective-CONDITIONAL (\"for the accumulation objective, X is the natural structure\"), "
+    "never a universal best/optimal claim. Risk is presented as ranges; the tail is quantified and, for the "
+    "defined-risk overlays, capped."
+)
+
+
+def _acq_econ(spot: float) -> dict[str, Any]:
+    """Slide-1 acquisition value-decomposition at `spot` (engine waterfall + old-deck friction bps)."""
+    p = load_params()
+    disc, fee = p["seller_discount_pct"] / 100.0, p["execution_fee_pct"] / 100.0
+    ovl = (p["combined_target_discount_pct"] - p["seller_discount_pct"]) / 100.0     # options-contribution
+    q = int(p["btc_quantity"])
+    w = _compute_waterfall(spot, q, disc, fee, ovl, "reference_notional")
+    fric_total = sum(bps / 10_000.0 * spot for _lbl, bps in _FRICTIONS)              # per-BTC frictions
+    eff_clean = float(w["client_effective_cost_per_btc_target_case"])                # engine (pre-friction)
+    eff_full = eff_clean + fric_total                                               # old-Slide-1 methodology
+    fee_exec = w["reference_notional_usd"] * (1.0 - disc) * fee                     # D-1 executed-volume base
+    return {
+        "spot": spot, "q": q, "notional": float(w["reference_notional_usd"]),
+        "seller_discount_per_btc": -spot * disc, "options_contribution_per_btc": -spot * ovl,
+        "fee_per_btc": spot * fee, "fee_usd_ref": float(w["asymmetrica_fee_usd"]), "fee_usd_exec": fee_exec,
+        "fee_btc_equiv": float(w["asymmetrica_fee_btc_equiv"]), "frictions": fric_total,
+        "seller_anchor_per_btc": float(w["price_after_discount_per_btc"]),
+        "eff_clean_per_btc": eff_clean, "eff_full_per_btc": eff_full, "eff_full_total": eff_full * q,
+        "improvement_per_btc": spot - eff_full, "improvement_pct": 100.0 * (spot - eff_full) / spot,
+        "value_difference": (spot - eff_full) * q,
+    }
+
+
+def _slide1_table(live: dict[str, Any], ref: dict[str, Any]) -> str:
+    """The value-decomposition table: per-BTC at the live basis + the documented deal reference."""
+    def _row(label: str, lv: float, rv: float, pct: str = "") -> str:
+        return f"| {label}{pct} | {_f(lv, 2)} | {_f(rv, 2)} |"
+    lines = ["| component | per BTC — live $63,402 | per BTC — deal ref $65,000 |", "|---|--:|--:|",
+             _row("Reference spot", live["spot"], ref["spot"]),
+             _row("Seller discount, 2.5%", live["seller_discount_per_btc"], ref["seller_discount_per_btc"]),
+             _row("Options-contribution objective, 2.5%", live["options_contribution_per_btc"],
+                  ref["options_contribution_per_btc"]),
+             _row("Structuring fee, 0.5%", live["fee_per_btc"], ref["fee_per_btc"])]
+    for (lbl, bps), (_l2, _b2) in zip(_FRICTIONS, _FRICTIONS, strict=True):
+        lines.append(_row(f"{lbl}, ~{bps:.1f} bps", bps / 10_000.0 * live["spot"], bps / 10_000.0 * ref["spot"]))
+    lines.append(_row("**Effective acquisition cost**", live["eff_full_per_btc"], ref["eff_full_per_btc"]))
+    return "\n".join(lines)
+
 
 def _sp(r: dict[str, Any]) -> str:
     v = r.get("strike_pct")
@@ -121,77 +212,187 @@ def _svjj() -> dict[str, Any]:
 
 
 def _figures_table() -> str:
-    lines = ["| figure file (PNG+SVG) | one-idea headline | strike(s) | breakeven | cap $/BTC | floor/max-loss $/BTC |",
-             "|---|---|---|---|---|---|"]
+    lines = ["| figure file (PNG+SVG) | one-idea headline | strike(s) | breakeven | cap $/BTC "
+             "| max-loss $/BTC | kind |",
+             "|---|---|---|---|---|---|---|"]
     for n in _STRUCTS:
         d = json.loads((_FIGSRC / f"{n}.json").read_text())
         a = d["annotations"]
         strikes = ", ".join(f"{s['side'][0]}{s['kind'][0].upper()} {s['strike']/d['spot0']:.2f}x" for s in a["strikes"]) or "—"
         be = ", ".join(f"{b/d['spot0']:.2f}x" for b in a["breakevens_usd"][:2]) or "—"
+        kind = "floor (bounded)" if d.get("is_defined_risk") else "max-loss to spot 0"
         lines.append(f"| `{n}.png` / `{n}.svg` | {d['structure'].replace('_', ' ')} | {strikes} | {be} "
-                     f"| {_f(a['cap_usd_per_btc'])} | {_f(a['floor_max_loss_usd_per_btc'])} |")
-    lines.append("| `_comparison_collar_vs_covered.png/.svg` | ILLUSTRATIVE: collar floor vs covered-call open "
-                 "downside | — | — | — | — |")
+                     f"| {_f(a['cap_usd_per_btc'])} | {_f(a['max_loss_usd_per_btc'])} | {kind} |")
+    lines.append("| `_comparison_collar_vs_covered.png/.svg` | ILLUSTRATIVE: collar bounded floor vs "
+                 "covered-call downside to spot 0 | — | — | — | — | — |")
     return "\n".join(lines)
+
+
+_CANON: dict[str, tuple[str, float | None]] = {
+    "unhedged": ("unhedged_baseline", None), "covered_call": ("covered_call", 5.0),
+    "long_btc_plus_short_put": ("long_btc_plus_short_put", -5.0), "cash_secured_put": ("cash_secured_put", -5.0),
+    "collar": ("collar", 5.0), "call_spread": ("call_spread", 5.0), "strike_ladder": ("strike_ladder", 5.0),
+}
+
+
+def _cells(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """The ONE shared reference cell per structure (100% coverage, near expiry, featured strike) — the
+    same cells the figures cite, so Slide-1/2/4 numbers and the figures agree by construction."""
+    out: dict[str, dict[str, Any]] = {}
+    for name, (sid, stk) in _CANON.items():
+        cand = [r for r in rows if r["structure_id"] == sid and r["coverage_pct"] == 100.0]
+        if stk is not None:
+            cand = [r for r in cand if r.get("strike_pct") == stk] or cand
+        if cand:
+            out[name] = min(cand, key=lambda x: x["dte_days"])
+    return out
 
 
 def _design_handoff(rows: list[dict[str, Any]], scen: dict[str, Any]) -> str:
     g = json.loads(_GRID.read_text())
     ps = scen["per_structure"]
+    cells = _cells(rows)
+    live, ref = _acq_econ(63_402.0), _acq_econ(65_000.0)
+    corr = "\n\n".join(f"**{i+1}. {t}** — {b}" for i, (t, b) in enumerate(CORRECTIONS))
     reps = []
     for n in _STRUCTS:
-        rr = [r for r in rows if r["structure_id"] == n and r["coverage_pct"] == 100.0]
-        rr = [r for r in rr if r.get("strike_pct") in (5.0, -5.0, 0.0)] or rr
-        r = min(rr, key=lambda x: x["dte_days"]) if rr else None
+        r, p = cells.get(n), ps.get(n, {})
         if r:
-            p = ps.get(n, {})
             reps.append(f"| {n} | {_sp(r)}% / {r['coverage_pct']:.0f}% / {r['expiry_label']} "
                         f"| {_pct(r['premium'].get('pct_of_spot'))} ({_f(r['premium'].get('net_per_btc'))} $/BTC) "
                         f"| {_f(_g(r.get('prob_win'),'value'),3)} | {_f(_g(r['max_loss'].get('total'), 'per_btc'))} "
-                        f"| {_f(p.get('es975_central_usd'))} | +{_f(p.get('honest_downside_widen_pct_central'),1)}% "
+                        f"| {_f(p.get('es975_central_usd'))} | {_spct(p.get('honest_downside_widen_pct_central'))} "
                         f"| {'bounded' if p.get('defined_risk_bounded') else 'varies'} |")
-    corr = "\n\n".join(f"**{i+1}. {t}** — {b}" for i, (t, b) in enumerate(CORRECTIONS))
-    return f"""# DESIGN HAND-OFF — C10 BTC-options deck refresh (self-contained)
+    # Slide-4 objective cases (from the shared cells)
+    lbsp, cc, col = cells["long_btc_plus_short_put"], cells["covered_call"], cells["collar"]
+    lbsp_strike = live["spot"] * (1 + (lbsp.get("strike_pct") or -5.0) / 100.0)
+    lbsp_eff = lbsp_strike - float(lbsp["premium"].get("net_per_btc") or 0.0)
+    return f"""# DESIGN HAND-OFF — C10 BTC-options deck (self-contained, whole-deck)
 
 **SIMULATED / diagnostic · MS-26-gated · holder-basis · no best/optimal.** This document is 100%
 self-contained: the design session has NO repo access — every number and instruction is inline; the ONLY
-external artifacts are the image files you upload (see MIGRATION_MANIFEST.md). Data as-of the frozen anchor
-snapshot; S0 = {g['s0']:,.0f}; block = {g.get('block_btc'):,} BTC; CME contract = {g.get('cme_contract_btc')} BTC.
+external artifacts are the image files you upload (see MIGRATION_MANIFEST.md).
+
+**Reference basis (READ FIRST — N6.5d).** The deck re-anchors to the **live snapshot spot ${live['spot']:,.0f}**
+(as-of **{g['as_of_utc']}**), which is the basis of every priced grid cell and every figure. **$65,000 is
+retained as the labelled "deal reference"** — it is a *documented* reference in
+`docs/requirements/BTC_30K_Build_Plan_Parallel_Agents.md` (not a locked contractual price; the waterfall is
+defined "at any spot"), so both bases are shown, clearly distinguished. Block = {g.get('block_btc'):,} BTC;
+CME contract = {g.get('cme_contract_btc')} BTC. Because the value decomposition is **percentage-based**, the
+headline **net-improvement % is invariant to the re-anchor**; only absolute USD figures move.
 
 ## a. Context
-This is a **quantitative refresh** of the existing 10-slide BTC-options Marp deck (you already have the old
-slides). The CEO asked to: (1) make **Slide 2 & Slide 2-continued** qualitative → **quantitative**; (2)
-**separate the piled strategy diagram** into one clean figure per structure; (3) apply the
-**opportunity-cost-not-loss** framing throughout. This bundle supplies the corrected numbers, the
-slide-by-slide edits, and the 7 separated figures.
+This is the **definitive quantitative build** of the 10-slide BTC-options deck. It (1) makes Slide 2 & 2b
+**quantitative**, (2) **separates the piled strategy diagram** into one clean figure per structure, (3)
+applies **opportunity-cost-not-loss** framing, (4) re-anchors the whole deck to the live snapshot, and (5)
+tells a **dual-objective** story. Numbers below are engine outputs; the 7 figures and the highlighted table
+cells share ONE reference configuration (spot ${live['spot']:,.0f}, near expiry, 100% coverage).
 
-## b. Governance & framing rules (MUST appear on the slides)
+## b. Governance & framing rules (MUST hold on every slide)
 > {DISCLAIMER}
 
-## c. What changed vs the old deck (five corrections — "revise the old slide to say X")
+> {STANDALONE_DIRECTIVE}
+
+> {_DUAL_OBJECTIVE}
+
+## c. Editing corrections (INTERNAL — how to turn each old slide into the new one; NOT slide copy)
 {corr}
 
-## d. Slide-by-slide instructions
-- **Slide 2 (the 8-structure toolkit + the quant grid).** Keep the toolkit but make it quantitative: for
-  each structure show premium (%/USD), P(win)=N(±d₂), true breakeven, max-loss (BTC/total), and the
-  honest-downside ES. Representative cells (near expiry, 100% coverage):
+## d. Slide-by-slide instructions (all 10 slides)
+
+### Slide 00 — Title
+Reference-basis line reads: **"30,000 BTC · live snapshot spot ${live['spot']:,.0f} (as-of
+{g['as_of_utc'][:16]}Z) · ${live['notional']/1e9:.2f}B notional · deal reference $65,000."** Title unchanged.
+
+### Slide 00b — Team
+No quantitative claims; keep as-is (names/roles). No before/after language anywhere.
+
+### Slide 1 — The opportunity (Transaction Economics & Value Decomposition)
+Recompute the value decomposition at the live basis (deal-reference column alongside):
+
+{_slide1_table(live, ref)}
+
+- **On 30,000 BTC:** notional **${live['notional']/1e6:,.1f}M** (deal ref ${ref['notional']/1e6:,.1f}M);
+  effective acquisition cost **${live['eff_full_total']/1e6:,.1f}M**.
+- **Lower effective cost / BTC ${live['improvement_per_btc']:,.2f}**; **net improvement
+  {live['improvement_pct']:.2f}%** (invariant to the re-anchor — %-based); **value difference
+  ≈ ${live['value_difference']/1e6:,.1f}M** (deal ref ≈ ${ref['value_difference']/1e6:,.1f}M).
+- Structuring fee emitted on both D-1 bases: **${live['fee_usd_ref']/1e6:,.2f}M** on reference notional /
+  **${live['fee_usd_exec']/1e6:,.2f}M** on discounted executed volume (= {live['fee_btc_equiv']:.0f} BTC).
+  Seller-discounted anchor **${live['seller_anchor_per_btc']:,.0f}/BTC**; the overlay contributes a further
+  ≈ ${live['options_contribution_per_btc']*-1 - live['fee_per_btc'] - live['frictions']:,.0f}/BTC after fee
+  and frictions. Label "Illustrative 30,000-BTC transaction; percentage-based, so the {live['improvement_pct']:.2f}%
+  improvement holds at any spot."
+
+### Slide 2 — The strategy (dual-objective; the central structures)
+Lead with the **dual-objective** framing (§b). **Accumulation objective → Long BTC + short put** is the
+natural central structure: premium **{_pct(lbsp['premium'].get('pct_of_spot'))}**
+(${_g(lbsp['premium'].get('per_portfolio'))/1e6:,.1f}M on the block), uncapped upside above the
+${lbsp_strike:,.0f} put strike, deliberate accumulation below it at an effective **≈ ${lbsp_eff:,.0f}/BTC**
+on assignment — its amplified sub-strike downside shown honestly (honest-downside widening
+**{_spct(ps['long_btc_plus_short_put'].get('honest_downside_widen_pct_central'))}** central). **Protection
+objective → the collar / defined-risk structures**: bounded floor **{_usd(_g(col['max_loss'].get('total'),'per_btc'))}/BTC**
+({_usd(_g(col['max_loss'].get('total'),'per_portfolio'), 1e6, 1, 'M')}), model-INVARIANT across the uncertainty band.
+
+### Slide 2b — The choice framework (the full quantitative grid)
+Make the structure-comparison matrix quantitative. Representative cells (the shared config — near expiry,
+100% coverage, featured strike):
 
 | structure | strike/cov/expiry | premium | P(win) | max loss $/BTC | ES97.5 $ (central) | honest-downside | defined-risk |
 |---|---|---|---|---|---|---|---|
 {chr(10).join(reps)}
 
-  Full grid (all structures × strike% × real expiries × coverage 25/50/75/100%) is the appendix (§e).
-- **Slide 2-continued (covered-call vs LBSP deep comparison).** Contrast the two short-vol structures:
-  covered call = premium cushion + **capped** upside (opportunity cost above the strike, NOT a loss); LBSP =
-  premium + **amplified sub-strike downside** (attributable to the overlay). Both carry the real (fatter)
-  downside; neither is a harvest. Use the `covered_call` and `long_btc_plus_short_put` figures.
-- **Slide 5 (robustness / MC).** State: COS-Bates ARPE 5.55% (vs GBM ~27%); observed co-jump ρ_J=−0.74;
-  honest downside ES97.5 ~+4.5% central [+3%,+10%]; validated-PF parameter band ±~7% (tail-exposed);
-  defined-risk overlays BOUNDED; recent-regime vol ~0.46; recent-2yr 99% VaR passes Kupiec (p=0.18).
-- **Strategy diagram (the CEO complaint).** REPLACE the single piled figure with the **7 separate
-  per-structure figures** (upload list in MIGRATION_MANIFEST.md): `unhedged`, `covered_call`,
-  `long_btc_plus_short_put`, `cash_secured_put`, `collar`, `call_spread`, `strike_ladder` — plus the one
-  optional illustrative `_comparison_collar_vs_covered`. One idea per figure; do not re-pile.
+Nothing is omitted or ranked as universally best — the language is objective-conditional. Full grid (all
+structures × strike% × real expiries × coverage 25/50/75/100%) is the appendix (§e).
+
+### Slide 3 — How it works (Research, Pricing & Governance architecture)
+State the current engine plainly (no before/after): market inputs = **live DVOL + per-strike/expiry Deribit
+mark IV**, provenance-labelled, on an **SVI/SSVI arbitrage-free surface**; pricing = a **calibrated Bates
+(stochastic-vol + jumps) + SVJJ price-vol co-jump**, **characteristic-function (COS) priced**, with
+Deribit inverse-settlement mechanics; estimation = **UKF / particle-filter** physical-measure filtering;
+risk = **EVT-hardened** (declustered, back-tested) tail metrics; **validated against QuantLib / published
+references to machine precision**; **live-surface repricing error ~5.5%**. Governance/test counts: **881
+automated tests**, deterministic acceptance gates, ledger reconciliation < 1e-6 of notional, the C9/C10
+reference library and independent Fable / DeepSeek / MiniMax reviews in one traceability matrix.
+
+### Slide 4 — What it produces (Constructive scenario results, at live, as ranges)
+Read each case against the payoff geometry (the per-structure figures). Present as ranges with the
+honest-but-capped downside:
+- **Case 1 · Accumulation — Long BTC + short put.** Premium **≈ ${_g(lbsp['premium'].get('per_portfolio'))/1e6:,.1f}M**/cycle;
+  uncapped upside retained; linked BTC acquisition at ≈ ${lbsp_eff:,.0f}/BTC below the ${lbsp_strike:,.0f}
+  strike; downside honest (widening +{_f(ps['long_btc_plus_short_put'].get('honest_downside_widen_pct_central'),1)}%
+  central, band [+3%,+10%]).
+- **Case 2 · Premium — covered call (dial the overlay ratio).** Premium **≈ {_usd(_g(cc['premium'].get('per_portfolio')), 1e6, 1, 'M')}**/cycle
+  at 100% coverage ({_pct(cc['premium'].get('pct_of_spot'))}); a 50% overlay retains uncapped upside on the
+  un-overlaid half. Capped upside is OPPORTUNITY COST, not a loss.
+- **Case 3 · Protection — collar.** Bounded floor **{_usd(_g(col['max_loss'].get('total'),'per_btc'))}/BTC**
+  ({_usd(_g(col['max_loss'].get('total'),'per_portfolio'), 1e6, 1, 'M')} on the block), **invariant across the three
+  severest modelled scenarios**; ES97.5 **${_f(ps['collar'].get('es975_central_usd'))}** central.
+- Premium scales with volatility (recent-regime band ~0.31 / 0.43 / 0.46); staged-tranche execution reduces
+  market impact (≈6 bps tranched vs ≈25 bps single-clip). Strikes/maturities/overlay ratios reconfigurable
+  per cycle from the live spot.
+
+### Slide 5 — How it is tested (Simulation scale & robustness)
+State the current simulation: **physical-measure Bates + SVJJ co-jump** Monte Carlo (P-vol from the
+GARCH/UKF band, VRP marked at the Q-calibrated premium), seeded & **seed-stable** (byte-identical replays),
+antithetic variates, anchored on **~8 years of Binance daily history**; **EVT-hardened** tail estimation
+(declustered, Kupiec-back-tested — recent-2yr 99% VaR p=0.18); **validated-PF parameter band ±~{scen['pf_parameter_band_es975_pct']:.0f}%**
+(tail-exposed). Headline robustness: **COS-Bates ARPE 5.55%** (vs ~27% for an assumed-GBM stack); observed
+co-jump **ρ_J={scen['rho_j_observed']}**; honest downside **ES97.5 ~+4.5% central [+3%,+10%]**; defined-risk
+overlays **BOUNDED**. Execution grid across fee bases / spot offsets / IV give-up levels.
+
+### Slide 6 — How it is used (Workflow & capability map)
+Keep the 10-step workflow (deal configuration → committee reporting) and the eleven configurable
+dimensions. Update the **pricing/volatility dimension** to read **live DVOL + per-strike/expiry mark IV on
+the arb-free surface, priced by the calibrated Bates/SVJJ (COS)** — not a flat vol assumption. Every
+dimension is one configuration entry; a change re-runs pricing/lifecycle/ledger/scenario/execution and
+re-emits the full output set with provenance intact.
+
+### Slide 7 — Portfolio (In-house engineering portfolio)
+Largely unaffected; update only the block basis: **value-pool decomposition of a
+${live['notional']/1e9:.2f}B block (deal reference $1.95B)**, eight structures classified from their legs,
+venue-true inverse settlement, reconciling cash/BTC/collateral ledger, and the **Bates/SVJJ physical-sim
+harness**. Keep the fund-infra / quantum / multi-agent / RWA / CRM items as-is.
 
 ## e. The data — full regenerated deck-input grid ({len(rows)} rows, appendix)
 Premium net of nothing (pre-fee); prob-win is risk-neutral N(±d₂) (not a real-world probability); max-loss
@@ -207,7 +408,9 @@ vol {scen['central_vol']}):** central ES97.5 widening ~+4.5% (band [+3%,+10%]); 
 
 ## f. The figures (verify or rebuild)
 Each is one clean standalone figure (payoff curve + σ-scenario companion + max-loss/opportunity-cost
-decomposition). Key annotated values:
+decomposition). The word **"floor" is reserved for the defined-risk structures** (collar, call spread —
+bounded floor); the others show a **max-loss-to-spot-0**. Max-loss/premium/breakeven are the shared grid
+cell, so figures and tables agree. Key annotated values:
 
 {_figures_table()}
 
@@ -217,35 +420,56 @@ or rebuild from the values above.
 
 
 def _results_brief(rows: list[dict[str, Any]], scen: dict[str, Any]) -> str:
-    cc = next((r for r in rows if r["structure_id"] == "covered_call" and r["coverage_pct"] == 100.0
-               and r["strike_pct"] == 5.0), None)
-    col = next((r for r in rows if r["structure_id"] == "collar" and r["coverage_pct"] == 100.0), None)
+    g = json.loads(_GRID.read_text())
+    live = _acq_econ(63_402.0)
+    cells = _cells(rows)
+    cc, col, lbsp = cells["covered_call"], cells["collar"], cells["long_btc_plus_short_put"]
+    _defined = ("collar", "call_spread")
     snap = []
-    for lbl, r in (("covered call (5%, 100%)", cc), ("collar (defined-risk)", col)):
-        if r:
-            snap.append(f"| {lbl} | {_pct(r['premium'].get('pct_of_spot'))} "
-                        f"| {_f(_g(r.get('prob_win'),'value'),3)} | {_f(_g(r['max_loss'].get('total'), 'per_btc'))} "
-                        f"| {'bounded' if not r['max_loss'].get('unbounded') else 'open'} |")
-    return f"""# RESULTS BRIEF — C10 BTC-options refresh (one page)
+    for lbl, name, r in (("covered call (+5%, 100%)", "covered_call", cc),
+                         ("long BTC + short put (−5%)", "long_btc_plus_short_put", lbsp),
+                         ("collar (defined-risk)", "collar", col)):
+        downside = "bounded floor" if name in _defined else "max-loss to spot 0"
+        snap.append(f"| {lbl} | {_pct(r['premium'].get('pct_of_spot'))} "
+                    f"| {_f(_g(r.get('prob_win'),'value'),3)} | {_f(_g(r['max_loss'].get('total'), 'per_btc'))} "
+                    f"| {downside} |")
+    return f"""# RESULTS BRIEF — C10 BTC-options deck (one page)
 
 **SIMULATED / diagnostic · MS-26-gated · illustrative, not advice · no best/optimal.**
 
 > **Note on provenance:** no separate "Section-1 brief" text was supplied in the sprint prompt, so this brief
 > is assembled from the authoritative sources — `c9_corrected_findings_delta.md` (the five corrections) and
-> the N4.1 MS-25 readiness dossier — and its snapshot table below is generated **directly from the
-> regenerated N4.2 deck-input grid** (so it is consistent by construction; the verification note is at the
+> the N4.1 MS-25 readiness dossier — and its numbers are generated **directly from the regenerated N4.2
+> deck-input grid + the acquisition-waterfall engine** (consistent by construction; verification note at the
 > bottom).
 
-## Headline
-The C9/C10 engine reprices the live BTC surface to **~5.5% error** (vs ~27% for the old assumed-GBM stack) —
-a calibrated Bates (stochastic-vol + jumps), COS-priced, validated to machine precision, EVT-hardened,
-uncertainty-banded. **The story is risk-reshaping, not a premium harvest.**
+## Reference basis
+Live snapshot spot **${live['spot']:,.0f}** (as-of {g['as_of_utc'][:16]}Z) — the basis of the grid and the
+figures. **$65,000 kept as the documented "deal reference."** Value decomposition is percentage-based, so
+the net-improvement % is invariant to the re-anchor.
 
-## The five corrections vs the old deck
+## Headline
+The engine reprices the live BTC surface to **~5.5% error** (vs ~27% for an assumed-GBM stack) — a
+calibrated Bates (stochastic-vol + jumps) + SVJJ co-jump, COS-priced, validated to machine precision,
+EVT-hardened, uncertainty-banded across **881 tests**. **The story is risk-reshaping, not a premium harvest.**
+
+## Two objective-matched paths (full toolkit analysed for both)
+- **Accumulation → Long BTC + short put:** premium {_pct(lbsp['premium'].get('pct_of_spot'))}, uncapped
+  upside + deliberate accumulation below the strike; amplified downside shown honestly
+  (+{_f(scen['per_structure']['long_btc_plus_short_put'].get('honest_downside_widen_pct_central'),1)}% central).
+- **Protection → collar / defined-risk:** bounded floor **{_f(_g(col['max_loss'].get('total'),'per_btc'))} $/BTC**,
+  model-INVARIANT across the uncertainty band.
+
+## Acquisition economics (Slide 1, at live)
+Notional **${live['notional']/1e6:,.1f}M**; effective acquisition cost **${live['eff_full_per_btc']:,.0f}/BTC**
+(**${live['eff_full_total']/1e6:,.1f}M**); net improvement **{live['improvement_pct']:.2f}%** (≈
+${live['value_difference']/1e6:,.1f}M); structuring fee **${live['fee_usd_ref']/1e6:,.2f}M** ({live['fee_btc_equiv']:.0f} BTC).
+
+## The five corrections (INTERNAL editing guidance — the slides read as one definitive system)
 1. **VRP is fair-valued / tail-compensated**, not a premium edge (forward VRP +{scen['forward_vrp_atm']}, positive but thin).
-2. **Downside is bigger and now OBSERVED** — asymmetric jumps (η≈1.4, all-regime) + observed co-jump ρ_J=−0.74;
+2. **Downside is bigger and OBSERVED** — asymmetric jumps (η≈1.4, all-regime) + observed co-jump ρ_J=−0.74;
    honest downside ~+0.8% (asymmetry) → **~+4.5% central** [+3%,+10%].
-3. **Overlays reshape risk, not return** — lead with defined-risk (collar/call-spread), **invariant** tails.
+3. **Overlays reshape risk, not return** — defined-risk (collar/call-spread) tails are **invariant**.
 4. **Recent-regime vol ≈0.46** (secular decline 0.92→0.46), not a full-history ~0.9.
 5. **Methodology is the strength** — institutional-grade, committee-ready fidelity.
 
@@ -257,10 +481,11 @@ uncertainty-banded. **The story is risk-reshaping, not a premium harvest.**
 - Parameter uncertainty (validated PF): **±~7%** (tail-exposed). Forward VRP: **+{scen['forward_vrp_atm']}** (positive).
 
 ## Verification note
-The snapshot numbers above are pulled programmatically from the committed N4.2 deck-input grid
-(`exports/c10_deck_input/grid.json`) and the observed-co-jump scenarios (N3.6). **No mismatch** — the brief
-is generated from the same grid it summarises. If the operator substitutes a different "Section-1 brief"
-text, re-verify its numbers against this grid before use; do not silently alter the numbers.
+The numbers above are pulled programmatically from the committed N4.2 deck-input grid
+(`exports/c10_deck_input/grid.json`), the observed-co-jump scenarios (N3.6), and `execution.waterfall`.
+**No mismatch** — the brief is generated from the same sources it summarises. If the operator substitutes a
+different "Section-1 brief" text, re-verify its numbers against this grid before use; do not silently alter
+the numbers.
 """
 
 
@@ -276,18 +501,31 @@ def _migration_manifest() -> str:
 - [ ] `figures/_comparison_collar_vs_covered.svg` (+ `.png`) — the ONE illustrative comparison.
 
 ## 2. PASTE (text — fully self-contained)
-- [ ] `DESIGN_HANDOFF.md` — the master (context, governance, five corrections, slide-by-slide, full data
-      grid, figure values).
+- [ ] `DESIGN_HANDOFF.md` — the master (context, governance + standalone-framing + dual-objective rules,
+      editing corrections, **all-10-slides** slide-by-slide, full data grid, figure values).
 - [ ] `RESULTS_BRIEF.md` — the one-page brief.
 
-## 3. Old-slide → new-content map
-| old slide | new content |
+## 3. Old-slide → new-content map (all 10 slides)
+| old slide | new content (HAND-OFF §d) |
 |---|---|
-| Slide 2 (qualitative toolkit) | quantitative grid — premium / P(win) / breakeven / max-loss / honest-downside (HAND-OFF §d, §e) |
-| Slide 2-continued | covered-call vs LBSP deep comparison (HAND-OFF §d) + the two figures |
+| Slide 00 Title | re-anchored reference-basis line — live spot $63,402 + deal reference $65,000 |
+| Slide 00b Team | unchanged (no numbers) |
+| Slide 1 Opportunity | value decomposition recomputed at live ($1.90B notional, effective $60,631/BTC, 4.37%, ≈$83.1M) + deal-ref column |
+| Slide 2 Strategy | **dual-objective**: accumulation → LBSP; protection → collar/defined-risk (objective-conditional) |
+| Slide 2b Choice framework | the quantitative grid — premium / P(win) / breakeven / max-loss / honest-downside |
 | the single PILED strategy diagram | the **7 separate per-structure figures** (§1 above) — one idea each, NOT re-piled |
-| Slide 5 (robustness/MC) | corrected robustness stats (HAND-OFF §d Slide-5) |
-| all slides | governance footer + opportunity-cost-not-loss framing (HAND-OFF §b) |
+| Slide 3 How it works | current engine — Bates/SVJJ, COS, live DVOL + arb-free SVI/SSVI surface, UKF/PF, EVT; 881 tests |
+| Slide 4 What it produces | 3 objective cases recomputed at live, as ranges, honest-but-capped downside |
+| Slide 5 How it is tested | Bates/SVJJ physical sim, 8-yr Binance history, EVT-hardened, PF ±7%, seed-stable |
+| Slide 6 How it is used | pricing/vol dimension → live DVOL + Bates/SVJJ (COS); workflow + 11 dims unchanged |
+| Slide 7 Portfolio | block basis re-anchored ($1.90B live / $1.95B deal ref); Bates/SVJJ harness |
+| all slides | governance footer + opportunity-cost-not-loss + **standalone (no before/after) framing** (§b) |
+
+## Notes for the design session
+- **"floor" is reserved for the defined-risk structures** (collar, call spread) — a bounded floor. Covered
+  call / LBSP / CSP / unhedged have **no floor**; they show a max-loss-to-spot-0 (e.g. covered call
+  ≈ −$62,228/BTC). Figures and table cells share ONE reference config so their numbers agree.
+- Present the current engine as **THE definitive system** — no "we used to / previously / upgraded" wording.
 
 ## Durable copy
 This bundle is also mirrored to the durable path `/home/francisco/btc/design_handoff/` (outside the

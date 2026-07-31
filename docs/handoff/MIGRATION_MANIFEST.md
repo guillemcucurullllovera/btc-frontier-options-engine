@@ -13,18 +13,31 @@
 - [ ] `figures/_comparison_collar_vs_covered.svg` (+ `.png`) — the ONE illustrative comparison.
 
 ## 2. PASTE (text — fully self-contained)
-- [ ] `DESIGN_HANDOFF.md` — the master (context, governance, five corrections, slide-by-slide, full data
-      grid, figure values).
+- [ ] `DESIGN_HANDOFF.md` — the master (context, governance + standalone-framing + dual-objective rules,
+      editing corrections, **all-10-slides** slide-by-slide, full data grid, figure values).
 - [ ] `RESULTS_BRIEF.md` — the one-page brief.
 
-## 3. Old-slide → new-content map
-| old slide | new content |
+## 3. Old-slide → new-content map (all 10 slides)
+| old slide | new content (HAND-OFF §d) |
 |---|---|
-| Slide 2 (qualitative toolkit) | quantitative grid — premium / P(win) / breakeven / max-loss / honest-downside (HAND-OFF §d, §e) |
-| Slide 2-continued | covered-call vs LBSP deep comparison (HAND-OFF §d) + the two figures |
+| Slide 00 Title | re-anchored reference-basis line — live spot $63,402 + deal reference $65,000 |
+| Slide 00b Team | unchanged (no numbers) |
+| Slide 1 Opportunity | value decomposition recomputed at live ($1.90B notional, effective $60,631/BTC, 4.37%, ≈$83.1M) + deal-ref column |
+| Slide 2 Strategy | **dual-objective**: accumulation → LBSP; protection → collar/defined-risk (objective-conditional) |
+| Slide 2b Choice framework | the quantitative grid — premium / P(win) / breakeven / max-loss / honest-downside |
 | the single PILED strategy diagram | the **7 separate per-structure figures** (§1 above) — one idea each, NOT re-piled |
-| Slide 5 (robustness/MC) | corrected robustness stats (HAND-OFF §d Slide-5) |
-| all slides | governance footer + opportunity-cost-not-loss framing (HAND-OFF §b) |
+| Slide 3 How it works | current engine — Bates/SVJJ, COS, live DVOL + arb-free SVI/SSVI surface, UKF/PF, EVT; 881 tests |
+| Slide 4 What it produces | 3 objective cases recomputed at live, as ranges, honest-but-capped downside |
+| Slide 5 How it is tested | Bates/SVJJ physical sim, 8-yr Binance history, EVT-hardened, PF ±7%, seed-stable |
+| Slide 6 How it is used | pricing/vol dimension → live DVOL + Bates/SVJJ (COS); workflow + 11 dims unchanged |
+| Slide 7 Portfolio | block basis re-anchored ($1.90B live / $1.95B deal ref); Bates/SVJJ harness |
+| all slides | governance footer + opportunity-cost-not-loss + **standalone (no before/after) framing** (§b) |
+
+## Notes for the design session
+- **"floor" is reserved for the defined-risk structures** (collar, call spread) — a bounded floor. Covered
+  call / LBSP / CSP / unhedged have **no floor**; they show a max-loss-to-spot-0 (e.g. covered call
+  ≈ −$62,228/BTC). Figures and table cells share ONE reference config so their numbers agree.
+- Present the current engine as **THE definitive system** — no "we used to / previously / upgraded" wording.
 
 ## Durable copy
 This bundle is also mirrored to the durable path `/home/francisco/btc/design_handoff/` (outside the

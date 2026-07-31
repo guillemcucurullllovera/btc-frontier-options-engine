@@ -1,21 +1,35 @@
-# DESIGN HAND-OFF — C10 BTC-options deck refresh (self-contained)
+# DESIGN HAND-OFF — C10 BTC-options deck (self-contained, whole-deck)
 
 **SIMULATED / diagnostic · MS-26-gated · holder-basis · no best/optimal.** This document is 100%
 self-contained: the design session has NO repo access — every number and instruction is inline; the ONLY
-external artifacts are the image files you upload (see MIGRATION_MANIFEST.md). Data as-of the frozen anchor
-snapshot; S0 = 63,402; block = 30,000 BTC; CME contract = 5 BTC.
+external artifacts are the image files you upload (see MIGRATION_MANIFEST.md).
+
+**Reference basis (READ FIRST — N6.5d).** The deck re-anchors to the **live snapshot spot $63,402**
+(as-of **2026-07-28T14:54:47.619273+00:00**), which is the basis of every priced grid cell and every figure. **$65,000 is
+retained as the labelled "deal reference"** — it is a *documented* reference in
+`docs/requirements/BTC_30K_Build_Plan_Parallel_Agents.md` (not a locked contractual price; the waterfall is
+defined "at any spot"), so both bases are shown, clearly distinguished. Block = 30,000 BTC;
+CME contract = 5 BTC. Because the value decomposition is **percentage-based**, the
+headline **net-improvement % is invariant to the re-anchor**; only absolute USD figures move.
 
 ## a. Context
-This is a **quantitative refresh** of the existing 10-slide BTC-options Marp deck (you already have the old
-slides). The CEO asked to: (1) make **Slide 2 & Slide 2-continued** qualitative → **quantitative**; (2)
-**separate the piled strategy diagram** into one clean figure per structure; (3) apply the
-**opportunity-cost-not-loss** framing throughout. This bundle supplies the corrected numbers, the
-slide-by-slide edits, and the 7 separated figures.
+This is the **definitive quantitative build** of the 10-slide BTC-options deck. It (1) makes Slide 2 & 2b
+**quantitative**, (2) **separates the piled strategy diagram** into one clean figure per structure, (3)
+applies **opportunity-cost-not-loss** framing, (4) re-anchors the whole deck to the live snapshot, and (5)
+tells a **dual-objective** story. Numbers below are engine outputs; the 7 figures and the highlighted table
+cells share ONE reference configuration (spot $63,402, near expiry, 100% coverage).
 
-## b. Governance & framing rules (MUST appear on the slides)
+## b. Governance & framing rules (MUST hold on every slide)
 > SIMULATED / diagnostic · MS-26-gated (illustrative, NOT investment advice). Present risk as RANGES, not point estimates. Capped upside is OPPORTUNITY COST (foregone gain), NOT a loss. No best / optimal / recommended language — alternatives are presented, not ranked; decisions and outcomes rest with the client. Every parameter is provenance-labelled (OBSERVED / CALIBRATED / P-ESTIMATED / ASSUMED). Premiums are COS-Bates-consistent (Deribit marks); the downside uses the SVJJ observed-co-jump physical tail with an implied-vs-instantaneous mapping caveat; parameter uncertainty is the validated particle-filter band. Supersedes the C8 Phase-4 pack.
 
-## c. What changed vs the old deck (five corrections — "revise the old slide to say X")
+> STANDALONE-SYSTEM FRAMING (applies to every slide). Present the current engine as THE singular, definitive system — positive, secure, extensive. NO slide uses "we used to / previously / in the old version / now upgraded / has been improved" language: there is no before/after on the slides. The five corrections in section (c) are editing instructions for you, NOT slide copy. Let the EXTENSIVENESS be the credibility headline: an 8-structure toolkit, a 210-row priced grid, multi-scenario physical simulation, frontier models (calibrated Bates + SVJJ co-jump), 8 years of data, textbook/QuantLib validation, and 881 automated tests. Confident, not boastful; ranges, not false precision; no best/optimal/recommended.
+
+> DUAL-OBJECTIVE NARRATIVE (the spine of Slides 2, 2b and 4). Present two confident, clearly-labelled, objective-matched paths — the full toolkit is analysed for both; nothing is omitted or ranked as universally best:
+- **Accumulation objective -> Long BTC + short put is the natural central structure.** Uncapped upside above the strike + premium at inception + deliberate accumulation below the strike (assignment adds BTC at an effective level near the strike less premium). Its amplified sub-strike downside is shown HONESTLY as a quantified, understood exposure (the observed co-jump widens the tail), not hidden.
+- **Protection objective -> the collar / defined-risk structures are the natural choice.** A bounded, model-INVARIANT floor: the capped tail holds across the whole parameter-uncertainty band. This is the security story — highlight the defined-risk floor.
+Language is objective-CONDITIONAL ("for the accumulation objective, X is the natural structure"), never a universal best/optimal claim. Risk is presented as ranges; the tail is quantified and, for the defined-risk overlays, capped.
+
+## c. Editing corrections (INTERNAL — how to turn each old slide into the new one; NOT slide copy)
 **1. VRP framing** — Old deck led with a positive variance-risk-premium ('sell vol earns ~premium'). REVISE to: premium is roughly FAIR-VALUED; the realized forward VRP is POSITIVE but thin and regime-dependent (DVOL implied vs 30d-forward realized: +0.096 mean, positive 75% of days), while the risk MODEL prices a fatter tail — so do NOT lead with a premium 'edge'; frame it as tail-compensated.
 
 **2. Downside tail** — Old deck used a symmetric downside. REVISE to: BTC jumps are downside-asymmetric (eta~1.4) at the daily/multi-day scale, robust across 8 years & every regime (intraday is symmetric); the price-vol co-jump is now OBSERVED (rho_J=-0.74; down-jumps spike implied vol +15.7 vol pts). Honest downside is ~+0.8% (asymmetry alone) -> ~+4.5% central (with the observed co-jump), band [+3%, +10%].
@@ -26,32 +40,117 @@ slide-by-slide edits, and the 7 separated figures.
 
 **5. Methodology as strength** — ADD: the engine reprices the live BTC surface to ~5.5% error (vs ~27% for the old assumed-GBM stack) — a calibrated Bates (stochastic-vol + jumps), characteristic-function (COS) priced, validated against QuantLib/published refs to machine precision, EVT-hardened, back-tested, uncertainty-banded. State this institutional-grade fidelity plainly.
 
-## d. Slide-by-slide instructions
-- **Slide 2 (the 8-structure toolkit + the quant grid).** Keep the toolkit but make it quantitative: for
-  each structure show premium (%/USD), P(win)=N(±d₂), true breakeven, max-loss (BTC/total), and the
-  honest-downside ES. Representative cells (near expiry, 100% coverage):
+## d. Slide-by-slide instructions (all 10 slides)
+
+### Slide 00 — Title
+Reference-basis line reads: **"30,000 BTC · live snapshot spot $63,402 (as-of
+2026-07-28T14:54Z) · $1.90B notional · deal reference $65,000."** Title unchanged.
+
+### Slide 00b — Team
+No quantitative claims; keep as-is (names/roles). No before/after language anywhere.
+
+### Slide 1 — The opportunity (Transaction Economics & Value Decomposition)
+Recompute the value decomposition at the live basis (deal-reference column alongside):
+
+| component | per BTC — live $63,402 | per BTC — deal ref $65,000 |
+|---|--:|--:|
+| Reference spot | 63,402.00 | 65,000.00 |
+| Seller discount, 2.5% | -1,585.05 | -1,625.00 |
+| Options-contribution objective, 2.5% | -1,585.05 | -1,625.00 |
+| Structuring fee, 0.5% | 317.01 | 325.00 |
+| Spread, ~2.0 bps | 12.68 | 13.00 |
+| Venue trading & delivery fees, ~4.0 bps | 25.36 | 26.00 |
+| Market impact, tranched, ~6.0 bps | 38.04 | 39.00 |
+| Collateral carry, ~1.0 bps | 6.34 | 6.50 |
+| **Effective acquisition cost** | 60,631.33 | 62,159.50 |
+
+- **On 30,000 BTC:** notional **$1,902.1M** (deal ref $1,950.0M);
+  effective acquisition cost **$1,818.9M**.
+- **Lower effective cost / BTC $2,770.67**; **net improvement
+  4.37%** (invariant to the re-anchor — %-based); **value difference
+  ≈ $83.1M** (deal ref ≈ $85.2M).
+- Structuring fee emitted on both D-1 bases: **$9.51M** on reference notional /
+  **$9.27M** on discounted executed volume (= 150 BTC).
+  Seller-discounted anchor **$61,817/BTC**; the overlay contributes a further
+  ≈ $1,186/BTC after fee
+  and frictions. Label "Illustrative 30,000-BTC transaction; percentage-based, so the 4.37%
+  improvement holds at any spot."
+
+### Slide 2 — The strategy (dual-objective; the central structures)
+Lead with the **dual-objective** framing (§b). **Accumulation objective → Long BTC + short put** is the
+natural central structure: premium **2.21%**
+($42.1M on the block), uncapped upside above the
+$60,232 put strike, deliberate accumulation below it at an effective **≈ $58,830/BTC**
+on assignment — its amplified sub-strike downside shown honestly (honest-downside widening
+**+4.2%** central). **Protection
+objective → the collar / defined-risk structures**: bounded floor **-$6,010/BTC**
+(-$180.3M), model-INVARIANT across the uncertainty band.
+
+### Slide 2b — The choice framework (the full quantitative grid)
+Make the structure-comparison matrix quantitative. Representative cells (the shared config — near expiry,
+100% coverage, featured strike):
 
 | structure | strike/cov/expiry | premium | P(win) | max loss $/BTC | ES97.5 $ (central) | honest-downside | defined-risk |
 |---|---|---|---|---|---|---|---|
+| unhedged | —% / 100% / 28AUG26 | 0.00% (0 $/BTC) | — | -63,402 | 33,588 | +3.9% | varies |
 | covered_call | +5% / 100% / 28AUG26 | 1.85% (1,174 $/BTC) | 0.727 | -62,228 | 31,771 | +4.1% | varies |
 | long_btc_plus_short_put | -5% / 100% / 28AUG26 | 2.21% (1,402 $/BTC) | 0.667 | -122,000 | 62,017 | +4.2% | varies |
 | cash_secured_put | -5% / 100% / 28AUG26 | 2.21% (1,402 $/BTC) | 0.667 | -58,598 | 28,429 | +4.6% | varies |
-| collar | +5% / 100% / 28AUG26 | 0.62% (392 $/BTC) | 0.727 | -6,010 | 5,734 | +0.0% | bounded |
-| call_spread | +5% / 100% / 28AUG26 | 1.00% (631 $/BTC) | 0.727 | -2,369 | 776 | +-0.0% | bounded |
+| collar | +5% / 100% / 28AUG26 | 0.62% (392 $/BTC) | 0.727 | -6,010 | 5,734 | ~0% | bounded |
+| call_spread | +5% / 100% / 28AUG26 | 1.00% (631 $/BTC) | 0.727 | -2,369 | 776 | ~0% | bounded |
 | strike_ladder | +5% / 100% / 28AUG26 | 1.04% (656 $/BTC) | 0.727 | -62,745 | 32,498 | +4.0% | varies |
 
-  Full grid (all structures × strike% × real expiries × coverage 25/50/75/100%) is the appendix (§e).
-- **Slide 2-continued (covered-call vs LBSP deep comparison).** Contrast the two short-vol structures:
-  covered call = premium cushion + **capped** upside (opportunity cost above the strike, NOT a loss); LBSP =
-  premium + **amplified sub-strike downside** (attributable to the overlay). Both carry the real (fatter)
-  downside; neither is a harvest. Use the `covered_call` and `long_btc_plus_short_put` figures.
-- **Slide 5 (robustness / MC).** State: COS-Bates ARPE 5.55% (vs GBM ~27%); observed co-jump ρ_J=−0.74;
-  honest downside ES97.5 ~+4.5% central [+3%,+10%]; validated-PF parameter band ±~7% (tail-exposed);
-  defined-risk overlays BOUNDED; recent-regime vol ~0.46; recent-2yr 99% VaR passes Kupiec (p=0.18).
-- **Strategy diagram (the CEO complaint).** REPLACE the single piled figure with the **7 separate
-  per-structure figures** (upload list in MIGRATION_MANIFEST.md): `unhedged`, `covered_call`,
-  `long_btc_plus_short_put`, `cash_secured_put`, `collar`, `call_spread`, `strike_ladder` — plus the one
-  optional illustrative `_comparison_collar_vs_covered`. One idea per figure; do not re-pile.
+Nothing is omitted or ranked as universally best — the language is objective-conditional. Full grid (all
+structures × strike% × real expiries × coverage 25/50/75/100%) is the appendix (§e).
+
+### Slide 3 — How it works (Research, Pricing & Governance architecture)
+State the current engine plainly (no before/after): market inputs = **live DVOL + per-strike/expiry Deribit
+mark IV**, provenance-labelled, on an **SVI/SSVI arbitrage-free surface**; pricing = a **calibrated Bates
+(stochastic-vol + jumps) + SVJJ price-vol co-jump**, **characteristic-function (COS) priced**, with
+Deribit inverse-settlement mechanics; estimation = **UKF / particle-filter** physical-measure filtering;
+risk = **EVT-hardened** (declustered, back-tested) tail metrics; **validated against QuantLib / published
+references to machine precision**; **live-surface repricing error ~5.5%**. Governance/test counts: **881
+automated tests**, deterministic acceptance gates, ledger reconciliation < 1e-6 of notional, the C9/C10
+reference library and independent Fable / DeepSeek / MiniMax reviews in one traceability matrix.
+
+### Slide 4 — What it produces (Constructive scenario results, at live, as ranges)
+Read each case against the payoff geometry (the per-structure figures). Present as ranges with the
+honest-but-capped downside:
+- **Case 1 · Accumulation — Long BTC + short put.** Premium **≈ $42.1M**/cycle;
+  uncapped upside retained; linked BTC acquisition at ≈ $58,830/BTC below the $60,232
+  strike; downside honest (widening +4.2%
+  central, band [+3%,+10%]).
+- **Case 2 · Premium — covered call (dial the overlay ratio).** Premium **≈ $35.2M**/cycle
+  at 100% coverage (1.85%); a 50% overlay retains uncapped upside on the
+  un-overlaid half. Capped upside is OPPORTUNITY COST, not a loss.
+- **Case 3 · Protection — collar.** Bounded floor **-$6,010/BTC**
+  (-$180.3M on the block), **invariant across the three
+  severest modelled scenarios**; ES97.5 **$5,734** central.
+- Premium scales with volatility (recent-regime band ~0.31 / 0.43 / 0.46); staged-tranche execution reduces
+  market impact (≈6 bps tranched vs ≈25 bps single-clip). Strikes/maturities/overlay ratios reconfigurable
+  per cycle from the live spot.
+
+### Slide 5 — How it is tested (Simulation scale & robustness)
+State the current simulation: **physical-measure Bates + SVJJ co-jump** Monte Carlo (P-vol from the
+GARCH/UKF band, VRP marked at the Q-calibrated premium), seeded & **seed-stable** (byte-identical replays),
+antithetic variates, anchored on **~8 years of Binance daily history**; **EVT-hardened** tail estimation
+(declustered, Kupiec-back-tested — recent-2yr 99% VaR p=0.18); **validated-PF parameter band ±~7%**
+(tail-exposed). Headline robustness: **COS-Bates ARPE 5.55%** (vs ~27% for an assumed-GBM stack); observed
+co-jump **ρ_J=-0.738**; honest downside **ES97.5 ~+4.5% central [+3%,+10%]**; defined-risk
+overlays **BOUNDED**. Execution grid across fee bases / spot offsets / IV give-up levels.
+
+### Slide 6 — How it is used (Workflow & capability map)
+Keep the 10-step workflow (deal configuration → committee reporting) and the eleven configurable
+dimensions. Update the **pricing/volatility dimension** to read **live DVOL + per-strike/expiry mark IV on
+the arb-free surface, priced by the calibrated Bates/SVJJ (COS)** — not a flat vol assumption. Every
+dimension is one configuration entry; a change re-runs pricing/lifecycle/ledger/scenario/execution and
+re-emits the full output set with provenance intact.
+
+### Slide 7 — Portfolio (In-house engineering portfolio)
+Largely unaffected; update only the block basis: **value-pool decomposition of a
+$1.90B block (deal reference $1.95B)**, eight structures classified from their legs,
+venue-true inverse settlement, reconciling cash/BTC/collateral ledger, and the **Bates/SVJJ physical-sim
+harness**. Keep the fund-infra / quantum / multi-agent / RWA / CRM items as-is.
 
 ## e. The data — full regenerated deck-input grid (210 rows, appendix)
 Premium net of nothing (pre-fee); prob-win is risk-neutral N(±d₂) (not a real-world probability); max-loss
@@ -278,18 +377,20 @@ vol 0.46):** central ES97.5 widening ~+4.5% (band [+3%,+10%]); defined-risk over
 
 ## f. The figures (verify or rebuild)
 Each is one clean standalone figure (payoff curve + σ-scenario companion + max-loss/opportunity-cost
-decomposition). Key annotated values:
+decomposition). The word **"floor" is reserved for the defined-risk structures** (collar, call spread —
+bounded floor); the others show a **max-loss-to-spot-0**. Max-loss/premium/breakeven are the shared grid
+cell, so figures and tables agree. Key annotated values:
 
-| figure file (PNG+SVG) | one-idea headline | strike(s) | breakeven | cap $/BTC | floor/max-loss $/BTC |
-|---|---|---|---|---|---|
-| `unhedged.png` / `unhedged.svg` | unhedged | — | 1.00x | 47,552 | -34,871 |
-| `covered_call.png` / `covered_call.svg` | covered call | SC 1.05x | 0.97x | 4,987 | -33,054 |
-| `long_btc_plus_short_put.png` / `long_btc_plus_short_put.svg` | long btc plus short put | SP 0.95x | 0.97x | 49,540 | -64,583 |
-| `cash_secured_put.png` / `cash_secured_put.svg` | cash secured put | SP 0.95x | 0.92x | 1,989 | -29,712 |
-| `collar.png` / `collar.svg` | collar | SC 1.05x, LP 0.90x | 0.99x | 3,776 | -5,734 |
-| `call_spread.png` / `call_spread.svg` | call spread | SC 1.03x, LC 1.05x | 1.04x | 492 | -776 |
-| `strike_ladder.png` / `strike_ladder.svg` | strike ladder | SC 1.05x, SC 1.10x, SC 1.15x | 0.98x | 7,430 | -33,781 |
-| `_comparison_collar_vs_covered.png/.svg` | ILLUSTRATIVE: collar floor vs covered-call open downside | — | — | — | — |
+| figure file (PNG+SVG) | one-idea headline | strike(s) | breakeven | cap $/BTC | max-loss $/BTC | kind |
+|---|---|---|---|---|---|---|
+| `unhedged.png` / `unhedged.svg` | unhedged | — | 1.00x | 47,552 | -63,402 | max-loss to spot 0 |
+| `covered_call.png` / `covered_call.svg` | covered call | SC 1.05x | 0.98x | 4,344 | -62,228 | max-loss to spot 0 |
+| `long_btc_plus_short_put.png` / `long_btc_plus_short_put.svg` | long btc plus short put | SP 0.95x | 0.98x | 48,953 | -122,000 | max-loss to spot 0 |
+| `cash_secured_put.png` / `cash_secured_put.svg` | cash secured put | SP 0.95x | 0.92x | 1,402 | -58,598 | max-loss to spot 0 |
+| `collar.png` / `collar.svg` | collar | SC 1.05x, LP 0.90x | 0.99x | 3,562 | -6,010 | floor (bounded) |
+| `call_spread.png` / `call_spread.svg` | call spread | SC 1.05x, LC 1.10x | 1.07x | 631 | -2,369 | floor (bounded) |
+| `strike_ladder.png` / `strike_ladder.svg` | strike ladder | SC 1.05x, SC 1.10x, SC 1.15x | 0.99x | 6,997 | -62,745 | max-loss to spot 0 |
+| `_comparison_collar_vs_covered.png/.svg` | ILLUSTRATIVE: collar bounded floor vs covered-call downside to spot 0 | — | — | — | — | — |
 
 Every figure carries the governance footer (§b). These are reference renders — clean enough to use as-is,
 or rebuild from the values above.

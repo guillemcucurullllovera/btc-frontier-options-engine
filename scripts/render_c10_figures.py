@@ -45,7 +45,8 @@ _TITLE = {
     "strike_ladder": "Strike ladder — staged capped upside",
 }
 _FOOTER = ("SIMULATED / diagnostic · MS-26-gated · holder-basis · illustrative, not advice · no best/optimal.\n"
-           "Premiums COS-Bates-consistent; downside per the SVJJ observed co-jump. Reference render, not a slide.")
+           "Premium & max-loss per the shared deck-input grid cell (spot 63,402 · near expiry · 100% coverage).\n"
+           "Defined-risk = bounded floor; others = max-loss-to-spot-0. Reference render, not a deck slide.")
 
 
 def _setup() -> None:
@@ -78,26 +79,34 @@ def _render(name: str, d: dict[str, Any], y_lim: tuple[float, float]) -> None:
     ax.plot(spot, pnl, color=C_PAYOFF, lw=2.2, zorder=4, label=name.replace("_", " "))
     # loss region (P&L<0), status-red faint + labelled (never colour-alone)
     ax.fill_between(spot, pnl, 0, where=[p < 0 for p in pnl], color=C_LOSS, alpha=0.10, zorder=1)
-    # opportunity-cost wedge (foregone gain vs holding, above spot) — hatched, labelled
-    ax.fill_between(spot, pnl, [x - s0 for x in pc["spot"]],
-                    where=[(u - s0) - p > 1 and x > 1.0 for x, p, u in zip(spot, pnl, pc["spot"], strict=True)],
-                    facecolor="none", hatch="////", edgecolor=C_MUTED, lw=0.0, alpha=0.55, zorder=1)
-    # guides: spot ref + strikes
+    # opportunity-cost wedge (foregone gain vs holding, above spot) — hatched, labelled. Only meaningful
+    # for structures that overlay the held BTC block; standalone structures forego no BTC upside.
+    if d["has_holding"]:
+        ax.fill_between(spot, pnl, [x - s0 for x in pc["spot"]],
+                        where=[(u - s0) - p > 1 and x > 1.0 for x, p, u in zip(spot, pnl, pc["spot"], strict=True)],
+                        facecolor="none", hatch="////", edgecolor=C_MUTED, lw=0.0, alpha=0.55, zorder=1)
+    # guides: spot ref + strikes (stack the strike labels so close strikes do not collide)
     ax.axvline(1.0, color=C_MUTED, lw=0.8, ls=":", zorder=2)
     ax.annotate("spot", (1.0, y_lim[1]), xytext=(0, -2), textcoords="offset points", ha="center",
                 va="top", fontsize=8, color=C_MUTED)
-    for st in a["strikes"]:
+    for i, st in enumerate(sorted(a["strikes"], key=lambda s: s["strike"])):
         xr = st["strike"] / s0
         ax.axvline(xr, color=C_STRIKE, lw=0.8, ls=":", zorder=2)
-        ax.annotate(f"{st['side'][0]}{st['kind'][0].upper()} {xr:.2f}x", (xr, y_lim[0]), xytext=(2, 2),
-                    textcoords="offset points", ha="left", va="bottom", fontsize=7.5, color=C_STRIKE)
+        ax.annotate(f"{st['side'][0]}{st['kind'][0].upper()} {xr:.2f}x", (xr, y_lim[0]),
+                    xytext=(2, 2 + 11 * (i % 2)), textcoords="offset points", ha="left", va="bottom",
+                    fontsize=7.5, color=C_STRIKE)
     # cap / floor / breakeven direct labels
     ax.annotate(f"cap {_fmt_k(a['cap_usd_per_btc'])}", (spot[-1], a["cap_usd_per_btc"]), xytext=(-2, 12),
                 textcoords="offset points", ha="right", va="bottom", fontsize=8.5, color=C_PAYOFF)
-    # floor/max-loss label sits in the empty loss triangle (left, wide part), clear of the rising curve
-    ax.annotate(f"max loss {_fmt_k(a['floor_max_loss_usd_per_btc'])}",
-                (spot[0] + 0.06 * (spot[-1] - spot[0]), a["floor_max_loss_usd_per_btc"] * 0.36),
-                ha="left", va="center", fontsize=8.5, color=C_LOSS)
+    # max-loss label anchored where the curve bottoms: "floor (bounded)" ONLY for the defined-risk
+    # structures; the others slide to a max-loss-to-spot-0 (label reads "max loss (spot 0)").
+    ml = a["max_loss_usd_per_btc"]
+    mi = min(range(len(pnl)), key=lambda i: pnl[i])                # x-location of the curve minimum
+    ml_word = "floor" if d.get("is_defined_risk") else "max loss"
+    ml_sub = " (bounded)" if d.get("is_defined_risk") else " (spot 0)"
+    ax.annotate(f"{ml_word} {_fmt_k(ml)}{ml_sub}", (spot[mi], ml),
+                xytext=(6 if spot[mi] < 0.5 else -6, 9), textcoords="offset points",
+                ha="left" if spot[mi] < 0.5 else "right", va="bottom", fontsize=8.5, color=C_LOSS)
     for be in a["breakevens_usd"][:2]:
         ax.plot([be / s0], [0], "o", ms=6, color=C_INK, zorder=5)
         ax.annotate(f"BE {be/s0:.2f}x", (be / s0, 0), xytext=(0, 8), textcoords="offset points",
@@ -111,9 +120,9 @@ def _render(name: str, d: dict[str, Any], y_lim: tuple[float, float]) -> None:
     ax.yaxis.set_major_formatter(lambda v, _p: _fmt_k(v))
     # opportunity-cost label placed inside the hatched wedge, clear of the right-side cap label; the
     # zoomed defined-risk plots (wedge fills the top) get an upper-left placement, wide plots a mid placement.
-    if dec.get("max_opportunity_cost_usd_per_btc", 0) > 1:
-        pos, ha, va = ((1.13, y_lim[1] * 0.88), "left", "top") if name in _DEFINED \
-            else ((1.48, y_lim[1] * 0.60), "center", "center")
+    if d["has_holding"] and dec.get("max_opportunity_cost_usd_per_btc", 0) > 1:
+        pos, ha, va = ((1.10, y_lim[1] * 0.82), "left", "top") if name in _DEFINED \
+            else ((1.28, y_lim[1] * 0.55), "center", "center")
         ax.annotate(f"opportunity cost {_fmt_k(dec['max_opportunity_cost_usd_per_btc'])}/BTC\n"
                     "(foregone gain, NOT a loss)", pos, ha=ha, va=va, fontsize=7.6, color=C_MUTED)
 
@@ -127,7 +136,8 @@ def _render(name: str, d: dict[str, Any], y_lim: tuple[float, float]) -> None:
     for x, y in zip(xs, ys, strict=True):
         axb.annotate(_fmt_k(y), (x, y), xytext=(0, 3 if y >= 0 else -3), textcoords="offset points",
                      ha="center", va="bottom" if y >= 0 else "top", fontsize=7.5, color=C_MUTED)
-    axb.set_title("P&L across ±σ spot scenarios (vol 0.46, 45d)", fontsize=9, color=C_MUTED, loc="left")  # noqa: RUF001
+    axb.set_title(f"P&L across ±σ spot scenarios (vol 0.46, ~{d['horizon_days']}d)",  # noqa: RUF001
+                  fontsize=9, color=C_MUTED, loc="left")
     axb.set_yticks([])
     axb.spines[["top", "right", "left"]].set_visible(False)
     axb.margins(y=0.30)
@@ -150,12 +160,15 @@ def _render_comparison(datas: dict[str, dict[str, Any]]) -> None:
         s0 = d["spot0"]
         ax.plot([x / s0 for x in d["payoff_curve"]["spot"]], d["payoff_curve"]["pnl_usd_per_btc"],
                 color=col, lw=2.2, label=lbl)
-    ax.set_xlim(0.45, 1.75)
+    floors = [min(datas[n]["payoff_curve"]["pnl_usd_per_btc"]) for n in ("covered_call", "collar")]
+    caps = [max(datas[n]["payoff_curve"]["pnl_usd_per_btc"]) for n in ("covered_call", "collar")]
+    ax.set_xlim(0.0, 1.75)
+    ax.set_ylim(min(floors) * 1.04, max(caps) + 0.12 * abs(min(floors)))   # top headroom clears the subtitle
     ax.set_xlabel("spot (x initial)")
     ax.set_ylabel("P&L at expiry (USD / BTC)")
-    ax.set_title("Illustrative — collar floor vs covered-call open downside",
+    ax.set_title("Illustrative — collar bounded floor vs covered-call downside to spot 0",
                  fontsize=11.5, color=C_INK, loc="left", pad=8)
-    ax.legend(loc="upper left", frameon=False, fontsize=9)
+    ax.legend(loc="lower right", frameon=False, fontsize=9)          # empty lower-right; clears the subtitle
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.set_major_formatter(lambda v, _p: _fmt_k(v))
     fig.text(0.11, 0.015, _FOOTER, fontsize=6.2, color=C_MUTED, ha="left", va="bottom", linespacing=1.4)
@@ -171,16 +184,16 @@ def main() -> int:
     _OUT.mkdir(parents=True, exist_ok=True)
     _setup()
     datas = {p.stem: json.loads(p.read_text()) for p in _SRC.glob("*.json")}
-    wide_floor = min(datas[n]["annotations"]["floor_max_loss_usd_per_btc"] for n in _WIDE)
-    wide_cap = max(datas[n]["annotations"]["cap_usd_per_btc"] for n in _WIDE)
-    wide_ylim = (wide_floor * 1.12, wide_cap * 1.12)
     for name, d in datas.items():
+        ml, cap = d["annotations"]["max_loss_usd_per_btc"], d["annotations"]["cap_usd_per_btc"]
         if name in _DEFINED:
-            fl, cp = d["annotations"]["floor_max_loss_usd_per_btc"], d["annotations"]["cap_usd_per_btc"]
-            pad = 0.35 * (cp - fl)
-            _render(name, d, (fl - pad, cp + pad))          # zoomed y for the defined-risk structures
+            pad = 0.35 * (cap - ml)
+            _render(name, d, (ml - pad, cap + pad))         # zoomed y for the defined-risk structures
         else:
-            _render(name, d, wide_ylim)
+            # wide structures now slide to the true max-loss (spot 0); scale each to its own downside and
+            # give upside headroom for the "hold BTC" reference (+0.75x spot) + the opportunity-cost wedge.
+            ref_top = 0.75 * d["spot0"]
+            _render(name, d, (ml * 1.07, max(cap, ref_top) * 1.14))
     _render_comparison(datas)
     manifest = {
         "provenance": "SIMULATED / diagnostic; MS-26-gated; holder-basis; deterministic render; no best/optimal",

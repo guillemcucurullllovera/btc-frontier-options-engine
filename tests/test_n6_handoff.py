@@ -27,6 +27,34 @@ def test_handoff_master_is_self_contained() -> None:
     assert "63,402" in doc                                                                # inline S0 (no repo lookup)
 
 
+def test_handoff_covers_all_ten_slides() -> None:  # N6.5a — whole-deck slide-by-slide
+    doc = (_H / "DESIGN_HANDOFF.md").read_text()
+    for slide in ("Slide 00 ", "Slide 00b ", "Slide 1 ", "Slide 2 ", "Slide 2b ",
+                  "Slide 3 ", "Slide 4 ", "Slide 5 ", "Slide 6 ", "Slide 7 "):
+        assert f"### {slide}" in doc, slide
+    # Slide 3 / 5 rewritten to the current engine
+    assert "COS" in doc and "SVJJ" in doc and "SVI/SSVI" in doc and "881" in doc
+
+
+def test_handoff_standalone_and_dual_objective_framing() -> None:  # N6.5b + N6.5c
+    doc = (_H / "DESIGN_HANDOFF.md").read_text()
+    assert "STANDALONE-SYSTEM FRAMING" in doc and "no before/after" in doc.lower()
+    assert "DUAL-OBJECTIVE" in doc
+    assert "Accumulation" in doc and "Long BTC + short put" in doc                        # accumulation path
+    assert "Protection" in doc and "collar" in doc and "INVARIANT" in doc                 # protection path
+    # objective-conditional, never universal best/optimal
+    assert "best/optimal" in doc and "natural" in doc.lower()
+
+
+def test_handoff_live_reanchor_with_deal_reference() -> None:  # N6.5d
+    doc = (_H / "DESIGN_HANDOFF.md").read_text()
+    assert "63,402" in doc and "65,000" in doc                                            # both bases shown
+    assert "deal reference" in doc.lower() and "live snapshot" in doc.lower()
+    assert "2026-07-28" in doc                                                            # stamped as-of date
+    # Slide-1 economics recomputed at live (the value decomposition, engine waterfall)
+    assert "60,631" in doc and "4.37%" in doc and "1,902" in doc
+
+
 def test_migration_manifest_lists_uploads_and_map() -> None:
     m = (_H / "MIGRATION_MANIFEST.md").read_text()
     for n in _STRUCTS:
