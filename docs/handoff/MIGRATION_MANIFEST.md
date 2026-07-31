@@ -14,8 +14,15 @@
 
 ## 2. PASTE (text — fully self-contained)
 - [ ] `DESIGN_HANDOFF.md` — the master (context, governance + standalone-framing + dual-objective rules,
-      editing corrections, **all-10-slides** slide-by-slide, full data grid, figure values).
+      editing corrections, **all-10-slides** slide-by-slide, full data grid, figure values, **§g the CEO's
+      Excel grid** — his column layout with this engine's numbers + the two hero structures side-by-side).
 - [ ] `RESULTS_BRIEF.md` — the one-page brief.
+
+## 2b. DATA FILE (optional, machine-readable)
+- [ ] `ceo_grid.csv` — the FULL CEO column set (33 columns) for all 210 rows, 1:1
+      with the CEO's Excel layout (Structure · Premium · Contracts/Exposure · Premium USD · Prob of Win ·
+      Break-even · max loss BTC/Option/total · Weekly vola · ±σ P&L portfolio · Total Exposure · Options
+      contracts · opportunity cost · not-our-fault · INF). Import into Sheets/Excel if a spreadsheet is wanted.
 
 ## 3. Old-slide → new-content map (all 10 slides)
 | old slide | new content (HAND-OFF §d) |

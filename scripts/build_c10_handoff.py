@@ -14,6 +14,7 @@ from __future__ import annotations
 # ruff: noqa: RUF001
 # This file intentionally embeds typographic + Greek unicode (mid-dot, em-dash, delta, theta, eta, rho,
 # sigma, subscript-2) in prose strings written verbatim into the markdown hand-off documents.
+import csv
 import json
 import pathlib
 import shutil
@@ -23,6 +24,7 @@ from typing import Any
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from execution.waterfall import _compute_waterfall, load_params
+from scripts.ceo_grid import CEO_HEADERS, ceo_row, put_floor, sort_key
 
 _R = pathlib.Path(__file__).resolve().parents[1]
 _GRID = _R / "exports" / "c10_deck_input" / "grid.json"
@@ -190,25 +192,16 @@ def _grid_rows() -> list[dict[str, Any]]:
     return list(json.loads(_GRID.read_text())["rows"])
 
 
-def _put_floor(r: dict[str, Any]) -> float | None:
-    """The protective LONG-put %OTM for a row that has one (disambiguates the two collar variants)."""
-    for leg in r.get("option_legs", []):
-        if leg.get("kind") == "put" and leg.get("side") == "LONG":
-            return float(leg.get("requested_pct"))
-    return None
-
-
 def _grid_table(rows: list[dict[str, Any]]) -> str:
     hdr = ("| structure | expiry (dte) | strike% | put floor% | cov% | prem% | prem $/BTC | prem $/CME(x5) "
            "| prem $/port | P(win) | true BE | maxloss $/BTC | maxloss %cap | Δ/BTC | θ/day $ |")
     sep = "|" + "|".join(["---"] * 15) + "|"
     lines = [hdr, sep]
-    # put floor added to the sort key so the two collar variants order deterministically (10% floor first)
-    for r in sorted(rows, key=lambda x: (x["structure_id"], x["dte_days"], x.get("strike_pct") or 0.0,
-                                         x["coverage_pct"], _put_floor(x) if _put_floor(x) is not None else 0.0)):
+    # put floor is in the sort key so the two collar variants order deterministically (10% floor first)
+    for r in sorted(rows, key=sort_key):
         prem, ml, be, gk = r["premium"], r["max_loss"], r.get("breakeven", {}), r.get("greeks", {})
         tbe = (be.get("true_breakevens") or [None])
-        pf = _put_floor(r)
+        pf = put_floor(r)
         lines.append(
             f"| {r['structure_id']} | {r['expiry_label']} ({r['dte_days']:.0f}d) | {_sp(r)} "
             f"| {f'{pf:+.0f}' if pf is not None else '—'} | {r['coverage_pct']:.0f} | {_pct(prem.get('pct_of_spot'))} "
@@ -240,6 +233,83 @@ def _figures_table() -> str:
     return "\n".join(lines)
 
 
+# ── CEO Excel grid (N7) — surface grid.json in the CEO's column layout ─────────
+def _fmt_ceo(header: str, v: Any) -> str:
+    if v is None:
+        return "—"
+    if isinstance(v, str):
+        return v
+    fv = float(v)
+    if "%" in header:                                                   # Premium %, Break-even %OTM, Strike
+        return f"{fv:+.0f}%" if "Strike" in header or "Break-even %" in header else f"{fv:.2f}%"
+    if any(t in header for t in ("Prob", "coverage", "vola", "DVOL")):
+        return f"{fv:.3f}"
+    if "days" in header or "weeks" in header:
+        return f"{fv:.1f}"
+    if "Theta" in header:
+        return f"{fv:,.1f}"
+    return f"{fv:,.0f}"                                                  # USD / exposure / P&L / counts
+
+
+def _ceo_hero_md(rows: list[dict[str, Any]]) -> str:
+    """N7b — the CEO's two focus structures side-by-side across ALL his columns (metrics as rows)."""
+    heroes = [
+        ("Short Call + Long BTC (covered_call)",
+         min([r for r in rows if r["structure_id"] == "covered_call" and r["coverage_pct"] == 100.0
+              and r.get("strike_pct") == 5.0], key=lambda x: x["dte_days"])),
+        ("Short Put + Long BTC (long_btc_plus_short_put)",
+         min([r for r in rows if r["structure_id"] == "long_btc_plus_short_put" and r["coverage_pct"] == 100.0
+              and r.get("strike_pct") == -5.0], key=lambda x: x["dte_days"])),
+    ]
+    cds = [(name, ceo_row(r)) for name, r in heroes]
+    lines = ["| CEO column | " + " | ".join(name for name, _ in cds) + " |",
+             "|---|" + "|".join(["---"] * len(cds)) + "|"]
+    for h in CEO_HEADERS:
+        if h == "Structure":
+            continue
+        lines.append(f"| {h} | " + " | ".join(_fmt_ceo(h, cd[h]) for _n, cd in cds) + " |")
+    return "\n".join(lines)
+
+
+def _ceo_grid_md(rows: list[dict[str, Any]]) -> str:
+    """N7a — the full grid in the CEO's column layout (consolidated cells; 1:1 machine-readable is the CSV)."""
+    hdr = ("| Structure | Strike | Cov | Expiry (d) | Prem % | Prem USD (BTC / CME5 / port) | P(win) "
+           "| BE (%OTM / true) | Total Exposure | Max loss (BTC-leg / opt-leg / total) $/BTC | MaxLoss $/port "
+           "| Contracts | Vola (ann / wk) | P&L port (−2σ/−1σ/0/+1σ/+2σ) $M | Opp cost (+1σ/+2σ) $/BTC "
+           "| θ/day | INF? | Not-our-fault |")
+    lines = [hdr, "|" + "|".join(["---"] * 18) + "|"]
+    for r in sorted(rows, key=sort_key):
+        c = ceo_row(r)
+        prem_usd = f"{_f(c['Premium USD/BTC'])} / {_f(c['Premium USD/contract(5BTC)'])} / {_f(c['Premium USD/portfolio'])}"
+        be = f"{_fmt_ceo('Break-even %OTM', c['Break-even %OTM'])} / {_f(c['Break-even true'])}"
+        mloss = (f"{_f(c['Max loss BTC-leg /BTC'])} / {_f(c['Max loss Option-leg /BTC'])} "
+                 f"/ {_f(c['Max loss total /BTC'])}")
+        vola = f"{_fmt_ceo('Ann. DVOL', c['Ann. DVOL'])} / {_fmt_ceo('Weekly vola', c['Weekly vola'])}"
+        pnl = " / ".join(_f(c[f"P&L portfolio {s}"], 0) if c[f"P&L portfolio {s}"] is None
+                         else f"{c[f'P&L portfolio {s}']/1e6:,.0f}"
+                         for s in ("-2sigma", "-1sigma", "0", "+1sigma", "+2sigma"))
+        opp = f"{_f(c['Opportunity cost +1sigma /BTC'])} / {_f(c['Opportunity cost +2sigma /BTC'])}"
+        lines.append(
+            f"| {c['Structure']} | {_fmt_ceo('Strike %OTM', c['Strike %OTM'])} "
+            f"| {c['Contracts/Exposure (coverage)']:.2f} | {c['Expiry']} ({c['Time days']:.0f}) "
+            f"| {_fmt_ceo('Premium %', c['Premium %'])} | {prem_usd} | {_fmt_ceo('Prob of Win', c['Prob of Win'])} "
+            f"| {be} | {_f(c['Total Exposure USD'])} | {mloss} | {_f(c['Max loss total /portfolio'])} "
+            f"| {_f(c['Options contracts'])} | {vola} | {pnl} | {opp} "
+            f"| {_fmt_ceo('Theta/day /BTC', c['Theta/day /BTC'])} | {c['Uncapped-loss (INF)?']} "
+            f"| {c['Not-our-fault framing']} |")
+    return "\n".join(lines)
+
+
+def _write_ceo_csv(rows: list[dict[str, Any]], path: pathlib.Path) -> None:
+    """N7c — the full CEO column set as machine-readable CSV (1:1; raw values from grid.json)."""
+    with path.open("w", newline="") as f:
+        w = csv.writer(f, lineterminator="\n")          # unix EOL (no \r → git-clean, Excel-friendly)
+        w.writerow(CEO_HEADERS)
+        for r in sorted(rows, key=sort_key):
+            c = ceo_row(r)
+            w.writerow([round(v, 4) if isinstance(v, float) else v for v in c.values()])
+
+
 _CANON: dict[str, tuple[str, float | None]] = {
     "unhedged": ("unhedged_baseline", None), "covered_call": ("covered_call", 5.0),
     "long_btc_plus_short_put": ("long_btc_plus_short_put", -5.0), "cash_secured_put": ("cash_secured_put", -5.0),
@@ -256,7 +326,7 @@ def _cells(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if stk is not None:
             cand = [r for r in cand if r.get("strike_pct") == stk] or cand
         if name == "collar":                                  # feature the 10%-floor variant (deck primary)
-            cand = [r for r in cand if _put_floor(r) == -10.0] or cand
+            cand = [r for r in cand if put_floor(r) == -10.0] or cand
         if cand:
             out[name] = min(cand, key=lambda x: x["dte_days"])
     return out
@@ -431,6 +501,32 @@ cell, so figures and tables agree. Key annotated values:
 
 Every figure carries the governance footer (§b). These are reference renders — clean enough to use as-is,
 or rebuild from the values above.
+
+## g. The CEO's Excel grid — his column layout, this engine's numbers (N7)
+This surfaces the CEO's working-Excel columns (Structure · Premium · Contracts/Exposure = coverage ·
+Premium in USD · Time days · Prob of Win · Break-even · max loss BTC / Option / total · Weekly vola · weeks
+· ±σ P&L · Total Exposure · BTC · Options contracts · Total P&L portfolio · opportunity cost · not-our-fault
+· INF) filled with THIS engine's per-row values — a **reformat, nothing recomputed**. Annualised DVOL stays
+the primary vol; a **weekly-vola equivalent** (= DVOL / √52) is added to map to his "Weekly vola." Contracts
+= 30,000 × coverage ÷ 5 (CME 5-BTC). The 1:1 machine-readable full-column version is **`ceo_grid.csv`**.
+
+**Framing (the "Esta no es nuestra culpa" column, N7d):** a **capped upside is OPPORTUNITY COST** — a
+foregone gain versus simply holding, **not a loss**; the **down-scenarios are inherent to holding 30,000
+BTC** (the client's existing exposure), **not created by the overlay**. `INF*` marks a short-call leg whose
+standalone loss is unbounded — but it is COVERED by the 30,000-BTC block, so the position's **total**
+max-loss is finite (the value shown).
+
+### g.1 — The CEO's two focus structures, side-by-side (both is_hero)
+He asked for **Short Call + Long BTC** (covered call) and **Short Put + Long BTC** tested extensively; here
+they are across every one of his columns (featured cell: 100% coverage, near expiry, ±5% strike):
+
+{_ceo_hero_md(rows)}
+
+### g.2 — The full toolkit in the CEO's column layout ({len(rows)} rows)
+Every structure × strike% × expiry × coverage. (P&L-portfolio columns in $M; the exhaustive per-field
+version is `ceo_grid.csv`.)
+
+{_ceo_grid_md(rows)}
 """
 
 
@@ -519,8 +615,15 @@ def _migration_manifest() -> str:
 
 ## 2. PASTE (text — fully self-contained)
 - [ ] `DESIGN_HANDOFF.md` — the master (context, governance + standalone-framing + dual-objective rules,
-      editing corrections, **all-10-slides** slide-by-slide, full data grid, figure values).
+      editing corrections, **all-10-slides** slide-by-slide, full data grid, figure values, **§g the CEO's
+      Excel grid** — his column layout with this engine's numbers + the two hero structures side-by-side).
 - [ ] `RESULTS_BRIEF.md` — the one-page brief.
+
+## 2b. DATA FILE (optional, machine-readable)
+- [ ] `ceo_grid.csv` — the FULL CEO column set (33 columns) for all 210 rows, 1:1
+      with the CEO's Excel layout (Structure · Premium · Contracts/Exposure · Premium USD · Prob of Win ·
+      Break-even · max loss BTC/Option/total · Weekly vola · ±σ P&L portfolio · Total Exposure · Options
+      contracts · opportunity cost · not-our-fault · INF). Import into Sheets/Excel if a spreadsheet is wanted.
 
 ## 3. Old-slide → new-content map (all 10 slides)
 | old slide | new content (HAND-OFF §d) |
@@ -558,6 +661,10 @@ def main() -> int:
     (_OUT / "DESIGN_HANDOFF.md").write_text(_design_handoff(rows, scen))
     (_OUT / "RESULTS_BRIEF.md").write_text(_results_brief(rows, scen))
     (_OUT / "MIGRATION_MANIFEST.md").write_text(_migration_manifest())
+    # N7c — full CEO column set as machine-readable CSV, from grid.json (no recompute): expand the broken
+    # 8-col deck-input summary in place + a self-contained copy in the hand-off bundle.
+    _write_ceo_csv(rows, _OUT / "ceo_grid.csv")
+    _write_ceo_csv(rows, _GRID.parent / "grid_summary.csv")
     for f in sorted(_FIGPACK.glob("*")):
         shutil.copy2(f, _FIGDST / f.name)
     # N6.3 durable mirror outside the worktree

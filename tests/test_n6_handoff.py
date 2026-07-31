@@ -81,6 +81,31 @@ def test_collar_rows_disambiguated_by_put_floor() -> None:  # N6.6b
     assert "| collar | +5% / 100% / 28AUG26 | 0.62% (392 $/BTC) | 0.727 | -6,010 " in doc
 
 
+def test_ceo_grid_carries_all_columns_for_the_two_heroes() -> None:  # N7
+    doc = (_H / "DESIGN_HANDOFF.md").read_text()
+    assert "## g. The CEO's Excel grid" in doc                                # the CEO-grid section exists
+    # N7b — the two hero structures side-by-side, by the CEO's names
+    assert "Short Call + Long BTC" in doc and "Short Put + Long BTC" in doc
+    # every CEO column appears as a labelled row in the hero comparison
+    for col in ("Premium %", "Prob of Win", "Break-even true", "Total Exposure", "Options contracts",
+                "Weekly vola", "Opportunity cost +2sigma", "Uncapped-loss (INF)", "Not-our-fault"):
+        assert col in doc, col
+    # N7d — the not-our-fault / opportunity-cost framing surfaced per row
+    assert "opportunity cost (foregone gain), NOT a loss" in doc
+    assert "inherent to holding 30,000 BTC" in doc or "BTC's inherent risk, not the overlay" in doc
+
+    # N7c — the machine-readable CSV carries the full CEO column set for the heroes
+    csv_lines = (_H / "ceo_grid.csv").read_text().splitlines()
+    header = csv_lines[0].split(",")
+    for col in ("Structure", "Premium %", "Prob of Win", "Break-even true", "Total Exposure USD",
+                "Options contracts", "Weekly vola", "Opportunity cost +2sigma /BTC",
+                "Uncapped-loss (INF)?", "Not-our-fault framing"):
+        assert col in header, col
+    assert len(csv_lines) == 211                                              # header + 210 rows
+    body = "\n".join(csv_lines)
+    assert "Covered Call (Long BTC + Short Call)" in body and "Long BTC + Short Put" in body
+
+
 def test_results_brief_has_snapshot_and_verification() -> None:
     b = (_H / "RESULTS_BRIEF.md").read_text()
     assert "Snapshot" in b and "Verification note" in b
