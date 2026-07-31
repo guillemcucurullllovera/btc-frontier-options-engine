@@ -24,6 +24,8 @@ Nothing forced — results are reported as the data gives them.
 | D6 | B | Label Binance BTCUSDT OBSERVED with a prominent basis caveat (not a new provenance class) | It IS observed exchange data. The USDT-vs-Deribit-index difference is a *levels* basis; log-RETURNS (the estimation input) are an excellent BTC/USD proxy. Caveat recorded in every `meta.json` + the provider docstring. |
 | D7 | B | Report the downside jump asymmetry as a LONG-HISTORY (sample-length) effect, correcting M4.6 — the data drove this | Same detector (α=0.05): full 2017-2026 η=1.42 vs last-2yr η=1.09. The M4.6 "symmetric daily" was a 2yr-window artifact (missed the crashes). Not forced — reported as the multi-frequency + multi-window evidence gives it. The Phase D risk model should carry η≈1.4-1.5, not the symmetric 2yr estimate. |
 | D8 | B | Daily GARCH is the vol anchor; hourly GARCH unconditional (168%) flagged UNRELIABLE; 1m λ flagged microstructure-inflated | Honesty: hourly persistence is near-integrated (0.997) → unstable unconditional; 1m λ is FP-rate × 130k obs. Reported for completeness with explicit caveats, not used as anchors. |
+| D9 | C | Report the SVCJ MCMC as NON-CONVERGENT on real BTC (R̂≫1) and keep the particle filter as the operational tool | Exactly the pre-authorised fallback. The sampler is *validated on simulated data* (recovers params, vol corr 0.85); on the 8.5yr real series R̂ up to 9.4 (κ) from weak SV identification + regime non-stationarity (PPC kurtosis 19). Not forced — reported as-is. The one robust signal (ρ_J≪0, R̂ 1.17) IS carried forward. |
+| D10 | C | Trust the recovery test over the point estimates — it caught a real bug | The simulate→recover validation exposed a determinant error in the bivariate log-density (2× vol-level bias, vol-corr 0.09→0.85 after fix). Lesson logged: never report MCMC posteriors without a recovery gate. |
 
 ---
 
@@ -64,5 +66,21 @@ jump *size* (fewer but bigger down-moves). Vol level higher over the long histor
 uncond 0.77 / UKF 0.52 / PF 0.61). Q-vs-P: Q 0.50 vs full-history P 0.77 → negative long-run VRP
 (reinforces M5.4's regime-dependent VRP sign). Honesty flags: 1m λ microstructure-inflated; hourly GARCH
 unconditional (168%, persistence 0.997) unreliable → daily GARCH is the anchor.
+
+**Gate: 844 passed / 3 skipped, mypy clean (120 files), ruff clean, anon clean, git diff --check clean.
+Committed `ad98a53`.**
+
+### Phase C — M4.4b SVCJ MCMC (Eraker–Johannes–Polson) ✅ *(implemented + validated; real-data convergence PARTIAL)*
+Full evidence: `c9_svcj_mcmc.md` (+ `.json`). New: `vol/svcj_mcmc.py` (SVCJ Gibbs/Metropolis with data
+augmentation; even/odd vectorised latent-V Metropolis), `scripts/svcj_btc_estimation.py`,
+`tests/test_svcj_mcmc.py`. Resolves the M4.4b "BLOCKED-ON-SOURCE".
+
+**Sampler VALIDATED** on simulated data (EJP Appendix-C recovery): all 10 params' 90% CIs cover truth,
+latent-vol corr ≈ 0.85. The recovery test caught a real determinant bug (2× vol-level bias; corr
+0.09→0.85 after fix). **On real BTC (8.5yr, 9k×3): does NOT converge** (all-R̂<1.1 = False; κ R̂=9.4,
+ρ R̂=4.0; PPC kurtosis 19) — weak SV identification (EJP) + constant-param misspecification across regimes.
+**→ PF (M4.4a) stays the operational tool** (honest, pre-authorised fallback). **One robust signal: ρ_J
+strongly negative (−2.30, R̂ 1.17) → leveraged co-jumps (vol spikes ⇔ price drops)** — corroborates Phase
+B's downside tail as a contemporaneous price–vol co-jump. θ⇒vol 41.9%, latent-vol path 51% (consistent).
 
 Gate: *(appended after self-gate)*

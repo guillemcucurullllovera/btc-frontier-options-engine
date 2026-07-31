@@ -219,7 +219,9 @@ def bootstrap_particle_filter(
 
     Propagates CIR-Euler variance particles, weights by the return likelihood N(r_t; 0, v dt), and
     systematically resamples when ESS falls below N/2. Reports per-step ESS (particle-set health).
-    MCMC (SVCJ, Eraker-Johannes-Polson) is DEFERRED pending source acquisition (see tracker).
+    The full SVCJ MCMC (Eraker-Johannes-Polson) is implemented in ``vol/svcj_mcmc.py`` (C9 Phase C); on
+    the real BTC series it does not converge (weak SV identification + non-stationarity), so this particle
+    filter remains the operational latent-vol tool (see docs/reports/c9_svcj_mcmc.md).
     """
     r = np.asarray(returns, dtype=np.float64)
     n = r.size
