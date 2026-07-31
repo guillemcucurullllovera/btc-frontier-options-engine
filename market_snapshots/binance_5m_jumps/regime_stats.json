@@ -1,0 +1,12 @@
+{
+  "by_regime_eta": {
+    "2019_precovid": 1.116,
+    "2020_21_bull": 1.17,
+    "2022_lunaftx": 0.898,
+    "2023_24_recovery": 1.101,
+    "2024_26_recent": 1.073
+  },
+  "full_eta": 1.113,
+  "n_bars": 787730,
+  "sha256": "928bfde11f93dc0657d7fb179e8f116c70ac6571e15a3257436dfe8ea36cba10"
+}

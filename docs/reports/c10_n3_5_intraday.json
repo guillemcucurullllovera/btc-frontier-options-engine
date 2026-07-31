@@ -1,0 +1,63 @@
+{
+  "interval": "5m",
+  "n_bars": 787730,
+  "start": "2019-01-01",
+  "end": "2026-06-30",
+  "window_bars": 120,
+  "full_history": {
+    "n_obs": 787729,
+    "lam_annual": 385.52811944209236,
+    "frac_downward": 0.5157493942540672,
+    "eta_downward": 1.1127594682360418,
+    "jump_var_share": 0.06645610650593403,
+    "realized_vol_annual": 0.6603584191291622
+  },
+  "by_regime": {
+    "2019_precovid": {
+      "n_obs": 157004,
+      "lam_annual": 504.83095972077143,
+      "frac_downward": 0.553050397877984,
+      "eta_downward": 1.116143527704622,
+      "jump_var_share": 0.09747251194640538,
+      "realized_vol_annual": 0.7843931367819602
+    },
+    "2020_21_bull": {
+      "n_obs": 157845,
+      "lam_annual": 356.9598023377364,
+      "frac_downward": 0.4962686567164179,
+      "eta_downward": 1.1701119943272034,
+      "jump_var_share": 0.031284274321844475,
+      "realized_vol_annual": 0.8564710379373803
+    },
+    "2022_lunaftx": {
+      "n_obs": 105120,
+      "lam_annual": 546.0,
+      "frac_downward": 0.5146520146520146,
+      "eta_downward": 0.8977318277948011,
+      "jump_var_share": 0.10093780397103178,
+      "realized_vol_annual": 0.6621602396377191
+    },
+    "2023_24_recovery": {
+      "n_obs": 157520,
+      "lam_annual": 541.883189436262,
+      "frac_downward": 0.5110837438423645,
+      "eta_downward": 1.1007932392350162,
+      "jump_var_share": 0.07909829529325564,
+      "realized_vol_annual": 0.47498004645559916
+    },
+    "2024_26_recent": {
+      "n_obs": 210240,
+      "lam_annual": 376.5,
+      "frac_downward": 0.4913678618857902,
+      "eta_downward": 1.0727202183091895,
+      "jump_var_share": 0.04703141255020802,
+      "realized_vol_annual": 0.48517667776972506
+    }
+  },
+  "eta_range_across_regimes": [
+    0.8977318277948011,
+    1.1701119943272034
+  ],
+  "all_intraday_symmetric": false,
+  "note": "Intraday (5m) jump asymmetry by regime. Tests whether the Phase B finding \u2014 downside asymmetry is a daily/long-history effect, intraday ~symmetric microstructure \u2014 holds across ALL regimes (incl. crashes), not just the recent 90 days."
+}

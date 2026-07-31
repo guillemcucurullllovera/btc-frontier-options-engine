@@ -56,7 +56,8 @@ class BinanceKlinesProvider(SpotProvider):
     BULK_BASE: ClassVar[str] = "https://data.binance.vision/data/spot"
     REST_LIMIT: ClassVar[int] = 1000
     DEFAULT_TIMEOUT_S: ClassVar[float] = 30.0
-    INTERVAL_MS: ClassVar[dict[str, int]] = {"1d": 86_400_000, "1h": 3_600_000, "1m": 60_000}
+    INTERVAL_MS: ClassVar[dict[str, int]] = {"1d": 86_400_000, "1h": 3_600_000,
+                                             "5m": 300_000, "1m": 60_000}
 
     def __init__(
         self,
