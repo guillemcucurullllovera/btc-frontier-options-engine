@@ -1,0 +1,72 @@
+{
+  "method": "block-bootstrap -> PF P-vol + realized-jump distribution -> SVJJ risk band",
+  "b_bootstrap": 40,
+  "k_draws": 24,
+  "n_paths_per_draw": 150000,
+  "pf_validation": {
+    "ess_mean": 914.6592480011553,
+    "healthy": true,
+    "n_particles": 1200
+  },
+  "p_vol_band_q05_q95": [
+    0.5894802991652928,
+    0.6746185710890054
+  ],
+  "p_vol_mean": 0.6321754501465549,
+  "lambda_band_q05_q95": [
+    4.348959926583053,
+    5.811639645151422
+  ],
+  "es975_band_by_structure": {
+    "unhedged": {
+      "es975_median": 37361.52535639788,
+      "es975_q05": 36354.1060302986,
+      "es975_q95": 38848.70409429969,
+      "band_pct": 6.6769170696450395
+    },
+    "covered_call": {
+      "es975_median": 35544.195330395116,
+      "es975_q05": 34536.77600429584,
+      "es975_q95": 37031.37406829693,
+      "band_pct": 7.018299446120444
+    },
+    "long_btc_plus_short_put": {
+      "es975_median": 69564.29476148673,
+      "es975_q05": 67549.45610928818,
+      "es975_q95": 72538.65223729037,
+      "band_pct": 7.172064555686964
+    },
+    "cash_secured_put": {
+      "es975_median": 32202.769405088857,
+      "es975_q05": 31195.350078989577,
+      "es975_q95": 33689.94814299068,
+      "band_pct": 7.7465327053731405
+    },
+    "collar": {
+      "es975_median": 5734.319098574698,
+      "es975_q05": 5734.319098574697,
+      "es975_q95": 5734.319098574699,
+      "band_pct": 3.172110537060936e-14
+    },
+    "call_spread": {
+      "es975_median": 776.3847922565666,
+      "es975_q05": 776.3847922565665,
+      "es975_q95": 776.3847922565667,
+      "band_pct": 2.9286209326997406e-14
+    },
+    "strike_ladder": {
+      "es975_median": 36271.83384344985,
+      "es975_q05": 35264.414517350575,
+      "es975_q95": 37759.01258135167,
+      "band_pct": 6.8775074201316775
+    }
+  },
+  "tail_exposed_band_pct_range": [
+    6.6769170696450395,
+    7.7465327053731405
+  ],
+  "seed_stable": true,
+  "n_nonfinite": 0,
+  "phase_d_comparison": "Phase D reported +/-15-18% from a jump-bootstrap + P-vol estimator spread; N3.3 re-bands it with the VALIDATED PF as the P-vol source.",
+  "verdict": "Parameter uncertainty is decision-grade via the validated PF (SVCJ MCMC non-convergent). The operational risk carries the ES97.5 band below; defined-risk overlays are bounded."
+}

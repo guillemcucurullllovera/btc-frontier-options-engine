@@ -1,0 +1,47 @@
+{
+  "source": "free Deribit DVOL (ATM Q-vol) + Binance realized returns",
+  "coverage": "ATM Q-vol level ONLY (DVOL = 30d ATM IV), 2021-2026, from FREE data. Full-smile cross-temporal Q-stability (skew/term-structure) still awaits the forward archiver accruing or a trade-reconstruction; a paid backfill is an OPTIONAL accelerant, not required for the ATM-level signal.",
+  "by_year": {
+    "2021": {
+      "dvol_q_atm": 0.9176409893992934,
+      "rv_fwd_realized": 0.7252397214591645,
+      "vrp_implied_minus_realized": 0.19240126794012882
+    },
+    "2022": {
+      "dvol_q_atm": 0.7361232876712329,
+      "rv_fwd_realized": 0.6043626016611767,
+      "vrp_implied_minus_realized": 0.1317606860100561
+    },
+    "2023": {
+      "dvol_q_atm": 0.4964452054794521,
+      "rv_fwd_realized": 0.42275040167248285,
+      "vrp_implied_minus_realized": 0.07369480380696924
+    },
+    "2024": {
+      "dvol_q_atm": 0.5771021857923497,
+      "rv_fwd_realized": 0.49714122813730915,
+      "vrp_implied_minus_realized": 0.07996095765504055
+    },
+    "2025": {
+      "dvol_q_atm": 0.4603506849315069,
+      "rv_fwd_realized": 0.3893350438474201,
+      "vrp_implied_minus_realized": 0.07101564108408674
+    },
+    "2026": {
+      "dvol_q_atm": 0.45827790055248613,
+      "rv_fwd_realized": 0.45237314616708907,
+      "vrp_implied_minus_realized": 0.005904754385397086
+    }
+  },
+  "stability": {
+    "q_atm_vol_range": [
+      0.32380000000000003,
+      1.5619999999999998
+    ],
+    "q_atm_vol_cov": 0.30623720361274687,
+    "vrp_mean": 0.09646545072803331,
+    "vrp_frac_positive": 0.7475324675324675,
+    "n_days": 1925
+  },
+  "note": "VRP = DVOL_t (implied) - realized vol over [t, t+30d]. Positive => vol sellers earn."
+}

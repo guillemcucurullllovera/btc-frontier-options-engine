@@ -1,0 +1,111 @@
+{
+  "results": [
+    {
+      "label": "full_2017_2026",
+      "n_obs": 3270,
+      "converged_all": false,
+      "worst_rhat_param": "kappa",
+      "worst_rhat": 9.4194354634554,
+      "n_params_rhat_lt_1.1": 0,
+      "rhat": {
+        "mu": 1.8043604957722268,
+        "kappa": 9.4194354634554,
+        "theta": 2.0483701622372004,
+        "sigma_v": 2.8804496752971898,
+        "rho": 4.037251791362568,
+        "lambda": 1.4903362729484206,
+        "mu_y": 1.8731661895110618,
+        "sigma_y": 1.4731231055241099,
+        "mu_v": 1.9867619101223775,
+        "rho_j": 1.1671364641274582
+      },
+      "ess": {
+        "mu": 562.0,
+        "kappa": 12.6,
+        "theta": 24.5,
+        "sigma_v": 18.4,
+        "rho": 24.2,
+        "lambda": 32.4,
+        "mu_y": 60.8,
+        "sigma_y": 19.0,
+        "mu_v": 39.1,
+        "rho_j": 18.0
+      },
+      "rho_j_mean": -2.298386102317995,
+      "rho_j_rhat": 1.1671364641274582,
+      "theta_vol_annual": 41.90904986665314
+    },
+    {
+      "label": "recent_3yr_stationary",
+      "n_obs": 1095,
+      "converged_all": false,
+      "worst_rhat_param": "sigma_v",
+      "worst_rhat": 3.497555278177967,
+      "n_params_rhat_lt_1.1": 2,
+      "rhat": {
+        "mu": 1.0145023690728106,
+        "kappa": 3.233820494881595,
+        "theta": 2.756543976088715,
+        "sigma_v": 3.497555278177967,
+        "rho": 2.2979974303848905,
+        "lambda": 1.054223542007814,
+        "mu_y": 1.1219984608777884,
+        "sigma_y": 1.1445594654567537,
+        "mu_v": 1.7028829785494237,
+        "rho_j": 1.3060945687506722
+      },
+      "ess": {
+        "mu": 218.0,
+        "kappa": 16.5,
+        "theta": 27.5,
+        "sigma_v": 28.3,
+        "rho": 23.6,
+        "lambda": 21.5,
+        "mu_y": 16.4,
+        "sigma_y": 89.2,
+        "mu_v": 27.8,
+        "rho_j": 67.5
+      },
+      "rho_j_mean": 0.21779403480137646,
+      "rho_j_rhat": 1.3060945687506722,
+      "theta_vol_annual": 40.44755673747339
+    },
+    {
+      "label": "recent_2yr_stationary",
+      "n_obs": 730,
+      "converged_all": false,
+      "worst_rhat_param": "kappa",
+      "worst_rhat": 2.1817277367177774,
+      "n_params_rhat_lt_1.1": 4,
+      "rhat": {
+        "mu": 1.019677752997264,
+        "kappa": 2.1817277367177774,
+        "theta": 1.2174770765851688,
+        "sigma_v": 1.060192964775424,
+        "rho": 1.2152967137994994,
+        "lambda": 1.1319434513021385,
+        "mu_y": 1.155731693047204,
+        "sigma_y": 1.0076348931269847,
+        "mu_v": 1.238875617032005,
+        "rho_j": 1.061966492415787
+      },
+      "ess": {
+        "mu": 552.8,
+        "kappa": 25.9,
+        "theta": 18.3,
+        "sigma_v": 14.8,
+        "rho": 20.3,
+        "lambda": 37.7,
+        "mu_y": 59.5,
+        "sigma_y": 458.0,
+        "mu_v": 58.2,
+        "rho_j": 44.8
+      },
+      "rho_j_mean": -1.15627931091309,
+      "rho_j_rhat": 1.061966492415787,
+      "theta_vol_annual": 35.79629533134504
+    }
+  ],
+  "verdict": "STILL non-convergent even on stationary windows \u2014 returns-only SVCJ is weakly identified; the PF-based parameter-uncertainty (N3.3) is the operational fallback",
+  "note": "Same sampler as Phase C. If even the stationary windows do not converge, the limit is weak SV identification from RETURNS alone, not just non-stationarity -> use the PF alternative (N3.3). rho_j (co-jump leverage) is the parameter to watch (best-converged)."
+}

@@ -1,0 +1,12 @@
+{
+  "source": "deribit",
+  "index": "DVOL (30d ATM IV)",
+  "provenance": "OBSERVED",
+  "n_days": 1955,
+  "start": "2021-03-24",
+  "end": "2026-07-30",
+  "sha256": "965d97418c95acfde728fa21c8f19360179e1783455e64e7b13995b51aaecfae",
+  "fetched_at_utc": "2026-07-31T09:22:05.119201+00:00",
+  "endpoint": "get_volatility_index_data (resolution=86400)",
+  "note": "FREE ATM Q-vol level history (no paid backfill); decimal (DVOL%/100)."
+}
