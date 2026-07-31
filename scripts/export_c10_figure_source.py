@@ -45,10 +45,13 @@ def _payoff_series(sdef: StructureDef) -> dict[str, Any]:
         s = _S0 * (1.0 + k * _SIGMA_H)
         bars.append({"sigma": k, "spot": float(s),
                      "pnl_usd_per_btc": float(structure_pnl(sdef, _S0, np.array([s]), _T)[0])})
-    # opportunity cost: where the structure caps upside vs holding (pnl < unhedged above spot)
+    # opportunity cost = FOREGONE UPSIDE GAIN only (structure below holding, ABOVE spot); the below-spot
+    # gap is amplified downside, not opportunity cost, so it is excluded here.
     opp = unhedged - pnl
-    opp_region = st[(opp > 1.0) & (st > _S0)]
-    max_opp_cost = float(np.max(opp)) if opp.size else 0.0
+    up = st > _S0
+    opp_up = opp[up]
+    opp_region = st[up][opp_up > 1.0]
+    max_opp_cost = float(np.max(opp_up)) if opp_up.size and float(np.max(opp_up)) > 0 else 0.0
     return {
         "structure": sdef.name, "has_holding": sdef.has_holding,
         "spot0": _S0, "horizon_days": round(_T * 365), "vol_central": _VOL, "sigma_h": _SIGMA_H,

@@ -810,7 +810,7 @@
     "cap_usd_per_btc": 49540.15595130902,
     "floor_max_loss_usd_per_btc": -64583.44404869097,
     "opportunity_cost_starts_usd": null,
-    "max_opportunity_cost_usd_per_btc": 29712.344048690975
+    "max_opportunity_cost_usd_per_btc": 0.0
   },
   "sigma_scenario_bars": [
     {
@@ -841,7 +841,7 @@
   ],
   "max_loss_opportunity_decomp": {
     "max_loss_usd_per_btc": -64583.44404869097,
-    "max_opportunity_cost_usd_per_btc": 29712.344048690975,
+    "max_opportunity_cost_usd_per_btc": 0.0,
     "note": "Capped upside is OPPORTUNITY COST (foregone gain vs holding), NOT a loss. Sub-floor loss is the true max loss (defined-risk structures cap it)."
   },
   "provenance": "SIMULATED / holder-basis; premiums Q_BATES-marked (COS-Bates-consistent)."
