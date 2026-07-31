@@ -63,6 +63,24 @@ def test_migration_manifest_lists_uploads_and_map() -> None:
     assert "PASTE" in m and "old-slide" in m.lower() and "piled" in m.lower()             # paste + old->new map
 
 
+def test_vrp_framing_positive_and_honest() -> None:  # N6.6a
+    for fn in ("DESIGN_HANDOFF.md", "RESULTS_BRIEF.md"):
+        t = (_H / fn).read_text().lower()
+        assert "fair-valued" not in t and "positive but thin" not in t and "premium edge" not in t
+        assert "real, positive, stable premium" in t                     # leads positive
+        assert "tail-compensated" in t and "not a risk-free edge" in t   # keeps the honesty
+
+
+def test_collar_rows_disambiguated_by_put_floor() -> None:  # N6.6b
+    doc = (_H / "DESIGN_HANDOFF.md").read_text()
+    assert "put floor%" in doc                                           # the new distinguishing column
+    # both collar variants appear in the appendix, self-labelled by put floor
+    assert "| collar | 28AUG26 (31d) | +2 | -10 |" in doc
+    assert "| collar | 28AUG26 (31d) | +2 | -5 |" in doc
+    # the featured Slide-2b cell is still the 10%-floor variant (-6,010, 0.62%)
+    assert "| collar | +5% / 100% / 28AUG26 | 0.62% (392 $/BTC) | 0.727 | -6,010 " in doc
+
+
 def test_results_brief_has_snapshot_and_verification() -> None:
     b = (_H / "RESULTS_BRIEF.md").read_text()
     assert "Snapshot" in b and "Verification note" in b

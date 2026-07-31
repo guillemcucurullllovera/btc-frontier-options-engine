@@ -31,7 +31,8 @@ Notional **$1,902.1M**; effective acquisition cost **$60,631/BTC**
 $83.1M); structuring fee **$9.51M** (150 BTC).
 
 ## The five corrections (INTERNAL editing guidance — the slides read as one definitive system)
-1. **VRP is fair-valued / tail-compensated**, not a premium edge (forward VRP +0.096, positive but thin).
+1. **VRP is a real, positive, stable premium** — tail-compensated (forward VRP +0.096,
+   positive ~75% of days); it compensates a precisely-quantified tail (capped for the defined-risk overlays), not a risk-free edge.
 2. **Downside is bigger and OBSERVED** — asymmetric jumps (η≈1.4, all-regime) + observed co-jump ρ_J=−0.74;
    honest downside ~+0.8% (asymmetry) → **~+4.5% central** [+3%,+10%].
 3. **Overlays reshape risk, not return** — defined-risk (collar/call-spread) tails are **invariant**.
@@ -45,7 +46,8 @@ $83.1M); structuring fee **$9.51M** (150 BTC).
 | long BTC + short put (−5%) | 2.21% | 0.667 | -122,000 | max-loss to spot 0 |
 | collar (defined-risk) | 0.62% | 0.727 | -6,010 | bounded floor |
 - Honest-downside ES97.5: **~+4.5% central**, band [+3%,+10%]; defined-risk overlays **bounded**.
-- Parameter uncertainty (validated PF): **±~7%** (tail-exposed). Forward VRP: **+0.096** (positive).
+- Parameter uncertainty (validated PF): **±~7%** (tail-exposed). Forward VRP: **+0.096**
+  — a real, positive, stable premium (positive ~75% of days; tail-compensated).
 
 ## Verification note
 The numbers above are pulled programmatically from the committed N4.2 deck-input grid
