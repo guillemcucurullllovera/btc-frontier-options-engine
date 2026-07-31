@@ -1,0 +1,55 @@
+{
+  "provenance": "SIMULATED / diagnostic; MS-26-gated; holder-basis; deterministic render; no best/optimal",
+  "rendered_from": "docs/reports/c10_figure_source/*.json + docs/reports/c10_figure_spec.md",
+  "note": "Reference renders for the design session, NOT final deck slides. One clean figure per structure.",
+  "figures": [
+    {
+      "file": "unhedged.{png,svg}",
+      "structure": "unhedged",
+      "shows": "Unhedged \u2014 hold BTC (baseline)",
+      "source_json": "docs/reports/c10_figure_source/unhedged.json"
+    },
+    {
+      "file": "collar.{png,svg}",
+      "structure": "collar",
+      "shows": "Collar \u2014 defined-risk: floored downside",
+      "source_json": "docs/reports/c10_figure_source/collar.json"
+    },
+    {
+      "file": "covered_call.{png,svg}",
+      "structure": "covered_call",
+      "shows": "Covered call \u2014 premium cushion, capped upside",
+      "source_json": "docs/reports/c10_figure_source/covered_call.json"
+    },
+    {
+      "file": "long_btc_plus_short_put.{png,svg}",
+      "structure": "long_btc_plus_short_put",
+      "shows": "Long BTC + short put \u2014 amplified downside for premium",
+      "source_json": "docs/reports/c10_figure_source/long_btc_plus_short_put.json"
+    },
+    {
+      "file": "call_spread.{png,svg}",
+      "structure": "call_spread",
+      "shows": "Call spread (credit) \u2014 defined-risk, tight",
+      "source_json": "docs/reports/c10_figure_source/call_spread.json"
+    },
+    {
+      "file": "cash_secured_put.{png,svg}",
+      "structure": "cash_secured_put",
+      "shows": "Cash-secured put \u2014 acquire lower, premium income",
+      "source_json": "docs/reports/c10_figure_source/cash_secured_put.json"
+    },
+    {
+      "file": "strike_ladder.{png,svg}",
+      "structure": "strike_ladder",
+      "shows": "Strike ladder \u2014 staged capped upside",
+      "source_json": "docs/reports/c10_figure_source/strike_ladder.json"
+    }
+  ],
+  "comparison_figure": {
+    "file": "_comparison_collar_vs_covered.{png,svg}",
+    "shows": "ILLUSTRATIVE: defined-risk collar floor vs covered-call open downside",
+    "note": "separate from the 7 per-structure figures; illustrative only"
+  },
+  "footer_text": "SIMULATED / diagnostic \u00b7 MS-26-gated \u00b7 holder-basis \u00b7 illustrative, not advice \u00b7 no best/optimal.\nPremiums COS-Bates-consistent; downside per the SVJJ observed co-jump. Reference render, not a slide."
+}

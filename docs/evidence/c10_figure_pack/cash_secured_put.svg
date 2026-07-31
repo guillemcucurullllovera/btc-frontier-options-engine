@@ -704,17 +704,17 @@ L 502.848 225.952284
     <text style="font-size: 7.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #9a9992" x="230.494769" y="222.150526" transform="rotate(-0 230.494769 222.150526)">SP 0.95x</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #2a78d6" x="498.848" y="111.134059" transform="rotate(-0 498.848 111.134059)">cap +2k</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #2a78d6" x="500.848" y="103.134059" transform="rotate(-0 500.848 103.134059)">cap +2k</text>
    </g>
    <g id="text_17">
-    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="61.024" y="157.530955" transform="rotate(-0 61.024 157.530955)">floor / max loss -30k</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="83.77344" y="137.950028" transform="rotate(-0 83.77344 137.950028)">max loss -30k</text>
    </g>
    <g id="text_18">
     <text style="font-size: 8px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="217.349169" y="112.086605" transform="rotate(-0 217.349169 112.086605)">BE 0.92x</text>
    </g>
    <g id="text_19">
-    <text style="font-size: 7.8px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(364.466272 67.08392)">opportunity cost +46k/BTC</text>
-    <text style="font-size: 7.8px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(363.748428 76.446053)">(foregone gain, NOT a loss)</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(358.957347 68.776119)">opportunity cost +46k/BTC</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(358.25791 77.898197)">(foregone gain, NOT a loss)</text>
    </g>
    <g id="text_20">
     <text style="font-size: 12.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="57.024" y="30.88" transform="rotate(-0 57.024 30.88)">Cash-secured put — acquire lower, premium income</text>
@@ -897,7 +897,8 @@ z
    </g>
   </g>
   <g id="text_34">
-   <text style="font-size: 6.6px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="57.024" y="381.382453" transform="rotate(-0 57.024 381.382453)">SIMULATED / diagnostic · MS-26-gated · holder-basis · no best/optimal. Premiums COS-Bates-consistent; downside per the SVJJ observed-co-jump tail (N3.6). Reference render — not a deck slide.</text>
+   <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(57.024 373.602813)">SIMULATED / diagnostic · MS-26-gated · holder-basis · illustrative, not advice · no best/optimal.</text>
+   <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(57.024 382.282813)">Premiums COS-Bates-consistent; downside per the SVJJ observed co-jump. Reference render, not a slide.</text>
   </g>
  </g>
  <defs>

@@ -840,17 +840,17 @@ L 502.848 225.952284
     <text style="font-size: 7.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #9a9992" x="264.788923" y="222.150526" transform="rotate(-0 264.788923 222.150526)">LC 1.05x</text>
    </g>
    <g id="text_19">
-    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #2a78d6" x="498.848" y="71.35289" transform="rotate(-0 498.848 71.35289)">cap +492</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #2a78d6" x="500.848" y="63.35289" transform="rotate(-0 500.848 63.35289)">cap +492</text>
    </g>
    <g id="text_20">
-    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="61.024" y="181.39541" transform="rotate(-0 61.024 181.39541)">floor / max loss -776</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="83.77344" y="146.525164" transform="rotate(-0 83.77344 146.525164)">max loss -776</text>
    </g>
    <g id="text_21">
     <text style="font-size: 8px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="258.502154" y="112.0615" transform="rotate(-0 258.502154 112.0615)">BE 1.04x</text>
    </g>
    <g id="text_22">
-    <text style="font-size: 7.8px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(364.466272 67.07438)">opportunity cost +48k/BTC</text>
-    <text style="font-size: 7.8px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(363.748428 76.436513)">(foregone gain, NOT a loss)</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(290.224246 55.157335)">opportunity cost +48k/BTC</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(290.224246 64.279413)">(foregone gain, NOT a loss)</text>
    </g>
    <g id="text_23">
     <text style="font-size: 12.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #0b0b0b" x="57.024" y="30.88" transform="rotate(-0 57.024 30.88)">Call spread (credit) — defined-risk, tight</text>
@@ -1034,7 +1034,8 @@ z
    </g>
   </g>
   <g id="text_37">
-   <text style="font-size: 6.6px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="57.024" y="381.382453" transform="rotate(-0 57.024 381.382453)">SIMULATED / diagnostic · MS-26-gated · holder-basis · no best/optimal. Premiums COS-Bates-consistent; downside per the SVJJ observed-co-jump tail (N3.6). Reference render — not a deck slide.</text>
+   <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(57.024 373.602813)">SIMULATED / diagnostic · MS-26-gated · holder-basis · illustrative, not advice · no best/optimal.</text>
+   <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(57.024 382.282813)">Premiums COS-Bates-consistent; downside per the SVJJ observed co-jump. Reference render, not a slide.</text>
   </g>
  </g>
  <defs>

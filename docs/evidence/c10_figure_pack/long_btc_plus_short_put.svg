@@ -431,10 +431,10 @@ L 502.848 225.952284
     <text style="font-size: 7.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #9a9992" x="230.494769" y="222.150526" transform="rotate(-0 230.494769 222.150526)">SP 0.95x</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #2a78d6" x="498.848" y="41.538715" transform="rotate(-0 498.848 41.538715)">cap +50k</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #2a78d6" x="500.848" y="33.538715" transform="rotate(-0 500.848 33.538715)">cap +50k</text>
    </g>
    <g id="text_17">
-    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="61.024" y="208.56754" transform="rotate(-0 61.024 208.56754)">floor / max loss -65k</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="83.77344" y="156.323199" transform="rotate(-0 83.77344 156.323199)">max loss -65k</text>
    </g>
    <g id="text_18">
     <text style="font-size: 8px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="234.496246" y="112.086605" transform="rotate(-0 234.496246 112.086605)">BE 0.97x</text>
@@ -620,7 +620,8 @@ z
    </g>
   </g>
   <g id="text_33">
-   <text style="font-size: 6.6px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="57.024" y="381.382453" transform="rotate(-0 57.024 381.382453)">SIMULATED / diagnostic · MS-26-gated · holder-basis · no best/optimal. Premiums COS-Bates-consistent; downside per the SVJJ observed-co-jump tail (N3.6). Reference render — not a deck slide.</text>
+   <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(57.024 373.602813)">SIMULATED / diagnostic · MS-26-gated · holder-basis · illustrative, not advice · no best/optimal.</text>
+   <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(57.024 382.282813)">Premiums COS-Bates-consistent; downside per the SVJJ observed co-jump. Reference render, not a slide.</text>
   </g>
  </g>
  <defs>

@@ -51,5 +51,5 @@
     "shows": "ILLUSTRATIVE: defined-risk collar floor vs covered-call open downside",
     "note": "separate from the 7 per-structure figures; illustrative only"
   },
-  "footer_text": "SIMULATED / diagnostic \u00b7 MS-26-gated \u00b7 holder-basis \u00b7 no best/optimal. Premiums COS-Bates-consistent; downside per the SVJJ observed-co-jump tail (N3.6). Reference render \u2014 not a deck slide."
+  "footer_text": "SIMULATED / diagnostic \u00b7 MS-26-gated \u00b7 holder-basis \u00b7 illustrative, not advice \u00b7 no best/optimal.\nPremiums COS-Bates-consistent; downside per the SVJJ observed co-jump. Reference render, not a slide."
 }

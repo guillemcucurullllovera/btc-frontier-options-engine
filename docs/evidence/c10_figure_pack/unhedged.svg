@@ -435,10 +435,10 @@ L 502.848 225.952284
     <text style="font-size: 8px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #52514e" x="245.641846" y="46.958125" transform="rotate(-0 245.641846 46.958125)">spot</text>
    </g>
    <g id="text_15">
-    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #2a78d6" x="498.848" y="44.449269" transform="rotate(-0 498.848 44.449269)">cap +48k</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #2a78d6" x="500.848" y="36.449269" transform="rotate(-0 500.848 36.449269)">cap +48k</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="61.024" y="165.081198" transform="rotate(-0 61.024 165.081198)">floor / max loss -35k</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #d03b3b" x="83.77344" y="140.668116" transform="rotate(-0 83.77344 140.668116)">max loss -35k</text>
    </g>
    <g id="text_17">
     <text style="font-size: 8px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #0b0b0b" x="244.784492" y="112.086605" transform="rotate(-0 244.784492 112.086605)">BE 1.00x</text>
@@ -623,7 +623,8 @@ z
    </g>
   </g>
   <g id="text_32">
-   <text style="font-size: 6.6px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #52514e" x="57.024" y="381.382453" transform="rotate(-0 57.024 381.382453)">SIMULATED / diagnostic · MS-26-gated · holder-basis · no best/optimal. Premiums COS-Bates-consistent; downside per the SVJJ observed-co-jump tail (N3.6). Reference render — not a deck slide.</text>
+   <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(57.024 373.602813)">SIMULATED / diagnostic · MS-26-gated · holder-basis · illustrative, not advice · no best/optimal.</text>
+   <text style="font-size: 6.2px; font-family: 'DejaVu Sans'; fill: #52514e" transform="translate(57.024 382.282813)">Premiums COS-Bates-consistent; downside per the SVJJ observed co-jump. Reference render, not a slide.</text>
   </g>
  </g>
  <defs>

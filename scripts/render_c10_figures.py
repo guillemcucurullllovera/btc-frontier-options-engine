@@ -44,8 +44,8 @@ _TITLE = {
     "call_spread": "Call spread (credit) — defined-risk, tight",
     "strike_ladder": "Strike ladder — staged capped upside",
 }
-_FOOTER = ("SIMULATED / diagnostic · MS-26-gated · holder-basis · no best/optimal. Premiums COS-Bates-"
-           "consistent; downside per the SVJJ observed-co-jump tail (N3.6). Reference render — not a deck slide.")
+_FOOTER = ("SIMULATED / diagnostic · MS-26-gated · holder-basis · illustrative, not advice · no best/optimal.\n"
+           "Premiums COS-Bates-consistent; downside per the SVJJ observed co-jump. Reference render, not a slide.")
 
 
 def _setup() -> None:
@@ -92,11 +92,12 @@ def _render(name: str, d: dict[str, Any], y_lim: tuple[float, float]) -> None:
         ax.annotate(f"{st['side'][0]}{st['kind'][0].upper()} {xr:.2f}x", (xr, y_lim[0]), xytext=(2, 2),
                     textcoords="offset points", ha="left", va="bottom", fontsize=7.5, color=C_STRIKE)
     # cap / floor / breakeven direct labels
-    ax.annotate(f"cap {_fmt_k(a['cap_usd_per_btc'])}", (spot[-1], a["cap_usd_per_btc"]), xytext=(-4, 4),
+    ax.annotate(f"cap {_fmt_k(a['cap_usd_per_btc'])}", (spot[-1], a["cap_usd_per_btc"]), xytext=(-2, 12),
                 textcoords="offset points", ha="right", va="bottom", fontsize=8.5, color=C_PAYOFF)
-    ax.annotate(f"floor / max loss {_fmt_k(a['floor_max_loss_usd_per_btc'])}",
-                (spot[0], a["floor_max_loss_usd_per_btc"]), xytext=(4, 4), textcoords="offset points",
-                ha="left", va="bottom", fontsize=8.5, color=C_LOSS)
+    # floor/max-loss label sits in the empty loss triangle (left, wide part), clear of the rising curve
+    ax.annotate(f"max loss {_fmt_k(a['floor_max_loss_usd_per_btc'])}",
+                (spot[0] + 0.06 * (spot[-1] - spot[0]), a["floor_max_loss_usd_per_btc"] * 0.36),
+                ha="left", va="center", fontsize=8.5, color=C_LOSS)
     for be in a["breakevens_usd"][:2]:
         ax.plot([be / s0], [0], "o", ms=6, color=C_INK, zorder=5)
         ax.annotate(f"BE {be/s0:.2f}x", (be / s0, 0), xytext=(0, 8), textcoords="offset points",
@@ -108,11 +109,13 @@ def _render(name: str, d: dict[str, Any], y_lim: tuple[float, float]) -> None:
     ax.legend(loc="upper left", frameon=False, fontsize=8.5)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.set_major_formatter(lambda v, _p: _fmt_k(v))
-    # opportunity-cost label placed INSIDE the hatched wedge, within view, only for capped-upside structures
+    # opportunity-cost label placed inside the hatched wedge, clear of the right-side cap label; the
+    # zoomed defined-risk plots (wedge fills the top) get an upper-left placement, wide plots a mid placement.
     if dec.get("max_opportunity_cost_usd_per_btc", 0) > 1:
+        pos, ha, va = ((1.13, y_lim[1] * 0.88), "left", "top") if name in _DEFINED \
+            else ((1.48, y_lim[1] * 0.60), "center", "center")
         ax.annotate(f"opportunity cost {_fmt_k(dec['max_opportunity_cost_usd_per_btc'])}/BTC\n"
-                    "(foregone gain, NOT a loss)", (1.5, y_lim[1] * 0.62), ha="center", va="center",
-                    fontsize=7.8, color=C_MUTED)
+                    "(foregone gain, NOT a loss)", pos, ha=ha, va=va, fontsize=7.6, color=C_MUTED)
 
     # slim sigma-scenario companion (single hue, sign by position, value-labelled)
     axb = fig.add_subplot(gs[1])
@@ -129,7 +132,7 @@ def _render(name: str, d: dict[str, Any], y_lim: tuple[float, float]) -> None:
     axb.spines[["top", "right", "left"]].set_visible(False)
     axb.margins(y=0.30)
 
-    fig.text(0.11, 0.015, _FOOTER, fontsize=6.6, color=C_MUTED, ha="left", va="bottom")
+    fig.text(0.11, 0.010, _FOOTER, fontsize=6.2, color=C_MUTED, ha="left", va="bottom", linespacing=1.4)
     for ext, meta in (("png", {"Software": "c10-figure-pack"}),
                       ("svg", {"Date": None, "Creator": "c10-figure-pack"})):
         fig.savefig(_OUT / f"{name}.{ext}", dpi=150, metadata=meta)
@@ -138,8 +141,8 @@ def _render(name: str, d: dict[str, Any], y_lim: tuple[float, float]) -> None:
 
 def _render_comparison(datas: dict[str, dict[str, Any]]) -> None:
     """N5.2 — the ONE optional illustrative comparison: collar floor vs covered-call open downside."""
-    fig, ax = plt.subplots(figsize=(7.2, 4.4))
-    fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.16)
+    fig, ax = plt.subplots(figsize=(7.2, 4.6))
+    fig.subplots_adjust(left=0.11, right=0.97, top=0.88, bottom=0.24)
     ax.axhline(0, color=C_GRID, lw=1.0)
     for name, col, lbl in (("covered_call", C_LOSS, "covered call (open downside)"),
                            ("collar", C_PAYOFF, "collar (floored downside)")):
@@ -150,13 +153,14 @@ def _render_comparison(datas: dict[str, dict[str, Any]]) -> None:
     ax.set_xlim(0.45, 1.75)
     ax.set_xlabel("spot (x initial)")
     ax.set_ylabel("P&L at expiry (USD / BTC)")
-    ax.set_title("Illustrative comparison — defined-risk collar floor vs covered-call open downside",
+    ax.set_title("Illustrative — collar floor vs covered-call open downside",
                  fontsize=11.5, color=C_INK, loc="left", pad=8)
     ax.legend(loc="upper left", frameon=False, fontsize=9)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.set_major_formatter(lambda v, _p: _fmt_k(v))
-    fig.text(0.11, 0.015, "ILLUSTRATIVE side-by-side (separate from the 7 per-structure figures). " + _FOOTER,
-             fontsize=6.6, color=C_MUTED, ha="left", va="bottom")
+    fig.text(0.11, 0.015, _FOOTER, fontsize=6.2, color=C_MUTED, ha="left", va="bottom", linespacing=1.4)
+    ax.text(0.5, 0.965, "illustrative side-by-side · separate from the 7 per-structure figures",
+            transform=ax.transAxes, ha="center", va="top", fontsize=7.5, color=C_MUTED)
     for ext, meta in (("png", {"Software": "c10-figure-pack"}),
                       ("svg", {"Date": None, "Creator": "c10-figure-pack"})):
         fig.savefig(_OUT / f"_comparison_collar_vs_covered.{ext}", dpi=150, metadata=meta)
