@@ -28,6 +28,8 @@ Nothing forced — results are reported as the data gives them.
 | D10 | C | Trust the recovery test over the point estimates — it caught a real bug | The simulate→recover validation exposed a determinant error in the bivariate log-density (2× vol-level bias, vol-corr 0.09→0.85 after fix). Lesson logged: never report MCMC posteriors without a recovery gate. |
 | D11 | D | Propagate parameter uncertainty by bootstrapping Phase B realized jumps + drawing P-vol from the estimator spread; use the SVCJ posterior only qualitatively | Phase C did not converge, so sampling its posterior directly would be dishonest. The well-founded uncertainty sources are the jump bootstrap (Phase B identifies jumps well) and the genuine P-vol estimator disagreement (0.42–0.77). ρ_J<0 is carried qualitatively. |
 | D12 | D | Flag that the symmetric-normal jump block cannot represent the η=1.42 downside SIZE asymmetry → the LBSP/downside tail is if anything UNDERSTATED | Honesty: at α=0.05 the empirical jump mean ≈0 (asymmetry is in size, not mean); the block widens the tail via larger jumps + vol, not a downward mean. Reported as a limitation; the qualitative conclusions (defined-risk robustness, more-negative VRP) are unaffected. Faithful downside needs an asymmetric/co-jump block (future work). |
+| D13 | E | Q model NOT re-calibrated across history (data gap) — only P re-estimated; VRP-stability uses the frozen Q | We hold ONE frozen option chain, not historical surfaces — Q-smile re-calibration is impossible without a historical Deribit surface archive. Documented as a data gap (flagged for M7); the feasible, honest analysis is P-stability + VRP-vs-frozen-Q across windows. |
+| D14 | E | Report vol roughness as a STRUCTURAL (regime-independent) property from the realized-variance side | H ∈ [0.02, 0.10] in every window (2019+) via GJR on hourly-built daily RV — an independent confirmation of Phase A's Q-surface H≈0.20. RV noise biases H down (noted); the "rough in all regimes" conclusion is robust and not forced. |
 
 ---
 
@@ -101,5 +103,21 @@ capped by construction → the robust choice under uncertainty; (3) the **VRP mo
 richer estimate (LBSP −693→−1057; every short-premium overlay's carry falls) → selling vol less attractive,
 compounding M5.4. Honesty flag (D12): the symmetric-normal block can't capture the η=1.42 downside *size*
 asymmetry → the downside tail is if anything understated (ρ_J<0 points the same way).
+
+**Gate: 851 passed / 3 skipped, mypy clean (125 files), ruff clean, anon clean, git diff --check clean.
+Committed `b46b580`.**
+
+### Phase E — Cross-temporal robustness ✅
+Full evidence: `c9_cross_temporal.md` (+ `.json`). New: `scripts/cross_temporal_stability.py`,
+`tests/test_cross_temporal.py`. 6 contiguous regime windows (2017–2026); per window: realized vol, GARCH,
+jump λ/η, SV-MLE vol, **roughness H** (GJR on hourly-built daily RV), VRP vs frozen Q.
+
+**Stability verdict:** (1) **STRUCTURAL — roughness H ∈ [0.02, 0.10] in every regime** (vol rough always;
+independent confirmation of Phase A's Q-surface H≈0.20); (2) **SECULAR — realized vol halves 0.92→0.46** over
+the sample (non-stationary; use the recent ~0.46, not a full-history average); (3) **REGIME-DEPENDENT** — jump
+downside η strongest in crash windows (2019-20 1.56, 2020-21 1.42) vs calm (recent 0.92), and the **VRP is
+negative in every window but shrinks toward neutral (−0.55→−0.09)** — structurally negative long-run,
+near-neutral now (resolves the VRP-sign question cross-temporally; consistent with M5.4 / Phase D).
+**Data gap (D13):** Q-smile cannot be re-calibrated historically (one frozen chain) — flagged for M7.
 
 Gate: *(appended after self-gate)*
