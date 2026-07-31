@@ -1,0 +1,134 @@
+{
+  "provenance": "computed off the frozen anchor snapshot on the C9/C10 (COS-Bates + SVJJ) engine",
+  "supersedes": "docs/evidence C8 Phase-4 pack (BS-with-mark-IV + GBM/Merton scenarios)",
+  "n_grid_rows": 210,
+  "structures": [
+    "unhedged",
+    "covered_call",
+    "long_btc_plus_short_put",
+    "cash_secured_put",
+    "collar",
+    "call_spread",
+    "strike_ladder"
+  ],
+  "coverage_pct": [
+    25,
+    50,
+    75,
+    100
+  ],
+  "corrections": [
+    "premium COS-Bates-consistent",
+    "SVJJ observed-co-jump honest-downside",
+    "PF +/-7% parameter band",
+    "forward VRP positive (N3.1)",
+    "recent-regime vol 0.46",
+    "defined-risk invariance"
+  ],
+  "svjj_scenarios": {
+    "provenance": "SIMULATED / P-ESTIMATED (SVJJ, observed co-jump N3.6); Q-marks frozen Q_BATES",
+    "central_vol": 0.46,
+    "vol_band": {
+      "current": 0.35,
+      "forecast_central": 0.46,
+      "stress": 0.62
+    },
+    "muv_observed": {
+      "none": 0.0,
+      "observed_lower": 0.12,
+      "observed_central": 0.17,
+      "observed_upper": 0.39
+    },
+    "rho_j_observed": -0.738,
+    "lambda_annual": 4.47,
+    "pf_parameter_band_es975_pct": 7.0,
+    "forward_vrp_atm": 0.096,
+    "per_structure": {
+      "unhedged": {
+        "es975_central_usd": 33588.05657591456,
+        "honest_downside_widen_pct_central": 3.8974663536338605,
+        "honest_downside_widen_pct_band": [
+          2.617239825354978,
+          8.4803186238126
+        ],
+        "es975_stress_usd": 37988.572351333925,
+        "vrp_carry_central_usd": 0.0,
+        "prob_loss_central": 0.463264,
+        "defined_risk_bounded": false
+      },
+      "covered_call": {
+        "es975_central_usd": 31770.726549911804,
+        "honest_downside_widen_pct_central": 4.129613466250248,
+        "honest_downside_widen_pct_band": [
+          2.7731320418237893,
+          8.985436899111953
+        ],
+        "es975_stress_usd": 36171.24232533116,
+        "vrp_carry_central_usd": -1001.9580933435723,
+        "prob_loss_central": 0.37578,
+        "defined_risk_bounded": false
+      },
+      "long_btc_plus_short_put": {
+        "es975_central_usd": 62017.357200520106,
+        "honest_downside_widen_pct_central": 4.235398364621545,
+        "honest_downside_widen_pct_band": [
+          2.8441690755830473,
+          9.215609416942705
+        ],
+        "es975_stress_usd": 70818.38875135881,
+        "vrp_carry_central_usd": -1008.5752839594625,
+        "prob_loss_central": 0.368316,
+        "defined_risk_bounded": false
+      },
+      "cash_secured_put": {
+        "es975_central_usd": 28429.300624605545,
+        "honest_downside_widen_pct_central": 4.637494973029765,
+        "honest_downside_widen_pct_band": [
+          3.114186353906656,
+          10.090513020325131
+        ],
+        "es975_stress_usd": 32829.8164000249,
+        "vrp_carry_central_usd": -1008.5752839594625,
+        "prob_loss_central": 0.260708,
+        "defined_risk_bounded": false
+      },
+      "collar": {
+        "es975_central_usd": 5734.3190985747,
+        "honest_downside_widen_pct_central": 2.220446049250313e-14,
+        "honest_downside_widen_pct_band": [
+          0.0,
+          2.220446049250313e-14
+        ],
+        "es975_stress_usd": 5734.319098574699,
+        "vrp_carry_central_usd": -83.35186145948546,
+        "prob_loss_central": 0.432032,
+        "defined_risk_bounded": true
+      },
+      "call_spread": {
+        "es975_central_usd": 776.3847922565665,
+        "honest_downside_widen_pct_central": -1.1102230246251565e-14,
+        "honest_downside_widen_pct_band": [
+          -3.3306690738754696e-14,
+          -3.3306690738754696e-14
+        ],
+        "es975_stress_usd": 776.3847922565666,
+        "vrp_carry_central_usd": -9.47383523270446,
+        "prob_loss_central": 0.402712,
+        "defined_risk_bounded": true
+      },
+      "strike_ladder": {
+        "es975_central_usd": 32498.365062966543,
+        "honest_downside_widen_pct_central": 4.033422020466326,
+        "honest_downside_widen_pct_band": [
+          2.7085372358854887,
+          8.77613833560491
+        ],
+        "es975_stress_usd": 36898.8808383859,
+        "vrp_carry_central_usd": -911.9851417167126,
+        "prob_loss_central": 0.408552,
+        "defined_risk_bounded": false
+      }
+    }
+  },
+  "discipline": "SIMULATED/MS-26-gated; holder-basis; no best/optimal"
+}

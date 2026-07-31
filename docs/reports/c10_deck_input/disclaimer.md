@@ -1,0 +1,3 @@
+# C10 deck-input disclaimer
+
+SIMULATED / diagnostic; MS-26-gated. Alternatives are presented, NOT ranked; no best/optimal. Holder-basis. Attribution is structure-specific: the covered call's overlay is a non-negative premium cushion (down-scenario losses are inherent to HOLDING BTC, not the overlay), whereas Long BTC + short put's overlay adds incremental sub-strike downside (attributable). Capped upside is OPPORTUNITY COST (foregone gain), NOT a loss. Investment decisions and outcomes rest with the client. Premiums are COS-Bates-consistent (Deribit marks); downside scenarios use the SVJJ observed-co-jump physical tail with the mu_v mapping caveat; parameter uncertainty is the validated-PF band. Supersedes the C8 Phase-4 pack.
