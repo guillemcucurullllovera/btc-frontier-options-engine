@@ -1,0 +1,21 @@
+{
+  "generated_utc": "2026-07-31T08:55:22.494999+00:00",
+  "n_days": 1,
+  "status": "ACCRUING \u2014 1 day(s) archived; a meaningful stability series needs weeks of daily accrual (or a paid backfill). The pipeline is READY; it is DATA-GATED on the archive.",
+  "per_day": [
+    {
+      "date": "2026-07-31",
+      "arpe": 0.08737827974307898,
+      "rmse_iv": 0.018240427884678542,
+      "n_options": 304,
+      "v0": 0.09935535000015677,
+      "kappa": 6.325390205034056,
+      "theta": 0.26972700773504094,
+      "vol_of_vol": 3.313424287361906,
+      "rho": -0.37170047931905753,
+      "atm_vol": 0.5193524889081027
+    }
+  ],
+  "stability": {},
+  "data_gate": "Cross-temporal Q-calibration requires historical option SURFACES. This pipeline runs per archived day and is ready; results are gated on the daily archiver accruing (scripts/deribit_surface_archiver.py) or a paid backfill (see c10_n2_q_archive.md)."
+}

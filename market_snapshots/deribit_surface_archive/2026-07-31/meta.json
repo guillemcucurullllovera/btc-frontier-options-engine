@@ -1,0 +1,19 @@
+{
+  "date": "2026-07-31",
+  "source": "deribit",
+  "provenance": "OBSERVED",
+  "currency": "BTC",
+  "n_instruments": 854,
+  "n_book_rows": 854,
+  "index_price": 63789.19,
+  "n_dvol_rows": 25,
+  "sha256": {
+    "instruments.json": "bee2785e94d7b3dc96afbf37fd271dad76c9e19667cb22b78bbf4127c6c7490a",
+    "book_summary.json": "1932dcea3cd084cfcf2d5a9e0d7a940d16b62b878e4446d387123fc594686355",
+    "index.json": "ef2060008ca8df0fc84730c960c9f07cbfbb7481a3e4a59fc77a517f1607a09e",
+    "dvol.json": "afd75fc73467474d3fd7415d667c1f4e64bef7165193645f86825426c5657a05"
+  },
+  "fetched_at_utc": "2026-07-31T08:53:58.619704+00:00",
+  "endpoint": "www.deribit.com/api/v2/public (get_instruments/get_book_summary_by_currency)",
+  "note": "Daily live-surface snapshot for the historical-Q archive (C10 N2). Levels/IVs are the Deribit marks at fetch time; the surface accrues one snapshot/day toward cross-temporal Q-calibration (data-gated on maturity)."
+}
