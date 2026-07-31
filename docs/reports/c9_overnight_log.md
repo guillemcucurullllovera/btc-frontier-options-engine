@@ -120,4 +120,23 @@ negative in every window but shrinks toward neutral (−0.55→−0.09)** — st
 near-neutral now (resolves the VRP-sign question cross-temporally; consistent with M5.4 / Phase D).
 **Data gap (D13):** Q-smile cannot be re-calibrated historically (one frozen chain) — flagged for M7.
 
-Gate: *(appended after self-gate)*
+**Gate: 854 passed / 3 skipped, mypy clean (127 files), ruff clean, anon clean, git diff --check clean.
+Committed `0d39a07`.**
+
+### Phase F — Dossier + completion report + MS-26 sign-off recommendation ✅
+`docs/reports/c9_completion_report.md` — SR-11-7 model-risk dossier (inventory, external-oracle validation,
+an honest 8-item limitation register, decision-grade-vs-diagnostic tiering, and an explicit **MS-26 sign-off
+RECOMMENDATION for the operator** — recommend signing off the validated core as the diagnostic replacement
+for the GBM/Merton stack, research-tier items carried as future work; **NOT a self-sign-off**, no MS-25
+claim). `docs/reports/c9_overnight_report.md` — the morning summary. Tracker M7.1/7.2/7.3 → ✅.
+
+**Gate: docs-only (no `.py` touched) → suite unchanged at 854 passed / 3 skipped; mypy/ruff/anon/git clean.**
+
+---
+
+## RUN COMPLETE
+All six phases (A–F) implemented, self-gated, and committed to `sprint/c9-advanced-methods`. Suite 835→854
+(+19 tests). No phase failed or was left broken; the two honest non-completions (SVCJ decision-grade params;
+historical Q re-calibration) are documented with reasons and carried as future work. Deck & canonical `main`
+untouched throughout. Morning read order: **`c9_overnight_report.md`** → `c9_completion_report.md` → the
+per-phase reports.
