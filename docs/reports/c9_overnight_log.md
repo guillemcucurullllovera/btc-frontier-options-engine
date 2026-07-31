@@ -26,6 +26,8 @@ Nothing forced — results are reported as the data gives them.
 | D8 | B | Daily GARCH is the vol anchor; hourly GARCH unconditional (168%) flagged UNRELIABLE; 1m λ flagged microstructure-inflated | Honesty: hourly persistence is near-integrated (0.997) → unstable unconditional; 1m λ is FP-rate × 130k obs. Reported for completeness with explicit caveats, not used as anchors. |
 | D9 | C | Report the SVCJ MCMC as NON-CONVERGENT on real BTC (R̂≫1) and keep the particle filter as the operational tool | Exactly the pre-authorised fallback. The sampler is *validated on simulated data* (recovers params, vol corr 0.85); on the 8.5yr real series R̂ up to 9.4 (κ) from weak SV identification + regime non-stationarity (PPC kurtosis 19). Not forced — reported as-is. The one robust signal (ρ_J≪0, R̂ 1.17) IS carried forward. |
 | D10 | C | Trust the recovery test over the point estimates — it caught a real bug | The simulate→recover validation exposed a determinant error in the bivariate log-density (2× vol-level bias, vol-corr 0.09→0.85 after fix). Lesson logged: never report MCMC posteriors without a recovery gate. |
+| D11 | D | Propagate parameter uncertainty by bootstrapping Phase B realized jumps + drawing P-vol from the estimator spread; use the SVCJ posterior only qualitatively | Phase C did not converge, so sampling its posterior directly would be dishonest. The well-founded uncertainty sources are the jump bootstrap (Phase B identifies jumps well) and the genuine P-vol estimator disagreement (0.42–0.77). ρ_J<0 is carried qualitatively. |
+| D12 | D | Flag that the symmetric-normal jump block cannot represent the η=1.42 downside SIZE asymmetry → the LBSP/downside tail is if anything UNDERSTATED | Honesty: at α=0.05 the empirical jump mean ≈0 (asymmetry is in size, not mean); the block widens the tail via larger jumps + vol, not a downward mean. Reported as a limitation; the qualitative conclusions (defined-risk robustness, more-negative VRP) are unaffected. Faithful downside needs an asymmetric/co-jump block (future work). |
 
 ---
 
@@ -82,5 +84,22 @@ latent-vol corr ≈ 0.85. The recovery test caught a real determinant bug (2× v
 **→ PF (M4.4a) stays the operational tool** (honest, pre-authorised fallback). **One robust signal: ρ_J
 strongly negative (−2.30, R̂ 1.17) → leveraged co-jumps (vol spikes ⇔ price drops)** — corroborates Phase
 B's downside tail as a contemporaneous price–vol co-jump. θ⇒vol 41.9%, latent-vol path 51% (consistent).
+
+**Gate: 848 passed / 3 skipped, mypy clean (123 files), ruff clean, anon clean, git diff --check clean.
+Committed `fefd646`.**
+
+### Phase D — Risk re-derivation w/ parameter uncertainty + campaign MC ✅
+Full evidence: `c9_risk_uncertainty.md` (+ `.json`). New: `strategy/bates_risk.py::parameter_uncertainty_band`,
+`scripts/risk_uncertainty_campaign.py`, `tests/test_risk_uncertainty.py`. **Campaign: 6 000 000 paths
+(30 draws × 200k), seed-stable ✅, 0 non-finite ✅.**
+
+Enriched downside jumps (Phase B: λ 4.47/yr, std 0.137, η 1.42) + parameter-uncertainty propagation
+(bootstrap jumps + P-vol draws over the estimator spread; SVCJ posterior used qualitatively). **Findings:**
+(1) tail metrics of tail-exposed structures swing **±15–18%** under P-parameter uncertainty (not precise);
+(2) **defined-risk structures (collar ES 5 734, call-spread 776) are INVARIANT to the parameter draw** —
+capped by construction → the robust choice under uncertainty; (3) the **VRP moves more negative** under the
+richer estimate (LBSP −693→−1057; every short-premium overlay's carry falls) → selling vol less attractive,
+compounding M5.4. Honesty flag (D12): the symmetric-normal block can't capture the η=1.42 downside *size*
+asymmetry → the downside tail is if anything understated (ρ_J<0 points the same way).
 
 Gate: *(appended after self-gate)*

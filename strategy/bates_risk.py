@@ -17,6 +17,7 @@ Every parameter carries a provenance tag (P-ESTIMATED / Q-CALIBRATED / ASSUMED).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -298,3 +299,76 @@ def cvar_frontier(cfg: PhysicalRiskConfig, structure: Structure, strike_pcts: tu
         est = ru_cvar_ci(pnl, beta=0.95, n_boot=n_boot)
         pts.append(CvarFrontierPoint(structure, pct, float(np.mean(pnl)), est.cvar, est.cvar_se))
     return pts
+
+
+# ── C9 · Phase D — parameter-uncertainty propagation (posterior/bootstrap band) ──
+
+
+@dataclass(frozen=True)
+class ParamDraw:
+    """One physical-parameter sample (jumps bootstrapped from realized jumps; vol from the P-spread)."""
+    p_vol: float
+    jump_lam: float
+    jump_mean: float
+    jump_std: float
+
+
+@dataclass(frozen=True)
+class UncertaintyBand:
+    structure: str
+    metric: str                  # mean_pnl | prob_loss | es975 | cvar95 | vrp_carry
+    central: float               # median across parameter draws
+    q05: float
+    q95: float
+    mc_se_repr: float            # representative within-draw MC SE (CVaR bootstrap on the median draw)
+    n_draws: int
+    provenance: str = "SIMULATED (parameter-uncertainty-propagated)"
+
+
+def parameter_uncertainty_band(
+    base_cfg: PhysicalRiskConfig, draws: Sequence[ParamDraw],
+    structures: tuple[str, ...] = tuple(STRUCTURES), n_boot: int = 80,
+) -> list[UncertaintyBand]:
+    """Propagate physical-parameter uncertainty into every risk metric.
+
+    For each parameter draw the terminal spot is simulated ONCE (Bates, QE) and reused across all
+    structures; the per-draw metrics are then aggregated into a central (median) + [q05, q95] band. This
+    sits ON TOP of the within-draw Monte-Carlo SE/CI (reported for the median draw). Seed-stable: each
+    draw uses base_cfg.seed + its index, so the whole table is reproducible.
+    """
+    from dataclasses import replace
+
+    metrics = ("mean_pnl", "prob_loss", "es975", "cvar95", "vrp_carry")
+    acc: dict[tuple[str, str], list[float]] = {(s, m): [] for s in structures for m in metrics}
+    cvar_se_repr: dict[str, float] = dict.fromkeys(structures, 0.0)
+    mid = len(draws) // 2
+
+    for i, d in enumerate(draws):
+        cfg = replace(base_cfg, p_vol=d.p_vol, jump_lam=d.jump_lam, jump_mean=d.jump_mean,
+                      jump_std=d.jump_std, seed=base_cfg.seed + i)
+        st = simulate_terminal(cfg, "Bates")
+        for name in structures:
+            sdef = STRUCTURES[name]
+            pnl = structure_pnl(sdef, cfg.S0, st, cfg.T)
+            losses = -pnl
+            es = float(np.mean(losses[losses >= float(np.percentile(losses, 97.5))]))
+            cv = ru_cvar_ci(pnl, beta=0.95, n_boot=n_boot)
+            acc[(name, "mean_pnl")].append(float(np.mean(pnl)))
+            acc[(name, "prob_loss")].append(float(np.mean(pnl < 0.0)))
+            acc[(name, "es975")].append(es)
+            acc[(name, "cvar95")].append(cv.cvar)
+            acc[(name, "vrp_carry")].append(structure_vrp(sdef, cfg.S0, st, cfg.T))
+            if i == mid:
+                cvar_se_repr[name] = cv.cvar_se
+
+    out: list[UncertaintyBand] = []
+    for name in structures:
+        for m in metrics:
+            vals = np.array(acc[(name, m)], dtype=np.float64)
+            out.append(UncertaintyBand(
+                structure=name, metric=m, central=float(np.median(vals)),
+                q05=float(np.percentile(vals, 5.0)), q95=float(np.percentile(vals, 95.0)),
+                mc_se_repr=cvar_se_repr[name] if m in ("cvar95", "es975") else 0.0,
+                n_draws=len(draws),
+            ))
+    return out
