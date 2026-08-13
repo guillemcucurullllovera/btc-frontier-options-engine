@@ -144,7 +144,7 @@ def calibrate_svi_slice(
         w = svi_total_variance(k, a, b, rho, m, s)
         if space == "iv":
             iv_fit = np.sqrt(np.maximum(w, 1e-12) / T)
-            return sw * (iv_fit - iv_obs)
+            return np.asarray(sw * (iv_fit - iv_obs), dtype=np.float64)
         return sw * (w - w_obs)
 
     starts = [

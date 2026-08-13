@@ -13,7 +13,7 @@ PROTOTYPE — does not modify production `strategy/definitions.py`.
 """
 from __future__ import annotations
 
-from engine.strategy import Strategy, StrategyKind, classify
+from engine.strategy import Leg, Strategy, StrategyKind, classify
 from strategy.definitions import _make_spot_leg, _make_usd_option_leg
 
 # ── MANDATE LADDER (locked Aug-2026): the "+6% floor" ladder ─────────────────
@@ -28,7 +28,7 @@ LEGACY_LADDER_PCTS = [0.04, 0.0667, 0.0933, 0.12]  # prior locked ladder (grid t
 DTE_LADDER = [31, 38, 45, 52]
 
 
-def _safe_classify(legs):
+def _safe_classify(legs: list[Leg]) -> StrategyKind:
     try:
         return classify(legs)
     except Exception:
@@ -194,7 +194,7 @@ def build_tier_b_collar(
     )
 
 
-def financing_net_premium(call_premium_usd: float, put_premium_usd: float) -> dict:
+def financing_net_premium(call_premium_usd: float, put_premium_usd: float) -> dict[str, object]:
     """A3 D3 financing constraint: a Tier-B collar is DEFENSIBLE only if it stays
     net-short-vol, i.e. the short-call ladder premium finances the long put:
         net = call_premium - put_premium  >=  0 .

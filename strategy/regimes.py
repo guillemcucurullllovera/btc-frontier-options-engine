@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -371,11 +371,11 @@ def compute_oos_validation(
         n_tr = N
         # conservative (1/T) headline
         cons = _ds.deflated_sharpe_ratio(all_returns, n_trials=N)
-        dsr_cons = cons.get("dsr")
+        dsr_cons = cast("float | None", cons.get("dsr"))
         # grid-variance upper bound (if a grid is available)
         if grid_trials is not None and np.asarray(grid_trials).size > 1:
             grid = _ds.deflated_sharpe_ratio(all_returns, trial_sharpes=grid_trials)
-            dsr_grid = grid.get("dsr")
+            dsr_grid = cast("float | None", grid.get("dsr"))
         dsr_headline = dsr_cons
     else:
         is_insufficient = True

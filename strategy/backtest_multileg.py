@@ -362,9 +362,9 @@ def backtest_strategy_multileg(
             prem_ccy = _option_premium_currency(eff_leg)
             sign = 1.0 if eff_leg.side == "SHORT" else -1.0
             if prem_ccy == "BTC":
-                b = prem_per_ct * q * mult
-                premium_btc += sign * b
-                premium_usd += sign * b * entry_spot
+                prem_b = prem_per_ct * q * mult
+                premium_btc += sign * prem_b
+                premium_usd += sign * prem_b * entry_spot
             else:
                 u = prem_per_ct * q * mult
                 premium_usd += sign * u
@@ -444,8 +444,8 @@ def backtest_strategy_multileg(
             for (eff_leg, cyc_strike, exp_idx, _T) in leg_ctx:
                 if bidx >= exp_idx:
                     continue
-                days_left = max((dates[exp_idx] - ts).days, 0.1)
-                T_left = days_left / 365.0
+                days_rem = max(float((dates[exp_idx] - ts).days), 0.1)
+                T_left = days_rem / 365.0
                 mult = eff_leg.settlement.contract_multiplier if eff_leg.settlement else 1.0
                 option_mtm += _option_mtm_leg(eff_leg, cyc_strike, sp, iv, risk_free_rate, T_left, mult)
             equity_curve.append(capital_base + booked_before + start_credits

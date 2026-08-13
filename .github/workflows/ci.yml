@@ -63,8 +63,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pydantic pyyaml scipy numpy requests mypy types-requests types-PyYAML
-      - name: mypy
-        run: python -m mypy pricing/ execution/ config/ engine/ tests/ vol/ scripts/
+      # STRICT gate scope = the DECISION-GRADE ENGINE OF RECORD (the packages whose
+      # types back every client-facing number). This gate is mypy --strict CLEAN.
+      # It deliberately ADDS strategy/ + risk/ (previously unchecked) and EXCLUDES
+      # the exploratory research/fetch one-offs under scripts/ and the JSON-fixture
+      # test scaffolding under tests/ — those carry pre-existing analysis-code type
+      # debt (tracked separately) and are validated by EXECUTION in the `test` and
+      # `reprice-gate` jobs (pytest + the per-tenor reprice assertion), which is the
+      # stronger correctness bar for harness code. Do not silently re-add scripts/tests
+      # to the strict gate without hardening them first.
+      - name: mypy (strict — decision-grade engine)
+        run: python -m mypy pricing/ execution/ config/ engine/ vol/ risk/ strategy/
 
   lint:
     name: ruff

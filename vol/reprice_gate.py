@@ -45,6 +45,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 import numpy.typing as npt
@@ -55,6 +56,7 @@ from vol.chain import parse_instrument_name
 from vol.chain_surface import ChainSlice, fit_svi_surface
 
 FloatArr = npt.NDArray[np.float64]
+BoolArr = npt.NDArray[np.bool_]
 
 # IV(slice_index, slice) -> fitted IV array aligned to slice.strikes.
 IvGetter = Callable[[int, ChainSlice], FloatArr]
@@ -121,7 +123,7 @@ class RepriceReport:
         Td = np.array([o.T_days for o in rows])
         out: list[dict[str, object]] = []
 
-        def add(name: str, mask: FloatArr) -> None:
+        def add(name: str, mask: BoolArr) -> None:
             if int(mask.sum()) == 0:
                 return
             out.append({
@@ -223,12 +225,12 @@ def price_reprice_report(
     iverr = np.array([o.iv_err for o in opts])
     adl = np.array([abs(o.delta) for o in opts])
     resid = np.array([abs(o.p_model - o.p_market) for o in opts])
-    hs = np.array([o.half_spread_usd for o in opts])
+    hs_arr = np.array([o.half_spread_usd for o in opts])
 
     lo, hi = delta_band
     core = (adl >= lo) & (adl <= hi)
-    core_q = core & np.isfinite(hs)
-    within = float(np.mean(resid[core_q] <= hs[core_q])) if int(core_q.sum()) else float("nan")
+    core_q = core & np.isfinite(hs_arr)
+    within = float(np.mean(resid[core_q] <= hs_arr[core_q])) if int(core_q.sum()) else float("nan")
 
     return RepriceReport(
         options=opts, delta_band=delta_band,
@@ -361,12 +363,12 @@ def assert_per_tenor_gate(
     band = delta_band if delta_band is not None else report.delta_band
     table = report.per_tenor_core_table(delta_band=band)
     lo_d, hi_d = traded_tenor_days
-    traded_rows = [r for r in table if lo_d <= float(r["T_days"]) < hi_d]  # type: ignore[arg-type]
+    traded_rows = [r for r in table if lo_d <= cast(float, r["T_days"]) < hi_d]
     if traded_rows:
         # n-weighted core ARPE across expiries in the traded window (usually exactly one).
-        n_tot = sum(int(r["n"]) for r in traded_rows)  # type: ignore[arg-type]
+        n_tot = sum(cast(int, r["n"]) for r in traded_rows)
         traded_arpe = sum(
-            float(r["arpe_pct"]) / 100.0 * int(r["n"]) for r in traded_rows  # type: ignore[arg-type]
+            cast(float, r["arpe_pct"]) / 100.0 * cast(int, r["n"]) for r in traded_rows
         ) / max(n_tot, 1)
     else:
         traded_arpe = float("nan")

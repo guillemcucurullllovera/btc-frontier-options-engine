@@ -312,19 +312,26 @@ def test_full_and_existing_snapshots_agree_on_overlap() -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 6. Config-of-record lock — params.yaml encodes the +6% / 40% / quarterly policy
+# 6. Config-of-record lock — params.yaml encodes the LOCKED ~10-15 delta / 40% /
+#    monthly / IV-timed policy (DECISIONS_LOG "FINAL SYNTHESIZED DECISIONS")
 # ══════════════════════════════════════════════════════════════════════════════
 
 
 def test_config_encodes_locked_mandate_policy() -> None:
-    """The single source of truth is the +6% ladder, 40% coverage, quarterly, IV-timed."""
+    """Single source of truth: ~10-15 delta, 40% coverage, MONTHLY 30-45 DTE, IV-timed.
+
+    Supersedes the interim +6% quarterly ladder (D-C). Strikes are delta-defined and
+    solved at entry vol; the governing knob is call_delta_target.
+    """
     cfg = load_research_config()
     assert cfg.coverage_fraction_pct == 40.0
-    assert cfg.ladder_strikes_pct_above_spot == [6.0, 10.0, 14.0, 18.0]
-    assert cfg.cadence == "quarterly"
+    assert cfg.call_delta_target == [0.10, 0.15]      # ~10-15 delta low-assignment line
+    assert cfg.dte_target_days == [30, 45]            # monthly 30-45 DTE traded tenor
+    assert cfg.cadence == "monthly"
     assert cfg.iv_timed_entry is True
-    # The stale monthly 15-20% collar is gone.
-    assert cfg.strike_target_pct_above_spot == [6.0, 18.0]
+    # The stale quarterly +6% collar is gone; ladder shifted OUT to the delta line.
+    assert cfg.ladder_strikes_pct_above_spot == [10.0, 14.0, 18.0, 22.0]
+    assert cfg.strike_target_pct_above_spot == [10.0, 22.0]
     # Pending business decisions are NOT silently resolved in the config of record.
     assert cfg.fee_base is None
     assert cfg.primary_venue is None

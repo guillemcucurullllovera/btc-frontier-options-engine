@@ -27,6 +27,7 @@ from itertools import combinations
 from math import erf, exp, log, sqrt
 
 import numpy as np
+import numpy.typing as npt
 
 _EULER_MASCHERONI = 0.5772156649015329
 _E = exp(1.0)
@@ -42,7 +43,11 @@ def _phi(x: float) -> float:
 
 
 try:  # prefer scipy's inverse-normal when present; fall back to Acklam otherwise
-    from scipy.special import ndtri as _ppf  # type: ignore
+    from scipy.special import ndtri as _ndtri
+
+    def _ppf(p: float) -> float:
+        """Inverse standard-normal CDF via scipy."""
+        return float(_ndtri(p))
 except Exception:  # pragma: no cover - environment-dependent
 
     def _ppf(p: float) -> float:
@@ -77,7 +82,7 @@ except Exception:  # pragma: no cover - environment-dependent
 # ---------------------------------------------------------------------------
 # Sharpe ratio (per-period) with sample moments
 # ---------------------------------------------------------------------------
-def sharpe_ratio(returns, rf_per_period: float = 0.0) -> float:
+def sharpe_ratio(returns: npt.ArrayLike, rf_per_period: float = 0.0) -> float:
     """Per-period Sharpe = mean(excess)/std(excess). NOT annualized."""
     r = np.asarray(returns, dtype=float)
     r = r[np.isfinite(r)]
@@ -89,7 +94,7 @@ def sharpe_ratio(returns, rf_per_period: float = 0.0) -> float:
     return float((r.mean() - rf_per_period) / sd)
 
 
-def _skew_kurt(returns) -> tuple[float, float]:
+def _skew_kurt(returns: npt.ArrayLike) -> tuple[float, float]:
     """Population skewness (g1) and NON-excess kurtosis (g2, Gaussian == 3)."""
     r = np.asarray(returns, dtype=float)
     r = r[np.isfinite(r)]
@@ -105,7 +110,9 @@ def _skew_kurt(returns) -> tuple[float, float]:
 # ---------------------------------------------------------------------------
 # Probabilistic Sharpe Ratio  (AFML 14.7.2 ; Bailey & LdP 2012)
 # ---------------------------------------------------------------------------
-def probabilistic_sharpe_ratio(returns, sr_benchmark: float = 0.0) -> dict:
+def probabilistic_sharpe_ratio(
+    returns: npt.ArrayLike, sr_benchmark: float = 0.0,
+) -> dict[str, object]:
     """PSR(SR*) = Z[ (SR_hat - SR*) * sqrt(T-1) /
                      sqrt(1 - g1*SR_hat + ((g2-1)/4)*SR_hat^2) ].
 
@@ -151,9 +158,10 @@ def expected_max_sharpe(variance_of_trial_sr: float, n_trials: int) -> float:
                  ((1.0 - _EULER_MASCHERONI) * z1 + _EULER_MASCHERONI * z2))
 
 
-def deflated_sharpe_ratio(selected_returns, trial_sharpes=None,
+def deflated_sharpe_ratio(selected_returns: npt.ArrayLike,
+                          trial_sharpes: npt.ArrayLike | None = None,
                           n_trials: int | None = None,
-                          variance_of_trial_sr: float | None = None) -> dict:
+                          variance_of_trial_sr: float | None = None) -> dict[str, object]:
     """Deflated Sharpe Ratio = PSR evaluated at the deflated benchmark SR*.
 
     Preferred call (canonical): pass `trial_sharpes` = the per-period Sharpe of
@@ -226,8 +234,8 @@ def purge_embargo_train_mask(n_obs: int, test_lo: int, test_hi: int,
 # ---------------------------------------------------------------------------
 # CSCV / PBO  (AFML ch.12 ; Bailey et al. 2017)
 # ---------------------------------------------------------------------------
-def cscv_pbo(perf_matrix: np.ndarray, S: int = 16,
-             purge: int = 0, embargo: int = 0) -> dict:
+def cscv_pbo(perf_matrix: npt.NDArray[np.float64], S: int = 16,
+             purge: int = 0, embargo: int = 0) -> dict[str, object]:
     """Combinatorially-Symmetric Cross-Validation Probability of Backtest
     Overfitting.
 
@@ -296,10 +304,10 @@ def cscv_pbo(perf_matrix: np.ndarray, S: int = 16,
 
     if not logits:
         return {"pbo": None, "n_splits": 0, "reason": "no valid CSCV splits"}
-    logits = np.asarray(logits)
+    logits_arr = np.asarray(logits, dtype=np.float64)
     return {
-        "pbo": float(np.mean(logits <= 0.0)),
-        "n_splits": int(logits.size),
+        "pbo": float(np.mean(logits_arr <= 0.0)),
+        "n_splits": int(logits_arr.size),
         "median_logit": float(np.median(logits)),
         "mean_oos_relrank_of_is_best": float(np.mean(is_best_oos_rank)),
         "S": int(S),
@@ -310,11 +318,11 @@ def cscv_pbo(perf_matrix: np.ndarray, S: int = 16,
 # ---------------------------------------------------------------------------
 # Purged + embargoed walk-forward over a config grid (AFML ch.7 + ch.12)
 # ---------------------------------------------------------------------------
-def purged_embargoed_walk_forward(returns_matrix: np.ndarray,
+def purged_embargoed_walk_forward(returns_matrix: npt.NDArray[np.float64],
                                   boundaries: list[int],
                                   purge: int,
                                   embargo: int,
-                                  tune_cols: list[int] | None = None) -> dict:
+                                  tune_cols: list[int] | None = None) -> dict[str, object]:
     """Expanding-window walk-forward with purge & embargo.
 
     returns_matrix: (T, N) per-period returns, one column per config.
@@ -331,8 +339,8 @@ def purged_embargoed_walk_forward(returns_matrix: np.ndarray,
     T, N = M.shape
     cols = list(range(N)) if tune_cols is None else list(tune_cols)
     bnds = sorted(b for b in boundaries if 0 < b < T)
-    picks: list[dict] = []
-    oos_chunks: list[np.ndarray] = []
+    picks: list[dict[str, object]] = []
+    oos_chunks: list[npt.NDArray[np.float64]] = []
     for k, b in enumerate(bnds):
         train_hi = b - purge
         test_lo = b + embargo
