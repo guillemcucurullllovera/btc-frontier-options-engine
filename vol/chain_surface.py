@@ -29,7 +29,7 @@ import numpy as np
 import numpy.typing as npt
 
 from engine.data_models import BookSummary, OptionInstrument
-from pricing.black76 import price_black76
+from pricing.black76 import greeks_black76, price_black76
 from vol.chain import parse_instrument_name
 from vol.svi import (
     SsviParams,
@@ -302,8 +302,39 @@ class SviSurfaceFit:
         return all(s.butterfly_free for s in self.slices)
 
 
-def fit_svi_surface(slices: Sequence[ChainSlice]) -> SviSurfaceFit:
-    """Per-slice raw-SVI calibration + butterfly (per slice) + calendar (across slices)."""
+def _vega_price_weights(sl: ChainSlice) -> FloatArr:
+    """Per-strike weight vega_i/max(P_i,floor) × quote-quality (A1 §2C price-relative objective).
+
+    Combined with an IV-space SVI fit this is the cheap first-order equivalent of Gatheral
+    §5.2's price-relative objective vega·Δσ/max(P,floor): it steers the fit toward near-ATM
+    price fidelity (which the ARPE gate scores) instead of the wing-dominated total-variance
+    LSQ. The quote-quality factor (1/half-IV-spread, already in ``sl.weights``) makes the
+    tightest, most-reliable quotes bind hardest.
+    """
+    floor = 1e-3 * sl.forward
+    vega = np.empty(sl.k.size, dtype=np.float64)
+    price = np.empty(sl.k.size, dtype=np.float64)
+    for j, (K, kind, iv) in enumerate(zip(sl.strikes, sl.kinds, sl.mark_iv, strict=True)):
+        g = greeks_black76(sl.forward, float(K), 0.0, float(iv), sl.T, kind)
+        vega[j] = g.vega
+        price[j] = price_black76(sl.forward, float(K), 0.0, float(iv), sl.T, kind)
+    quote_q = sl.weights                      # 1/half-IV-spread (nan-safe, see ChainSlice)
+    w = quote_q * vega / np.maximum(price, floor)
+    return np.asarray(np.nan_to_num(w, nan=0.0, posinf=0.0, neginf=0.0), dtype=np.float64)
+
+
+def fit_svi_surface(
+    slices: Sequence[ChainSlice], objective: str = "total_variance",
+) -> SviSurfaceFit:
+    """Per-slice raw-SVI calibration + butterfly (per slice) + calendar (across slices).
+
+    ``objective`` selects the slice calibration metric (A1 §2C):
+      * ``"total_variance"`` (default, back-compat) — quote-quality-weighted total-variance LSQ.
+      * ``"vega_price"`` — vega/price-weighted IV-space fit (Gatheral §5.2 price-relative
+        objective, first-order form); aligns the calibration with the price-space ARPE gate.
+    """
+    if objective not in ("total_variance", "vega_price"):
+        raise ValueError(f"objective must be 'total_variance' or 'vega_price', got {objective!r}")
     fits: list[SviSliceFit] = []
     sq_err = 0.0
     n_tot = 0
@@ -312,7 +343,11 @@ def fit_svi_surface(slices: Sequence[ChainSlice]) -> SviSurfaceFit:
     for sl in slices:
         if sl.k.size < 5:
             continue
-        params, _ = calibrate_svi_slice(sl.k, sl.total_variance, sl.T, sl.weights)
+        if objective == "vega_price":
+            params, _ = calibrate_svi_slice(
+                sl.k, sl.total_variance, sl.T, _vega_price_weights(sl), space="iv")
+        else:
+            params, _ = calibrate_svi_slice(sl.k, sl.total_variance, sl.T, sl.weights)
         fitted_iv = params.iv(sl.k)
         resid = fitted_iv - sl.mark_iv
         iv_rmse = float(np.sqrt(np.mean(resid * resid)))

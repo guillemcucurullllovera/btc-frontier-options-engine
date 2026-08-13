@@ -104,20 +104,33 @@ def svi_butterfly_free(
 
 def calibrate_svi_slice(
     k: FloatArr, w_obs: FloatArr, T: float, weights: FloatArr | None = None,
-    n_starts: int = 6,
+    n_starts: int = 6, space: str = "total_variance",
 ) -> tuple[SviParams, float]:
     """Least-squares raw-SVI fit to observed total variances w_obs at log-moneyness k.
 
     Returns (params, rmse_total_variance). Bounds keep b>=0, |rho|<1, s>0; the fit is
     multi-started for robustness. Butterfly-freeness is NOT forced here (raw LSQ) — it is
     reported separately via ``svi_butterfly_free`` so violations are surfaced, not hidden.
+
+    ``space`` selects the residual metric (Gatheral 2014 §5.2 calibrates to *prices*, not
+    total variance):
+      * ``"total_variance"`` (default, back-compat) — resid = sqrt(wts)·(w_fit - w_obs).
+        Total variance is O(σ²T), large in the wings, so this over-weights deep-OTM fit and
+        under-weights near-ATM price fidelity — the exact mismatch A1 §2C flags.
+      * ``"iv"`` — resid = sqrt(wts)·(iv_fit - iv_obs), iv = sqrt(w/T). Combined with a
+        vega/price weight (passed via ``weights``) this is the cheap first-order equivalent
+        of Gatheral's price-relative objective vega·Δσ/max(P,floor) (A1 §2C), aligning the fit
+        metric with the price-space ARPE the reprice gate scores.
     """
+    if space not in ("total_variance", "iv"):
+        raise ValueError(f"space must be 'total_variance' or 'iv', got {space!r}")
     k = np.asarray(k, dtype=np.float64)
     w_obs = np.asarray(w_obs, dtype=np.float64)
     if k.size < 5:
         raise ValueError(f"SVI slice needs >=5 points; got {k.size}")
     wts = np.ones_like(w_obs) if weights is None else np.asarray(weights, dtype=np.float64)
     sw = np.sqrt(np.maximum(wts, 0.0))
+    iv_obs = np.sqrt(np.maximum(w_obs, 1e-12) / T)
 
     w_atm = float(np.interp(0.0, k, w_obs)) if k.min() <= 0 <= k.max() else float(np.median(w_obs))
     kspan = max(float(k.max() - k.min()), 1e-3)
@@ -129,6 +142,9 @@ def calibrate_svi_slice(
     def resid(theta: FloatArr) -> FloatArr:
         a, b, rho, m, s = theta
         w = svi_total_variance(k, a, b, rho, m, s)
+        if space == "iv":
+            iv_fit = np.sqrt(np.maximum(w, 1e-12) / T)
+            return sw * (iv_fit - iv_obs)
         return sw * (w - w_obs)
 
     starts = [

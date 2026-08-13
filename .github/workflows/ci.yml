@@ -27,6 +27,30 @@ jobs:
       - name: pytest
         run: python -m pytest -q
 
+  reprice-gate:
+    name: per-tenor reprice gate + client-number regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pydantic pyyaml scipy numpy requests pytest arch statsmodels
+      # REAL call site: bind the client-facing accuracy claim to the tenor we trade.
+      # The per-tenor gate hard-asserts the traded ~1-month bucket (~97.6%, honest —
+      # NOT a tenor-aggregated average that hides it) and the +6% income / ledger /
+      # deflated-Sharpe / data-integrity anchors, so a silent drift fails CI.
+      - name: per-tenor reprice gate (fixture diagnostic)
+        run: python -m vol.reprice_gate
+      - name: client-number regression suite
+        run: >
+          python -m pytest -q
+          tests/test_client_numbers_regression.py
+          tests/test_reprice_gate_per_tenor.py
+
   typecheck:
     name: mypy (strict)
     runs-on: ubuntu-latest
