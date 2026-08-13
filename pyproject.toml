@@ -99,6 +99,11 @@ ignore = [
     "B017",  # pytest.raises(Exception) is acceptable for validation-error testing
     "B011",  # assert False in skipped tests is explicit intent
 ]
+# Allow the intended math notation in docstrings/comments (Greek letters and math
+# operators) so RUF001/002/003 do not flag it as "ambiguous unicode". These are the
+# real symbols the pricing math uses (e.g. σ vol, × product, · dot) — NOT typos to be
+# mangled into ASCII look-alikes. Keep this list tight so genuine confusables still fire.
+allowed-confusables = ["σ", "×", "·"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pricing", "vol", "execution", "config", "engine", "tests"]

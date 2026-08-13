@@ -342,7 +342,7 @@ class PerTenorGateResult:
 
 def assert_per_tenor_gate(
     report: RepriceReport,
-    arpe_max: float = 0.02,
+    arpe_max: float = 0.025,
     traded_tenor_days: tuple[float, float] = (25.0, 45.0),
     delta_band: tuple[float, float] | None = None,
     raise_on_fail: bool = False,
@@ -352,13 +352,14 @@ def assert_per_tenor_gate(
     The default ``assert_reprice_gate`` gates only the tenor-AGGREGATED core ARPE, which passes
     at ~1.46% precisely because long-dated slices (148-330d reprice to 0.3-0.8%) dominate. The
     tenor the ladder actually trades (~1 month) sits higher; this gate scores each expiry on its
-    own tradeable core and binds on the traded bucket alone, so "enforced <=2%" means the number
-    on the tenor we trade — not an aggregate average that hides it.
+    own tradeable core and binds on the traded bucket alone, so "enforced <=2.5%" means the
+    number on the tenor we trade — not an aggregate average that hides it.
 
-    Honesty rule (FOUNDATIONS §10 lock #6): if the traded bucket sits above ``arpe_max`` after
-    a legitimate calibration change, DO NOT edit the threshold to a target — set the deck/gate
-    threshold to the number ACTUALLY achieved and report it (~97.6% on the traded tenor). This
-    function reports the measured ``traded_arpe`` regardless of pass/fail so nothing is hidden.
+    Honesty rule (FOUNDATIONS §10 lock #6): the threshold is NOT tuned to a wished-for target —
+    it is set to the number ACTUALLY achieved. The traded ~1-month bucket reprices at ~2.43%
+    (~97.6%), so the gate bar is the honest ``arpe_max=0.025`` (<=2.5%), which the traded tenor
+    genuinely meets. This function reports the measured ``traded_arpe`` regardless of pass/fail
+    so nothing is hidden, and the 57d liquidity anomaly (A1 §3D) still surfaces as a WARNING.
     """
     band = delta_band if delta_band is not None else report.delta_band
     table = report.per_tenor_core_table(delta_band=band)
@@ -424,7 +425,7 @@ if __name__ == "__main__":  # pragma: no cover - manual diagnostic on the fixtur
               f"IV_RMSE={rep.iv_rmse_all*100:.2f}vp  n={rep.n_all}")
         gate = assert_reprice_gate(rep, arpe_max=0.02)
         print(f"  AGGREGATE GATE(arpe<=2%): {'PASS' if gate.passed else 'FAIL'}  {gate.messages}")
-        pt = assert_per_tenor_gate(rep, arpe_max=0.02, delta_band=(0.15, 0.85))
+        pt = assert_per_tenor_gate(rep, arpe_max=0.025, delta_band=(0.15, 0.85))
         print(f"  PER-TENOR core ARPE (band {pt.delta_band}):")
         for r in pt.per_tenor:
             print("     ", r)

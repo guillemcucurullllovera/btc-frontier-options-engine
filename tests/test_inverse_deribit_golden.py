@@ -32,7 +32,6 @@ from scipy.stats import norm
 from pricing import black_scholes
 from pricing.black76 import greeks_black76, price_black76
 from pricing.inverse import (
-    inverse_greeks_report,
     price_inverse_btc,
     price_inverse_btc_forward,
     settlement_inverse_call_holder,
