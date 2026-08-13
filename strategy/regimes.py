@@ -22,12 +22,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
 from config.models import Provenance
 from engine.strategy import Strategy
+from strategy import deflated_sharpe as _ds
 
 
 class RegimeLabel(StrEnum):
@@ -70,7 +71,12 @@ class OOSValidationResult:
     performance_degradation: float = 0.0
     cscv_s: int = 16
     cscv_n: int = 100
-    deflated_sharpe_ratio: float | None = None
+    deflated_sharpe_ratio: float | None = None   # HEADLINE = conservative (1/T) DSR
+    dsr_conservative: float | None = None        # explicit conservative DSR
+    dsr_grid_upper: float | None = None          # canonical grid-V DSR (upper bound)
+    n_trials: int | None = None
+    wf_oos_sharpe: float | None = None
+    cscv_status: str | None = None               # e.g. NOT_APPLICABLE / COMPUTED
     is_insufficient_data: bool = False
     insufficient_data_reason: str | None = None
     signal_to_noise: float | None = None
@@ -195,116 +201,70 @@ def run_regime_analysis(
     return results
 
 
-def _cscv_matrix(performance_matrix: np.ndarray, s: int) -> np.ndarray:
-    """Build CSCV matrix per Bailey et al. (2015) for a strategy/configuration performance matrix.
-
-    performance_matrix: (n_strategies, n_observations) or (1, n_observations).
-    Returns logit differences for PBO calculation.
-    """
-    if performance_matrix.ndim == 1:
-        performance_matrix = performance_matrix.reshape(1, -1)
-    _n_strategies, n_obs = performance_matrix.shape
-    if n_obs < 2 * s:
-        return np.array([])
-
-    group_size = n_obs // s
-    groups = []
-    for i in range(s - 1):
-        groups.append(performance_matrix[:, i * group_size:(i + 1) * group_size])
-    groups.append(performance_matrix[:, (s - 1) * group_size:])
-    groups = [g for g in groups if g.shape[1] > 0]
-
-    if len(groups) < 2:
-        return np.array([])
-
-    n_splits = max(s // 2, 1)
-    diff_tracker: list[float] = []
-
-    for split_num in range(n_splits):
-        indices = np.arange(len(groups))
-        rng = np.random.default_rng(42 + split_num)
-        rng.shuffle(indices)
-        split = len(indices) // 2 if len(indices) >= 2 else 1
-        train_idx = indices[:split]
-        test_idx = indices[split:]
-        if len(train_idx) == 0 or len(test_idx) == 0:
-            continue
-
-        train_perf = np.concatenate([groups[i] for i in train_idx], axis=1)
-        test_perf = np.concatenate([groups[i] for i in test_idx], axis=1)
-
-        train_means = np.mean(train_perf, axis=1)
-        test_means = np.mean(test_perf, axis=1)
-
-        best_is = np.argmax(train_means)
-        best_oos = test_means[best_is]
-
-        logit = np.log(max(best_oos, 1e-10) / max(float(np.mean(train_means)), 1e-10))
-        if np.isfinite(logit):
-            diff_tracker.append(logit)
-
-    return np.array(diff_tracker)
-
-
 def compute_cscv_pbo(
-    performance_vector: np.ndarray,
+    perf: np.ndarray,
     s: int = 16,
     n_min: int = 100,
+    purge: int = 0,
+    embargo: int = 0,
 ) -> dict[str, Any]:
-    """Compute CSCV-based PBO per Bailey et al. (2015) §8-9.
+    """Canonical CSCV Probability of Backtest Overfitting (Bailey et al. 2017),
+    delegated to `strategy.deflated_sharpe.cscv_pbo`.
 
-    PBO = fraction of CSCV splits where logit <= 0.
-    DSR = (mean / std) * (1 - PBO) * sqrt(observations).
+    `perf` MUST be a (T_obs x N_configs) matrix — one COLUMN per configuration in
+    the search grid. PBO measures selection bias ACROSS the grid, so it is
+    UNDEFINED for a single strategy. A 1-D vector (or a 1-column matrix) therefore
+    returns a typed NOT_APPLICABLE result — NEVER a fabricated number
+    (Marcos' Third Law: report all trials or report nothing).
 
-    Returns typed insufficient-data result when observations < n_min.
+    This REPLACES the former home-grown `_cscv_matrix` / fabricated
+    `DSR = (mean/std)*(1-PBO)*sqrt(n/365)` — neither of which computed the Bailey
+    statistics. DSR is now a SEPARATE canonical call (see compute_oos_validation
+    -> deflated_sharpe.deflated_sharpe_ratio).
     """
-    n = len(performance_vector)
-    if n < n_min or n < 2 * s:
+    M = np.asarray(perf, dtype=float)
+    n_obs = int(M.shape[0]) if M.ndim >= 1 else 0
+    if M.ndim == 1 or (M.ndim == 2 and M.shape[1] < 2):
         return {
             "pbo_estimate": None,
             "deflated_sharpe_ratio": None,
             "signal_to_noise": None,
             "is_insufficient_data": True,
-            "insufficient_data_reason": f"Need at least {max(n_min, 2 * s)} observations, have {n}",
-            "cscv_n": n,
-            "required_n": max(n_min, 2 * s),
+            "cscv_status": "NOT_APPLICABLE",
+            "insufficient_data_reason": (
+                "CSCV/PBO requires a (T x N) grid with N>=2 configurations; a "
+                "single performance vector cannot measure selection bias."
+            ),
+            "cscv_n": n_obs,
         }
-
-    perf_mean = float(np.mean(performance_vector))
-    perf_std = float(np.std(performance_vector))
-
-    if perf_std < 1e-10:
-        return {
-            "pbo_estimate": 0.0,
-            "deflated_sharpe_ratio": 0.0,
-            "signal_to_noise": 0.0,
-            "is_insufficient_data": False,
-            "cscv_n": n,
-        }
-
-    sn = perf_mean / perf_std
-
-    logit_diffs = _cscv_matrix(performance_vector, s)
-    if len(logit_diffs) == 0:
+    T, N = M.shape
+    if T < n_min or T < 2 * s:
         return {
             "pbo_estimate": None,
             "deflated_sharpe_ratio": None,
-            "signal_to_noise": sn,
+            "signal_to_noise": None,
             "is_insufficient_data": True,
-            "insufficient_data_reason": "CSCV matrix could not be constructed",
-            "cscv_n": n,
+            "cscv_status": "INSUFFICIENT_DATA",
+            "insufficient_data_reason": (
+                f"Need >= {max(n_min, 2 * s)} observations, have {T}"
+            ),
+            "cscv_n": T,
+            "n_configs": N,
         }
-
-    pbo = float(np.mean(logit_diffs <= 0))
-
-    dsr = sn * (1.0 - pbo) * np.sqrt(n / 365.0)
-
+    res = _ds.cscv_pbo(M, S=s, purge=purge, embargo=embargo)
+    pbo = res.get("pbo")
     return {
         "pbo_estimate": pbo,
-        "deflated_sharpe_ratio": dsr,
-        "signal_to_noise": sn,
-        "is_insufficient_data": False,
-        "cscv_n": n,
+        "deflated_sharpe_ratio": None,  # DSR is computed separately, canonically
+        "signal_to_noise": None,
+        "is_insufficient_data": pbo is None,
+        "cscv_status": "COMPUTED" if pbo is not None else "NOT_APPLICABLE",
+        "insufficient_data_reason": res.get("reason"),
+        "n_splits": res.get("n_splits"),
+        "median_logit": res.get("median_logit"),
+        "cscv_n": T,
+        "n_configs": N,
+        "cscv_s": res.get("S", s),
     }
 
 
@@ -335,11 +295,26 @@ def compute_oos_validation(
     test_result: dict[str, Any] | None = None,
     cscv_s: int = 16,
     cscv_n: int = 100,
+    perf_matrix: np.ndarray | None = None,
+    trial_sharpes: np.ndarray | None = None,
+    n_trials: int | None = None,
+    purge: int = 0,
+    embargo: int = 0,
 ) -> OOSValidationResult:
-    """Compute out-of-sample validation metrics.
+    """Out-of-sample validation with CANONICAL Bailey-Lopez de Prado statistics.
 
-    Enforces train-before-test chronology via call-site ordering.
-    CSCV/PBO/DSR per Bailey et al. (2015).
+    Chronology enforced via call-site ordering (train precedes test).
+
+    DSR / PBO are only computable with a search grid:
+      * PBO (CSCV) needs `perf_matrix` = (T x N>=2) per-config returns.
+      * DSR needs the selected strategy's per-period returns PLUS the number of
+        trials N (and, canonically, the per-config `trial_sharpes` for the grid
+        variance). Two variances are reported (AFML 14.7.3):
+          - HEADLINE `deflated_sharpe_ratio` = conservative H0 (1/T) variance,
+          - `dsr_grid_upper` = observed grid variance (labelled upper bound; the
+            near-duplicate grid makes it anti-conservative).
+    When no grid is supplied, PBO is typed NOT_APPLICABLE and DSR falls back to the
+    conservative (1/T, n_trials) form — never a fabricated number.
     """
     train_sharpe = train_result.get("sharpe") if train_result else None
     test_sharpe = test_result.get("sharpe") if test_result else None
@@ -357,25 +332,54 @@ def compute_oos_validation(
 
     train_returns = train_result.get("returns", []) if train_result else []
     test_returns = test_result.get("returns", []) if test_result else []
-    all_returns = np.array(list(train_returns) + list(test_returns))
+    all_returns = np.array(list(train_returns) + list(test_returns), dtype=float)
 
     pbo: float | None = None
-    dsr: float | None = None
+    dsr_headline: float | None = None
+    dsr_cons: float | None = None
+    dsr_grid: float | None = None
+    n_tr: int | None = None
     sn: float | None = None
+    cscv_status: str | None = None
     is_insufficient = False
     reason: str | None = None
 
-    if len(all_returns) >= cscv_n:
-        cscv_result = compute_cscv_pbo(all_returns, s=cscv_s, n_min=cscv_n)
+    # ── PBO (needs a grid matrix) ──
+    if perf_matrix is not None:
+        cscv_result = compute_cscv_pbo(perf_matrix, s=cscv_s, n_min=cscv_n,
+                                       purge=purge, embargo=embargo)
         pbo = cscv_result.get("pbo_estimate")
-        dsr = cscv_result.get("deflated_sharpe_ratio")
-        sn = cscv_result.get("signal_to_noise")
-        is_insufficient = bool(cscv_result.get("is_insufficient_data"))
-        if is_insufficient:
+        cscv_status = cscv_result.get("cscv_status")
+        if pbo is None:
             reason = cscv_result.get("insufficient_data_reason")
     else:
+        cscv_status = "NOT_APPLICABLE"
+        reason = "PBO not computed: no (T x N) config grid supplied."
+
+    # ── DSR (probability; conservative headline + grid upper bound) ──
+    if len(all_returns) >= 10:
+        sr = _ds.sharpe_ratio(all_returns)
+        sn = float(sr) if np.isfinite(sr) else None
+        grid_trials = None
+        if trial_sharpes is not None:
+            grid_trials = np.asarray(trial_sharpes, dtype=float)
+        elif perf_matrix is not None and np.asarray(perf_matrix).ndim == 2:
+            M = np.asarray(perf_matrix, dtype=float)
+            grid_trials = np.array([_ds.sharpe_ratio(M[:, j]) for j in range(M.shape[1])])
+        N = int(n_trials) if n_trials is not None else (
+            int(np.asarray(grid_trials).size) if grid_trials is not None else 1)
+        n_tr = N
+        # conservative (1/T) headline
+        cons = _ds.deflated_sharpe_ratio(all_returns, n_trials=N)
+        dsr_cons = cast("float | None", cons.get("dsr"))
+        # grid-variance upper bound (if a grid is available)
+        if grid_trials is not None and np.asarray(grid_trials).size > 1:
+            grid = _ds.deflated_sharpe_ratio(all_returns, trial_sharpes=grid_trials)
+            dsr_grid = cast("float | None", grid.get("dsr"))
+        dsr_headline = dsr_cons
+    else:
         is_insufficient = True
-        reason = f"Insufficient observations: have {len(all_returns)}, need >= {cscv_n}"
+        reason = (reason or "") + f" DSR needs >=10 obs, have {len(all_returns)}."
 
     return OOSValidationResult(
         train_period=train_period,
@@ -386,7 +390,11 @@ def compute_oos_validation(
         performance_degradation=degradation,
         cscv_s=cscv_s,
         cscv_n=cscv_n,
-        deflated_sharpe_ratio=dsr,
+        deflated_sharpe_ratio=dsr_headline,
+        dsr_conservative=dsr_cons,
+        dsr_grid_upper=dsr_grid,
+        n_trials=n_tr,
+        cscv_status=cscv_status,
         is_insufficient_data=is_insufficient,
         insufficient_data_reason=reason,
         signal_to_noise=sn,
@@ -431,20 +439,20 @@ def compute_oos_validation_by_folds(
 
     sn_val = 0.0 if perf_std < 1e-10 else perf_mean / perf_std
 
+    # A single per-cycle return vector cannot yield PBO (needs a config grid) and
+    # yields only a conservative, single-trial DSR. Report both honestly.
+    pbo_val = None
+    is_insufficient = True
+    reason = ("PBO NOT_APPLICABLE: a single per-cycle series has no config grid. "
+              "Feed a (T x N) grid to compute_cscv_pbo for PBO.")
     try:
-        perf_vec = np.array(cycle_returns)
-        cscv_result = compute_cscv_pbo(perf_vec, s=min(16, max(n_returns // 4, 2)), n_min=cscv_n)
-        pbo_val = cscv_result.get("pbo_estimate")
-        dsr_val = cscv_result.get("deflated_sharpe_ratio")
-        is_insufficient = bool(cscv_result.get("is_insufficient_data", True))
-        reason = cscv_result.get("insufficient_data_reason", "")
+        dsr_res = _ds.deflated_sharpe_ratio(np.asarray(cycle_returns, dtype=float),
+                                            n_trials=1)
+        dsr_val = dsr_res.get("dsr")  # N=1 => undeflated PSR(0), NOT a grid-corrected DSR
     except Exception:
-        pbo_val = None
         dsr_val = None
-        is_insufficient = True
-        reason = "CSCV computation failed"
 
-    method_status = "PENDING_METHOD" if (is_insufficient or pbo_val is None) else "COMPUTED"
+    method_status = "PENDING_METHOD"  # PBO/DSR grid-based validation still pending
 
     return {
         "pbo_estimate": pbo_val,

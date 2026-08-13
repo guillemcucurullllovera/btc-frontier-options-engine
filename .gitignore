@@ -10,3 +10,5 @@ __pycache__/
 .DS_Store
 private_reference_library/
 reference/
+market_snapshots/
+exports/

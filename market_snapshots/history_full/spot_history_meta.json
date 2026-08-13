@@ -1,0 +1,1 @@
+{"source": "massive", "provenance": "OBSERVED", "ticker": "X:BTCUSD", "n_bars": 728, "start": "2024-07-30T00:00:00+00:00", "end": "2026-07-27T00:00:00+00:00", "sha256": "117ae23e35e098a7f1a76b78cbb62037f20c0d9917c5b3cc8beb7aeb278b58f1", "fetched_at": "2026-07-30", "note": "full available daily history; option/DVOL anchor untouched (Q-calibration unaffected)"}

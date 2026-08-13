@@ -121,6 +121,35 @@ class EngineConfig(BaseModel):
     stand_down_on_breakout: bool | None = None
     breakout_definition: BreakoutRule = Field(default_factory=BreakoutRule)
 
+    # ── Locked mandate policy (ratified Aug-2026, FINAL SYNTHESIZED DECISIONS) ──
+    # Income overlay (NOT acquisition). "Safer" = the ~10-15 DELTA low-assignment
+    # line: strikes are delta-defined and solved at entry vol (call_delta_target is
+    # the governing knob), 40% coverage (12,000 covered / 18,000 uncapped), MONTHLY
+    # cadence, 30-45 DTE, IV-timed entry (harvest-when-rich). The +6/10/14/18% OTM
+    # ladder is the documented more-aggressive alternative. Provenance:
+    # BUSINESS_REQUIREMENT. These carry sensible defaults so pre-existing
+    # EngineConfig(**minimal) call sites (test_phase0, test_frontier_acceptance)
+    # still validate; params.yaml sets them explicitly as the single source of truth.
+    coverage_fraction_pct: float = Field(
+        default=40.0,
+        ge=0.0,
+        le=100.0,
+        description="Covered fraction of the block (40% = 12,000 of 30,000 BTC covered).",
+    )
+    ladder_strikes_pct_above_spot: list[float] = Field(
+        default_factory=lambda: [10.0, 14.0, 18.0, 22.0],
+        min_length=1,
+        description="Illustrative %-OTM rungs the ~10-15 delta ladder solves to at typical vol.",
+    )
+    cadence: Literal["monthly", "quarterly"] = Field(
+        default="monthly",
+        description="Overlay entry/rebalance cadence (locked: monthly, 30-45 DTE).",
+    )
+    iv_timed_entry: bool = Field(
+        default=True,
+        description="Write only when IV is rich (harvest-when-rich); pairs with sell_when_dvol_above.",
+    )
+
     # Unresolved decisions — truly pending, NOT defaulted (C-6, H-7, IDR-1, IDR-2, IDR-3):
     primary_venue: str | None = None  # TODO(decision_pending: D-3) — no default
     fee_base: Literal["reference_notional", "executed_volume"] | None = (
@@ -165,6 +194,17 @@ class EngineConfig(BaseModel):
             raise ValueError(f"IV band upper bound {v[1]}% unreasonable")
         if not v[0] <= v[1]:
             raise ValueError(f"IV band {v} lower must be <= upper")
+        return v
+
+    @field_validator("ladder_strikes_pct_above_spot")
+    @classmethod
+    def ladder_strikes_sane(cls, v: list[float]) -> list[float]:
+        if any(not 0.0 < s < 100.0 for s in v):
+            raise ValueError(f"Ladder strikes {v} must each be in (0, 100)%")
+        if list(v) != sorted(v):
+            raise ValueError(
+                f"Ladder strikes {v} must be ascending (nearest floor first, e.g. 6/10/14/18)"
+            )
         return v
 
     @field_validator("tranche_btc")

@@ -1,0 +1,147 @@
+{
+  "q_recalibration": "NOT POSSIBLE across history: only one frozen option chain exists (no historical surfaces). Q held at the frozen anchor (ATM implied ~0.37 / calibrated Q-vol 0.50); only P re-estimated per window; VRP-stability uses the frozen Q.",
+  "windows": [
+    {
+      "window": "2017-08_2018-12_earlybear",
+      "n_obs": 501,
+      "start": "2017-08-01",
+      "end": "2018-12-31",
+      "realized_vol_annual": 0.9209779300063471,
+      "garch_persistence": 0.987378144669058,
+      "garch_uncond_vol_annual": 0.9640920418725016,
+      "jump_lam_annual": 5.099800399201596,
+      "jump_eta_downward": 0.9749537309198112,
+      "jump_frac_downward": 0.5714285714285714,
+      "svmle_theta_vol_annual": 0.7616757740609854,
+      "roughness_H": null,
+      "vrp_vs_frozen_Q": -0.5509779300063471
+    },
+    {
+      "window": "2019-01_2020-06_precovid",
+      "n_obs": 547,
+      "start": "2019-01-01",
+      "end": "2020-06-30",
+      "realized_vol_annual": 0.80401933015783,
+      "garch_persistence": 0.924379768658327,
+      "garch_uncond_vol_annual": 1.010516880131323,
+      "jump_lam_annual": 8.674588665447898,
+      "jump_eta_downward": 1.5646656516714679,
+      "jump_frac_downward": 0.38461538461538464,
+      "svmle_theta_vol_annual": 0.5077967012289707,
+      "roughness_H": 0.100845816184197,
+      "vrp_vs_frozen_Q": -0.43401933015783
+    },
+    {
+      "window": "2020-07_2021-12_bull",
+      "n_obs": 549,
+      "start": "2020-07-01",
+      "end": "2021-12-31",
+      "realized_vol_annual": 0.7310428606585171,
+      "garch_persistence": 0.9822618364180237,
+      "garch_uncond_vol_annual": 0.7517877712365983,
+      "jump_lam_annual": 3.989071038251366,
+      "jump_eta_downward": 1.4218825706554536,
+      "jump_frac_downward": 0.5,
+      "svmle_theta_vol_annual": 0.618897421461425,
+      "roughness_H": 0.10342669094719194,
+      "vrp_vs_frozen_Q": -0.3610428606585171
+    },
+    {
+      "window": "2022-01_2022-12_lunaftx",
+      "n_obs": 365,
+      "start": "2022-01-01",
+      "end": "2022-12-31",
+      "realized_vol_annual": 0.6431965822023039,
+      "garch_persistence": 0.6404975613351116,
+      "garch_uncond_vol_annual": 0.6786034496665644,
+      "jump_lam_annual": 8.0,
+      "jump_eta_downward": 1.0547250985838126,
+      "jump_frac_downward": 0.75,
+      "svmle_theta_vol_annual": 1.6342763280662565e-07,
+      "roughness_H": 0.07688285623106744,
+      "vrp_vs_frozen_Q": -0.2731965822023039
+    },
+    {
+      "window": "2023-01_2024-06_recovery",
+      "n_obs": 547,
+      "start": "2023-01-01",
+      "end": "2024-06-30",
+      "realized_vol_annual": 0.4737683411166832,
+      "garch_persistence": 0.8157597785521631,
+      "garch_uncond_vol_annual": 0.4785513429155146,
+      "jump_lam_annual": 7.3400365630712985,
+      "jump_eta_downward": 0.969667423652466,
+      "jump_frac_downward": 0.2727272727272727,
+      "svmle_theta_vol_annual": 0.33645826992991484,
+      "roughness_H": 0.022493938642201013,
+      "vrp_vs_frozen_Q": -0.1037683411166832
+    },
+    {
+      "window": "2024-07_2026-07_recent",
+      "n_obs": 760,
+      "start": "2024-07-01",
+      "end": "2026-07-31",
+      "realized_vol_annual": 0.455734962937613,
+      "garch_persistence": 0.9192358421159972,
+      "garch_uncond_vol_annual": 0.4607849086339184,
+      "jump_lam_annual": 4.802631578947369,
+      "jump_eta_downward": 0.9157217550280795,
+      "jump_frac_downward": 0.5,
+      "svmle_theta_vol_annual": 0.43039670521417783,
+      "roughness_H": 0.04438138664088777,
+      "vrp_vs_frozen_Q": -0.08573496293761301
+    }
+  ],
+  "stability": {
+    "realized_vol_annual": {
+      "min": 0.455734962937613,
+      "max": 0.9209779300063471,
+      "mean": 0.6714566678465489,
+      "cov": 0.25053848860344485
+    },
+    "garch_persistence": {
+      "min": 0.6404975613351116,
+      "max": 0.987378144669058,
+      "mean": 0.8782521552914467,
+      "cov": 0.13708219300158778
+    },
+    "garch_uncond_vol_annual": {
+      "min": 0.4607849086339184,
+      "max": 1.010516880131323,
+      "mean": 0.7240560657427366,
+      "cov": 0.2941125240352136
+    },
+    "jump_lam_annual": {
+      "min": 3.989071038251366,
+      "max": 8.674588665447898,
+      "mean": 6.317688040819921,
+      "cov": 0.2789263689732347
+    },
+    "jump_eta_downward": {
+      "min": 0.9157217550280795,
+      "max": 1.5646656516714679,
+      "mean": 1.1502693717518486,
+      "cov": 0.21675770325025678
+    },
+    "svmle_theta_vol_annual": {
+      "min": 1.6342763280662565e-07,
+      "max": 0.7616757740609854,
+      "mean": 0.4425375058871844,
+      "cov": 0.5414241044486634
+    },
+    "roughness_H": {
+      "min": 0.022493938642201013,
+      "max": 0.10342669094719194,
+      "mean": 0.06960613772910904,
+      "cov": 0.4556051726582421
+    },
+    "vrp_vs_frozen_Q": {
+      "min": -0.5509779300063471,
+      "max": -0.08573496293761301,
+      "mean": -0.30145666784654906,
+      "cov": 0.55804285215085
+    }
+  },
+  "q_implied_frozen": 0.37,
+  "roughness_note": "H from daily RV (hourly-built, 2019+); RV measurement noise biases H DOWN, so the true H may be somewhat higher. Consistent with Phase A Q-surface H~0.20 -> vol is ROUGH."
+}

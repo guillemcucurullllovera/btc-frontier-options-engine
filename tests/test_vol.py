@@ -25,7 +25,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from unittest import mock
 
 from config.models import Provenance
-from engine.data_models import HistoricalSpotBar
+from engine.data_models import BookSummary, HistoricalSpotBar
 from vol.client import (
     BASE_DELAY_S,
     DeribitApiError,
@@ -292,6 +292,25 @@ def test_surface_from_book_summary() -> None:
     client.close()
 
 
+def test_surface_expiry_uses_365_day_annualisation() -> None:
+    # C8 brief §6 / orchestration §5.1: 365-day annualisation everywhere.
+    ref = datetime(2026, 7, 30, tzinfo=UTC)
+    bs = BookSummary(
+        instrument_name="BTC-30JUL27-60000-C",  # exactly 365 days after ref
+        mark_price=0.05,
+        mark_iv=0.5,
+        bid_price=0.04,
+        ask_price=0.06,
+        open_interest=10.0,
+        underlying_price=60000.0,
+        interest_rate=0.0,
+        timestamp=ref,
+    )
+    surface = fit_surface([bs])
+    assert len(surface.points) == 1
+    assert surface.points[0].expiry == pytest.approx(1.0, abs=1e-9)
+
+
 def test_iv_at_returns_float() -> None:
     client = DeribitClient(fixture_dir=FIXTURE_DIR)
     summaries = client.book_summary()
@@ -372,6 +391,16 @@ def test_garch_fit_converges() -> None:
     assert math.isfinite(result.aic)
     assert result.forecast_vol is not None
     assert result.forecast_vol > 0
+
+
+def test_garch_annualises_365_not_252() -> None:
+    # T0-1: GARCH must annualise with sqrt(365) (24/7 BTC), consistent with realised vol.
+    returns = _generate_returns(500, 0.02)
+    result = GarchEstimator(returns).fit()
+    daily = math.sqrt(sum(result.conditional_variances) / len(result.conditional_variances))
+    assert result.forecast_vol == pytest.approx(daily * math.sqrt(365.0), rel=1e-9)
+    # sqrt(365)/sqrt(252) ~ 1.204: the 252 convention would be ~20% lower.
+    assert result.forecast_vol > daily * math.sqrt(252.0)
 
 
 def test_garch_short_series_raises() -> None:
@@ -672,6 +701,33 @@ def test_massive_parses_live_response() -> None:
         assert bars[0].provenance == Provenance.OBSERVED
         assert bars[0].origin == "massive"
         assert bars[0].symbol == "X:BTCUSD"
+
+
+def test_massive_accepts_delayed_status() -> None:
+    # Massive/Polygon returns status "DELAYED" on delayed-feed tiers; the daily
+    # historical closes are final and observed, so they must be accepted rather
+    # than rejected as a malformed response.  (C8: unblocks realised-vol input.)
+    provider = MassiveSpotProvider(api_key=TEST_API_KEY)
+    bars_data = [
+        _make_bar(1704067200000, 65000, 65500, 64500, 65200),
+        _make_bar(1704153600000, 65200, 66000, 65000, 65800),
+    ]
+    response = _massive_api_response(bars_data)
+    response["status"] = "DELAYED"
+
+    with mock.patch.object(provider._get_session(), "get") as mock_get:
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = response
+        mock_resp.raise_for_status = mock.MagicMock()
+        mock_get.return_value = mock_resp
+
+        bars = provider.fetch_bars(
+            start=datetime(2024, 1, 1, tzinfo=UTC), end=datetime(2024, 1, 3, tzinfo=UTC)
+        )
+        assert len(bars) == 2
+        assert bars[0].provenance == Provenance.OBSERVED
+        assert bars[0].origin == "massive"
 
 
 def test_massive_deduplicates_and_sorts() -> None:

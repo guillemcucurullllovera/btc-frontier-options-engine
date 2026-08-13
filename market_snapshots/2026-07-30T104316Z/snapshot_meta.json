@@ -1,0 +1,26 @@
+{
+  "created_at": "2026-07-30T10:43:16.778096+00:00",
+  "git_sha": "f7ebc4927092c06e07b12b960de9dd24775af9eb",
+  "git_branch": "sprint/c8-strategy-grid",
+  "endpoints": [
+    "get_index_price",
+    "get_volatility_index_data",
+    "get_instruments",
+    "get_book_summary_by_currency"
+  ],
+  "checksums": {
+    "index_price.json": "93e324f689d4d5cf55ba8ca26ba926ac5a48bc4545b47889de6b4fab5ade44bc",
+    "dvol.json": "88928f551a547c0f5cb18c8cb8a8a86161c7661bdc0681451d2e83526d339919",
+    "instruments.json": "e63c593dd62274512b65890145c9851e3b9b2c5f66815a53aae2198e398f7d61",
+    "book_summary.json": "838e48e84294bcff9d2d6b317ac181a653d1d8a8d4652630de5ac5da313102d5"
+  },
+  "spot_usd": 64509.34,
+  "dvol_latest": 0.3589,
+  "provenance": {
+    "spot": "observed",
+    "dvol": "observed",
+    "instruments": "observed",
+    "book_summary": "observed"
+  },
+  "origin": "deribit"
+}

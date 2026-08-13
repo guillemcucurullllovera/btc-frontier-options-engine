@@ -1,0 +1,98 @@
+{
+  "1d": {
+    "n_obs": 3269,
+    "realized_vol_annual": 0.6790367196836766,
+    "lm_lambda_annual": 3.2379932701131846,
+    "lm_n_jumps": 29,
+    "lm_jump_mean": -0.02968584293961428,
+    "lm_jump_std": 0.14633170475125093,
+    "lm_frac_downward": 0.5172413793103449,
+    "lm_eta_downward": 1.5263368864468692,
+    "thr_lambda_annual": 6.029366778831447,
+    "thr_n_jumps": 54,
+    "thr_frac_downward": 0.4444444444444444,
+    "thr_eta_downward": 1.2990739931053221,
+    "jump_variation_share": 0.16674916718068583,
+    "garch": {
+      "alpha": 0.102107739862299,
+      "beta": 0.8714690684557512,
+      "omega": 4.28305259042537e-05,
+      "persistence": 0.9735768083180503,
+      "uncond_vol_perbar": 0.040260954408121316,
+      "uncond_vol_annual": 0.7691844539486484,
+      "se_alpha_fisher": 0.013698332492234561,
+      "se_beta_fisher": 0.015779687989231843,
+      "convergence": true
+    },
+    "ukf_vol_annual": 0.5160458481974315,
+    "sv_mle": {
+      "kappa": 2.938780348284128,
+      "theta": 0.2389786173876301,
+      "vol_of_vol": 0.7802348423337133,
+      "theta_vol_annual": 0.48885439282840665
+    },
+    "pf_vol_annual": 0.6101048370975549,
+    "pf_ess_mean": 1123.5522861440202,
+    "q_vs_p": {
+      "q_vol": 0.5,
+      "p_vol_garch_uncond_annual": 0.7691844539486484,
+      "ratio_q_over_p": 0.6500391387699322,
+      "note": "Q=0.50 (M2/M3 frozen anchor); P annualised full-history GARCH unconditional."
+    },
+    "m46_comparison": {
+      "full_history_alpha05": {
+        "alpha": 0.05,
+        "n_jumps": 40.0,
+        "lambda_annual": 4.46619761394922,
+        "frac_downward": 0.425,
+        "eta_downward": 1.4164216777252163
+      },
+      "last_2yr_alpha05": {
+        "alpha": 0.05,
+        "n_jumps": 10.0,
+        "lambda_annual": 5.0,
+        "frac_downward": 0.4,
+        "eta_downward": 1.0851838114545422
+      }
+    }
+  },
+  "1h": {
+    "n_obs": 66377,
+    "realized_vol_annual": 0.6212421112360275,
+    "lm_lambda_annual": 60.971722132666436,
+    "lm_n_jumps": 462,
+    "lm_jump_mean": -0.0039747835769373165,
+    "lm_jump_std": 0.035665458888091875,
+    "lm_frac_downward": 0.5476190476190477,
+    "lm_eta_downward": 1.0934312684224998,
+    "thr_lambda_annual": 135.6686804164093,
+    "thr_n_jumps": 1028,
+    "thr_frac_downward": 0.52431906614786,
+    "thr_eta_downward": 1.0932113784904949,
+    "jump_variation_share": 0.1537946452046222,
+    "garch": {
+      "alpha": 0.14023127563122123,
+      "beta": 0.8566681080690522,
+      "persistence": 0.9968993837002735,
+      "uncond_vol_perbar": 0.017930918378754844,
+      "uncond_vol_annual": 1.6782420043047361,
+      "convergence": true
+    }
+  },
+  "1m": {
+    "n_obs": 129598,
+    "realized_vol_annual": 0.40635663233214747,
+    "lm_lambda_annual": 1618.1916387598576,
+    "lm_n_jumps": 399,
+    "lm_jump_mean": 0.00047167979027546255,
+    "lm_jump_std": 0.0033438240014207494,
+    "lm_frac_downward": 0.42355889724310775,
+    "lm_eta_downward": 0.9787125451054762,
+    "thr_lambda_annual": 4485.5136653343425,
+    "thr_n_jumps": 1106,
+    "thr_frac_downward": 0.4620253164556962,
+    "thr_eta_downward": 0.9482403739536482,
+    "jump_variation_share": 0.06594203540258879,
+    "microstructure_caveat": "1m \u03bb is inflated by microstructure noise (the test's FP rate x ~130k obs); the meaningful signal is the jump-size asymmetry."
+  }
+}

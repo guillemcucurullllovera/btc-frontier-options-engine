@@ -1,0 +1,76 @@
+{
+  "overlap_days": 1954,
+  "n_spot_jump_days": 20,
+  "rho_j_observed": -0.7377384471886026,
+  "rho_j_se": 0.10741941567745492,
+  "dvol_change_on_jump_days_mean": 0.08115,
+  "dvol_change_down_jumps_mean": 0.15723333333333336,
+  "dvol_change_up_jumps_mean": 0.018899999999999993,
+  "n_down": 9,
+  "n_up": 11,
+  "implied_variance_jump_mean": 0.11512173,
+  "muv_range_lower_central_upper": [
+    0.11512173,
+    0.16884107819778355,
+    0.393163398900529
+  ],
+  "muv_n1_assumed": 0.1,
+  "damping_factor_range": [
+    0.29280886858221,
+    0.6818348427338535
+  ],
+  "co_jump_intensity_annual": 2.23309880697461,
+  "risk_band_firming": {
+    "unhedged": {
+      "es_no_cojump": 32165.96141377609,
+      "es_observed_central": 33498.53488692146,
+      "widen_central_pct": 4.142806291419143,
+      "widen_lower_pct": 2.963496668534926,
+      "widen_upper_pct": 8.581861885789998
+    },
+    "covered_call": {
+      "es_no_cojump": 30348.63138777333,
+      "es_observed_central": 31681.20486091869,
+      "widen_central_pct": 4.390884900602865,
+      "widen_lower_pct": 3.140956119963656,
+      "widen_upper_pct": 9.09575903933142
+    },
+    "long_btc_plus_short_put": {
+      "es_no_cojump": 59173.166876243165,
+      "es_observed_central": 61838.31382253389,
+      "widen_central_pct": 4.503978892771965,
+      "widen_lower_pct": 3.2218562744600554,
+      "widen_upper_pct": 9.330034299296642
+    },
+    "cash_secured_put": {
+      "es_no_cojump": 27007.20546246707,
+      "es_observed_central": 28339.778935612438,
+      "widen_central_pct": 4.934140538891718,
+      "widen_lower_pct": 3.5295661975254466,
+      "widen_upper_pct": 10.221118162717913
+    },
+    "collar": {
+      "es_no_cojump": 5734.319098574699,
+      "es_observed_central": 5734.319098574699,
+      "widen_central_pct": 0.0,
+      "widen_lower_pct": 2.220446049250313e-14,
+      "widen_upper_pct": 2.220446049250313e-14
+    },
+    "call_spread": {
+      "es_no_cojump": 776.3847922565665,
+      "es_observed_central": 776.3847922565665,
+      "widen_central_pct": 0.0,
+      "widen_lower_pct": 2.220446049250313e-14,
+      "widen_upper_pct": 2.220446049250313e-14
+    },
+    "strike_ladder": {
+      "es_no_cojump": 31076.26990082807,
+      "es_observed_central": 32408.843373973432,
+      "widen_central_pct": 4.288074075163872,
+      "widen_lower_pct": 3.0674118803238004,
+      "widen_upper_pct": 8.882785455191344
+    }
+  },
+  "decision_grade": true,
+  "implied_vs_instantaneous_caveat": "DVOL is 30d ATM IMPLIED (risk-neutral); xi^v is INSTANTANEOUS variance (physical). The mapping un-damps the 30d-averaged implied response over a plausible vol mean-reversion (kappa 10-40/yr); it is a PROXY, not an identity. rho_J (sign/strength) is directly observed and decision-grade; the mu_v MAGNITUDE carries the mapping range."
+}

@@ -1,0 +1,374 @@
+"""Calibrated-model risk integration: physical-simulate, Q-mark (C9 · M5.1).
+
+SIMULATED / diagnostic; MS-26-gated; holder-basis (C8); frozen anchor. This is where the calibrated
+model finally drives the client-facing risk numbers — with an explicit MEASURE ARCHITECTURE:
+
+  * Scenario PATHS = PHYSICAL measure ("what could happen"): P-vol level (M4.6 GARCH ~46% / UKF ~43%),
+    P-symmetric realized jumps (M4.6: lambda~4.5/yr, ~10% variance share, roughly symmetric), an
+    ASSUMED drift band, and the SV structure (kappa, vol-of-vol, rho) from the Q-calibration as
+    best-available (P-estimation of these is deferred to M4.4b-MCMC). Full-truncation is violated so
+    the QE variance scheme is used.
+  * Option repricing = the Q-calibrated Bates via the M1 COS pricer — so the variance risk premium
+    (Q > P) is captured exactly as in R1 (simulate physical, sell/mark at the Q-implied premium).
+
+Every parameter carries a provenance tag (P-ESTIMATED / Q-CALIBRATED / ASSUMED). Risk metrics
+(VaR/ES/prob-loss + CVaR frontier + EVT tail) each carry SE/CI (M0.3). No best/optimal language.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any, Literal
+
+import numpy as np
+
+from pricing.cf.characteristic_functions import Bates
+from pricing.cf.cos import cos_call, cos_put
+from risk.cvar_frontier import CvarEstimate, ru_cvar_ci
+from risk.tail import TailEstimate, with_bootstrap_ci
+from strategy.multi_cycle_mc import MultiCycleMCConfig, _simulate_paths_full
+
+Structure = Literal["unhedged", "covered_call", "long_btc_plus_short_put"]
+ModelName = Literal["GBM", "Merton", "Bates"]
+
+# ── Provenance-labelled parameter blocks (from M2/M3 Q-calibration + M4.6 P-estimation) ──
+
+# Q-calibrated Bates (M3, frozen anchor) — used ONLY to mark the option premium (reprices the smile;
+# the degenerate jumps do not impair the PRICE). Provenance: Q-CALIBRATED.
+Q_BATES = Bates(r=0.0, q=0.0, v0=0.078, kappa=8.37, theta=0.209, sigma=5.50, rho=-0.403,
+                lam=16.4, mu_j=-0.055, sigma_j=0.001)
+
+# Physical scenario parameters (M4.6 refresh). Provenance tags in PARAM_PROVENANCE.
+P_VOL = 0.45                 # P-ESTIMATED: GARCH uncond ~0.46 / UKF ~0.43
+P_JUMP_LAM = 4.5             # P-ESTIMATED: realized-jump intensity (M4.6, 2yr)
+P_JUMP_MEAN = 0.0            # P-ESTIMATED: ~symmetric (M4.6 mean +0.7% ~ 0)
+P_JUMP_STD = 0.088           # P-ESTIMATED: realized-jump size std (M4.6)
+
+PARAM_PROVENANCE: dict[str, str] = {
+    "p_vol": "P-ESTIMATED (M4.6 GARCH/UKF)",
+    "jump_lam/mean/std": "P-ESTIMATED (M4.6 realized jumps, ~symmetric)",
+    "drift": "ASSUMED (drift band {-0.10, 0, +0.10}, MS-26)",
+    "kappa/vol_of_vol/rho": "Q-CALIBRATED best-available (P-estimation deferred to M4.4b-MCMC)",
+    "premium_mark": "Q-CALIBRATED Bates via COS (VRP Q>P)",
+}
+
+
+@dataclass(frozen=True)
+class PhysicalRiskConfig:
+    S0: float = 63_402.0
+    T: float = 45.0 / 365.0
+    n_paths: int = 200_000
+    n_steps: int = 60
+    drift: float = 0.0                    # ASSUMED (drift band); default centre
+    p_vol: float = P_VOL                  # P long-run/spot vol level
+    kappa: float = 8.37                   # Q best-available SV structure
+    vol_of_vol: float = 5.50
+    rho: float = -0.403
+    jump_lam: float = P_JUMP_LAM
+    jump_mean: float = P_JUMP_MEAN
+    jump_std: float = P_JUMP_STD
+    seed: int = 20260730
+
+
+def simulate_terminal(cfg: PhysicalRiskConfig, model: ModelName) -> np.ndarray:
+    """Physical terminal spot S_T under GBM / Merton / Bates (QE for Bates). Reproducible."""
+    common: dict[str, Any] = {
+        "n_paths": cfg.n_paths, "n_cycles": 1, "cycle_length_years": cfg.T,
+        "n_steps_per_cycle": cfg.n_steps, "initial_spot": cfg.S0, "drift": cfg.drift,
+        "risk_free_rate": cfg.drift, "seed": cfg.seed, "use_antithetic": True,
+        "chunk_size": min(cfg.n_paths, 50_000),
+    }
+    if model == "GBM":
+        mc = MultiCycleMCConfig(model="GBM", volatility=cfg.p_vol, **common)
+    elif model == "Merton":
+        mc = MultiCycleMCConfig(model="Merton", volatility=cfg.p_vol, jump_intensity=cfg.jump_lam,
+                                jump_mean=cfg.jump_mean, jump_std=cfg.jump_std, **common)
+    else:
+        v = cfg.p_vol ** 2
+        mc = MultiCycleMCConfig(model="Bates", variance_scheme="qe", heston_v0=v, heston_kappa=cfg.kappa,
+                                heston_theta=v, heston_vol_of_vol=cfg.vol_of_vol, heston_rho=cfg.rho,
+                                jump_intensity=cfg.jump_lam, jump_mean=cfg.jump_mean,
+                                jump_std=cfg.jump_std, **common)
+    return _simulate_paths_full(mc)[:, -1]
+
+
+def q_bates_premium(S0: float, K: float, T: float, kind: str, q_bates: Bates = Q_BATES) -> float:
+    """USD option premium marked at the Q-calibrated Bates (COS)."""
+    if kind == "call":
+        return cos_call(q_bates, S0, K, T, N=2048, L=16.0)
+    return cos_put(q_bates, S0, K, T, N=2048, L=16.0)
+
+
+def holder_basis_pnl(structure: Structure, S0: float, K: float, S_T: np.ndarray,
+                     prem_usd: float, coverage: float = 1.0) -> np.ndarray:
+    """Holder-basis USD P&L per BTC of the held block (holding on the full block, overlay on coverage)."""
+    holding = S_T - S0
+    if structure == "unhedged":
+        return holding
+    if structure == "covered_call":
+        overlay = prem_usd - np.maximum(S_T - K, 0.0)
+    elif structure == "long_btc_plus_short_put":
+        overlay = prem_usd - np.maximum(K - S_T, 0.0)
+    else:
+        raise ValueError(f"unknown structure {structure!r}")
+    return holding + coverage * overlay
+
+
+@dataclass(frozen=True)
+class RiskMetrics:
+    model: str
+    structure: str
+    mean_pnl: float
+    mean_pnl_se: float
+    prob_loss: float
+    var95: float                 # loss magnitude (>=0)
+    es975: float
+    cvar95: CvarEstimate         # RU CVaR with bootstrap SE/CI
+    evt_tail: TailEstimate       # EVT/GPD VaR/ES with bootstrap SE/CI
+    vrp_carry: float             # premium received - E^P[option payoff]; SIGN is snapshot-dependent
+    #                              (this anchor: implied ~37% < P-realized ~45% => NEGATIVE VRP)
+    n_paths: int
+    provenance: str = "SIMULATED"
+
+
+def _risk_metrics(model: str, structure: str, pnl: np.ndarray, prem_usd: float,
+                  option_payoff: np.ndarray | None, n_boot: int) -> RiskMetrics:
+    losses = -pnl
+    var95 = float(np.percentile(losses, 95.0))
+    es975 = float(np.mean(losses[losses >= float(np.percentile(losses, 97.5))]))
+    vrp = float(prem_usd - np.mean(option_payoff)) if option_payoff is not None else 0.0
+    return RiskMetrics(
+        model=model, structure=structure,
+        mean_pnl=float(np.mean(pnl)), mean_pnl_se=float(np.std(pnl) / np.sqrt(pnl.size)),
+        prob_loss=float(np.mean(pnl < 0.0)), var95=var95, es975=es975,
+        cvar95=ru_cvar_ci(pnl, beta=0.95, n_boot=n_boot),
+        evt_tail=with_bootstrap_ci(pnl, method="evt_gpd", confidence=0.975, n_boot=n_boot),
+        vrp_carry=vrp, n_paths=int(pnl.size),
+    )
+
+
+def bates_risk(structure: Structure, cfg: PhysicalRiskConfig, K: float,
+               kind: str = "put", coverage: float = 1.0, n_boot: int = 200) -> dict[str, RiskMetrics]:
+    """Physical-sim + Q-mark risk for a holder-basis structure under GBM / Merton / Bates."""
+    prem = 0.0 if structure == "unhedged" else q_bates_premium(cfg.S0, K, cfg.T, kind)
+    out: dict[str, RiskMetrics] = {}
+    models: tuple[ModelName, ...] = ("GBM", "Merton", "Bates")
+    for model in models:
+        st = simulate_terminal(cfg, model)
+        pnl = holder_basis_pnl(structure, cfg.S0, K, st, prem, coverage)
+        payoff = None
+        if structure == "covered_call":
+            payoff = np.maximum(st - K, 0.0)
+        elif structure == "long_btc_plus_short_put":
+            payoff = np.maximum(K - st, 0.0)
+        out[model] = _risk_metrics(model, structure, pnl, prem, payoff, n_boot)
+    return out
+
+
+# ── M5.4 · full structure set (leg-based) + P-vol regime band ────────────────
+
+
+@dataclass(frozen=True)
+class StructureLeg:
+    kind: str                    # "call" | "put"
+    side: str                    # "SHORT" (receive premium) | "LONG" (pay premium)
+    strike_pct: float            # signed %OTM off S0 (+ above, - below)
+    weight: float = 1.0
+
+
+@dataclass(frozen=True)
+class StructureDef:
+    name: str
+    has_holding: bool            # includes the long-BTC block (holder-basis)
+    legs: tuple[StructureLeg, ...]
+
+
+# The C8 structure toolkit (holder-basis; single illustrative strike per family).
+STRUCTURES: dict[str, StructureDef] = {
+    "unhedged": StructureDef("unhedged", True, ()),
+    "covered_call": StructureDef("covered_call", True, (StructureLeg("call", "SHORT", 5.0),)),
+    "long_btc_plus_short_put": StructureDef("long_btc_plus_short_put", True,
+                                            (StructureLeg("put", "SHORT", -5.0),)),
+    "cash_secured_put": StructureDef("cash_secured_put", False, (StructureLeg("put", "SHORT", -5.0),)),
+    "collar": StructureDef("collar", True,
+                           (StructureLeg("call", "SHORT", 5.0), StructureLeg("put", "LONG", -10.0))),
+    "call_spread": StructureDef("call_spread", False,
+                                (StructureLeg("call", "SHORT", 3.0), StructureLeg("call", "LONG", 5.0))),
+    "strike_ladder": StructureDef("strike_ladder", True, (
+        StructureLeg("call", "SHORT", 5.0, 1.0 / 3.0),
+        StructureLeg("call", "SHORT", 10.0, 1.0 / 3.0),
+        StructureLeg("call", "SHORT", 15.0, 1.0 / 3.0),
+    )),
+}
+
+
+def _leg_sign(side: str) -> float:
+    return 1.0 if side == "SHORT" else -1.0
+
+
+def structure_pnl(sdef: StructureDef, S0: float, S_T: np.ndarray, T: float,
+                  coverage: float = 1.0) -> np.ndarray:
+    """Holder-basis USD P&L for any structure (Q-marked premiums; holding on the full block)."""
+    pnl = (S_T - S0) if sdef.has_holding else np.zeros_like(S_T)
+    for leg in sdef.legs:
+        K = S0 * (1.0 + leg.strike_pct / 100.0)
+        prem = q_bates_premium(S0, K, T, leg.kind)
+        payoff = np.maximum(S_T - K, 0.0) if leg.kind == "call" else np.maximum(K - S_T, 0.0)
+        pnl = pnl + coverage * leg.weight * _leg_sign(leg.side) * (prem - payoff)
+    return pnl
+
+
+def structure_vrp(sdef: StructureDef, S0: float, S_T: np.ndarray, T: float) -> float:
+    """Net VRP carry = sum_legs sign*weight*(premium - E^P[payoff]) (the option overlay's expected P&L)."""
+    total = 0.0
+    for leg in sdef.legs:
+        K = S0 * (1.0 + leg.strike_pct / 100.0)
+        prem = q_bates_premium(S0, K, T, leg.kind)
+        payoff = np.maximum(S_T - K, 0.0) if leg.kind == "call" else np.maximum(K - S_T, 0.0)
+        total += leg.weight * _leg_sign(leg.side) * (prem - float(np.mean(payoff)))
+    return float(total)
+
+
+@dataclass(frozen=True)
+class RegimeRow:
+    structure: str
+    p_vol: float
+    vol_regime: str              # "current" | "forecast" | "stress"
+    drift: float
+    mean_pnl: float
+    prob_loss: float
+    var95: float
+    es975: float
+    cvar95: float
+    cvar95_se: float
+    vrp_carry: float
+    provenance: str = "SIMULATED"
+
+
+def regime_risk_table(
+    cfg: PhysicalRiskConfig, vol_band: dict[str, float], drift_band: tuple[float, ...],
+    structures: tuple[str, ...] = tuple(STRUCTURES), n_boot: int = 120,
+) -> list[RegimeRow]:
+    """Full-structure risk across the P-vol regime band x the drift band (Bates physical scenarios).
+
+    S_T is simulated ONCE per (vol, drift) regime and reused across structures (the terminal spot is
+    structure-independent) — so the sweep is 3 vols x 3 drifts sims, not per-structure.
+    """
+    from dataclasses import replace
+
+    rows: list[RegimeRow] = []
+    for regime, vol in vol_band.items():
+        for drift in drift_band:
+            st = simulate_terminal(replace(cfg, p_vol=vol, drift=drift), "Bates")
+            for name in structures:
+                sdef = STRUCTURES[name]
+                pnl = structure_pnl(sdef, cfg.S0, st, cfg.T)
+                losses = -pnl
+                var95 = float(np.percentile(losses, 95.0))
+                es975 = float(np.mean(losses[losses >= float(np.percentile(losses, 97.5))]))
+                cv = ru_cvar_ci(pnl, beta=0.95, n_boot=n_boot)
+                rows.append(RegimeRow(
+                    structure=name, p_vol=vol, vol_regime=regime, drift=drift,
+                    mean_pnl=float(np.mean(pnl)), prob_loss=float(np.mean(pnl < 0.0)),
+                    var95=var95, es975=es975, cvar95=cv.cvar, cvar95_se=cv.cvar_se,
+                    vrp_carry=structure_vrp(sdef, cfg.S0, st, cfg.T),
+                ))
+    return rows
+
+
+@dataclass(frozen=True)
+class CvarFrontierPoint:
+    structure: str
+    strike_pct: float
+    mean_pnl: float
+    cvar95: float
+    cvar95_se: float
+    provenance: str = "SIMULATED"
+
+
+def cvar_frontier(cfg: PhysicalRiskConfig, structure: Structure, strike_pcts: tuple[float, ...],
+                  kind: str = "put", coverage: float = 1.0, n_boot: int = 150) -> list[CvarFrontierPoint]:
+    """Holder-basis CVaR loss-budget frontier under the Bates physical scenarios (per strike)."""
+    st = simulate_terminal(cfg, "Bates")
+    pts: list[CvarFrontierPoint] = []
+    for pct in strike_pcts:
+        K = cfg.S0 * (1.0 + pct / 100.0)
+        prem = q_bates_premium(cfg.S0, K, cfg.T, kind)
+        pnl = holder_basis_pnl(structure, cfg.S0, K, st, prem, coverage)
+        est = ru_cvar_ci(pnl, beta=0.95, n_boot=n_boot)
+        pts.append(CvarFrontierPoint(structure, pct, float(np.mean(pnl)), est.cvar, est.cvar_se))
+    return pts
+
+
+# ── C9 · Phase D — parameter-uncertainty propagation (posterior/bootstrap band) ──
+
+
+@dataclass(frozen=True)
+class ParamDraw:
+    """One physical-parameter sample (jumps bootstrapped from realized jumps; vol from the P-spread)."""
+    p_vol: float
+    jump_lam: float
+    jump_mean: float
+    jump_std: float
+
+
+@dataclass(frozen=True)
+class UncertaintyBand:
+    structure: str
+    metric: str                  # mean_pnl | prob_loss | es975 | cvar95 | vrp_carry
+    central: float               # median across parameter draws
+    q05: float
+    q95: float
+    mc_se_repr: float            # representative within-draw MC SE (CVaR bootstrap on the median draw)
+    n_draws: int
+    provenance: str = "SIMULATED (parameter-uncertainty-propagated)"
+
+
+def parameter_uncertainty_band(
+    base_cfg: PhysicalRiskConfig, draws: Sequence[ParamDraw],
+    structures: tuple[str, ...] = tuple(STRUCTURES), n_boot: int = 80,
+) -> list[UncertaintyBand]:
+    """Propagate physical-parameter uncertainty into every risk metric.
+
+    For each parameter draw the terminal spot is simulated ONCE (Bates, QE) and reused across all
+    structures; the per-draw metrics are then aggregated into a central (median) + [q05, q95] band. This
+    sits ON TOP of the within-draw Monte-Carlo SE/CI (reported for the median draw). Seed-stable: each
+    draw uses base_cfg.seed + its index, so the whole table is reproducible.
+    """
+    from dataclasses import replace
+
+    metrics = ("mean_pnl", "prob_loss", "es975", "cvar95", "vrp_carry")
+    acc: dict[tuple[str, str], list[float]] = {(s, m): [] for s in structures for m in metrics}
+    cvar_se_repr: dict[str, float] = dict.fromkeys(structures, 0.0)
+    mid = len(draws) // 2
+
+    for i, d in enumerate(draws):
+        cfg = replace(base_cfg, p_vol=d.p_vol, jump_lam=d.jump_lam, jump_mean=d.jump_mean,
+                      jump_std=d.jump_std, seed=base_cfg.seed + i)
+        st = simulate_terminal(cfg, "Bates")
+        for name in structures:
+            sdef = STRUCTURES[name]
+            pnl = structure_pnl(sdef, cfg.S0, st, cfg.T)
+            losses = -pnl
+            es = float(np.mean(losses[losses >= float(np.percentile(losses, 97.5))]))
+            cv = ru_cvar_ci(pnl, beta=0.95, n_boot=n_boot)
+            acc[(name, "mean_pnl")].append(float(np.mean(pnl)))
+            acc[(name, "prob_loss")].append(float(np.mean(pnl < 0.0)))
+            acc[(name, "es975")].append(es)
+            acc[(name, "cvar95")].append(cv.cvar)
+            acc[(name, "vrp_carry")].append(structure_vrp(sdef, cfg.S0, st, cfg.T))
+            if i == mid:
+                cvar_se_repr[name] = cv.cvar_se
+
+    out: list[UncertaintyBand] = []
+    for name in structures:
+        for m in metrics:
+            vals = np.array(acc[(name, m)], dtype=np.float64)
+            out.append(UncertaintyBand(
+                structure=name, metric=m, central=float(np.median(vals)),
+                q05=float(np.percentile(vals, 5.0)), q95=float(np.percentile(vals, 95.0)),
+                mc_se_repr=cvar_se_repr[name] if m in ("cvar95", "es975") else 0.0,
+                n_draws=len(draws),
+            ))
+    return out

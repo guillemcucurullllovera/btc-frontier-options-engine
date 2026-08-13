@@ -1,0 +1,5 @@
+# C8 Disclaimer
+
+Full risk analysis of alternative option overlays on the client's existing 30,000-BTC holding. Each outcome is decomposed into the client's inherent BTC holding and the advised option overlay: for the covered call the overlay is a non-negative premium cushion and the downside is inherent to holding BTC; for Long BTC + short put the overlay adds incremental downside below the strike. Capped upside is opportunity cost (foregone gain), not a loss. Investment decisions and their outcomes rest with the client.
+
+Attribution is structure-specific: the covered call's overlay is a non-negative premium cushion (down-scenario losses are inherent to holding BTC, not attributable to the overlay), whereas Long BTC + short put's overlay adds incremental downside below the strike (that sub-strike loss IS attributable to the advised structure). Capped upside is opportunity cost (foregone gain), not a loss. Alternatives are presented, not ranked; investment decisions and their outcomes rest with the client.

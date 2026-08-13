@@ -1,0 +1,147 @@
+{
+  "fetched_at_utc": "2026-07-31T10:15:21.099307+00:00",
+  "source": "deribit get_last_trades_by_currency (FREE)",
+  "provenance": "OBSERVED",
+  "recent_n_trades": 1000,
+  "recent_distinct_expiries": 13,
+  "recent_smile_expiry": "25SEP26",
+  "recent_smile_n_strikes": 32,
+  "recent_smile": [
+    {
+      "strike": 30000.0,
+      "iv": 0.8403
+    },
+    {
+      "strike": 35000.0,
+      "iv": 0.7302
+    },
+    {
+      "strike": 40000.0,
+      "iv": 0.6308
+    },
+    {
+      "strike": 45000.0,
+      "iv": 0.5507
+    },
+    {
+      "strike": 50000.0,
+      "iv": 0.47609999999999997
+    },
+    {
+      "strike": 52000.0,
+      "iv": 0.44780000000000003
+    },
+    {
+      "strike": 54000.0,
+      "iv": 0.42460000000000003
+    },
+    {
+      "strike": 55000.0,
+      "iv": 0.4193
+    },
+    {
+      "strike": 56000.0,
+      "iv": 0.4105
+    },
+    {
+      "strike": 58000.0,
+      "iv": 0.39039999999999997
+    },
+    {
+      "strike": 60000.0,
+      "iv": 0.3754
+    },
+    {
+      "strike": 62000.0,
+      "iv": 0.3627
+    },
+    {
+      "strike": 64000.0,
+      "iv": 0.3586
+    },
+    {
+      "strike": 65000.0,
+      "iv": 0.3549
+    },
+    {
+      "strike": 66000.0,
+      "iv": 0.3478
+    },
+    {
+      "strike": 68000.0,
+      "iv": 0.33740000000000003
+    },
+    {
+      "strike": 70000.0,
+      "iv": 0.3385
+    },
+    {
+      "strike": 72000.0,
+      "iv": 0.3332
+    },
+    {
+      "strike": 74000.0,
+      "iv": 0.33299999999999996
+    },
+    {
+      "strike": 75000.0,
+      "iv": 0.33590000000000003
+    },
+    {
+      "strike": 76000.0,
+      "iv": 0.33549999999999996
+    },
+    {
+      "strike": 78000.0,
+      "iv": 0.33630000000000004
+    },
+    {
+      "strike": 80000.0,
+      "iv": 0.3411
+    },
+    {
+      "strike": 82000.0,
+      "iv": 0.344
+    },
+    {
+      "strike": 84000.0,
+      "iv": 0.3533
+    },
+    {
+      "strike": 85000.0,
+      "iv": 0.3577
+    },
+    {
+      "strike": 94000.0,
+      "iv": 0.41479999999999995
+    },
+    {
+      "strike": 95000.0,
+      "iv": 0.42450000000000004
+    },
+    {
+      "strike": 96000.0,
+      "iv": 0.4341
+    },
+    {
+      "strike": 105000.0,
+      "iv": 0.4764
+    },
+    {
+      "strike": 110000.0,
+      "iv": 0.5153
+    },
+    {
+      "strike": 145000.0,
+      "iv": 0.67
+    }
+  ],
+  "historical_window_probe_n_trades": {
+    "2022-06": 0,
+    "2023-06": 0,
+    "2024-06": 0,
+    "2025-06": 0
+  },
+  "coverage_limit": "Deribit FREE API exposes only RECENT option trades. get_last_trades_by_currency works; get_last_trades_by_currency_and_time for historical windows returns EMPTY (see historical_window_probe: all 0) and expired-instrument trade history is EMPTY. => HISTORICAL smile reconstruction is NOT free-feasible. The recent traded smile reconstructs fine and the forward archiver (N2) densifies it going forward; dense HISTORICAL Q awaits the archiver accruing or a paid backfill (Phase E / N2 residual).",
+  "sha256": "284e8d6a5bbc60ed1a04469ab8786eac83f46a472248c5e2a2bd9862302b4f8a"
+}

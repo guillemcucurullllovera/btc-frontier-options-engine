@@ -1277,29 +1277,34 @@ class TestMonteCarloFixes:
 class TestCSCVPBODSR:
     """CSCV, PBO, DSR implementation tests."""
 
-    def test_cscv_insufficient_data(self) -> None:
+    def test_cscv_single_vector_not_applicable(self) -> None:
+        # Canonical PBO needs a (T x N>=2) config grid. A single vector must
+        # return typed NOT_APPLICABLE, never a fabricated number.
         from strategy.regimes import compute_cscv_pbo
-        result = compute_cscv_pbo(np.array([0.1, 0.2]), s=16, n_min=100)
+        result = compute_cscv_pbo(np.random.default_rng(0).normal(0, 1, size=500), s=16, n_min=100)
         assert result["pbo_estimate"] is None
+        assert result["cscv_status"] == "NOT_APPLICABLE"
         assert result["is_insufficient_data"] is True
 
-    def test_cscv_with_known_data(self) -> None:
+    def test_cscv_grid_returns_valid_pbo(self) -> None:
         from strategy.regimes import compute_cscv_pbo
         rng = np.random.default_rng(42)
-        returns = rng.normal(0.001, 0.01, size=500)
-        result = compute_cscv_pbo(returns, s=16, n_min=100)
-        assert not result["is_insufficient_data"]
+        M = rng.normal(0.001, 0.01, size=(500, 8))  # T x N grid
+        result = compute_cscv_pbo(M, s=12, n_min=100)
+        assert result["cscv_status"] == "COMPUTED"
         assert result["pbo_estimate"] is not None
         assert 0.0 <= result["pbo_estimate"] <= 1.0
-        assert result["signal_to_noise"] is not None
 
-    def test_cscv_with_positive_bias(self) -> None:
-        from strategy.regimes import compute_cscv_pbo
-        rng = np.random.default_rng(42)
-        returns = rng.normal(0.01, 0.01, size=500)
-        result = compute_cscv_pbo(returns, s=16, n_min=100)
-        assert not result["is_insufficient_data"]
-        assert result["deflated_sharpe_ratio"] is not None
+    def test_dsr_noise_rejected_edge_accepted(self) -> None:
+        # DSR control: pure noise over many trials -> low; genuine edge, 1 trial -> high.
+        from strategy.deflated_sharpe import deflated_sharpe_ratio
+        rng = np.random.default_rng(7)
+        noise = rng.normal(0.0, 0.01, size=1000)
+        edge = rng.normal(0.01, 0.01, size=1000)
+        dsr_noise = deflated_sharpe_ratio(noise, n_trials=50)["dsr"]
+        dsr_edge = deflated_sharpe_ratio(edge, n_trials=1)["dsr"]
+        assert dsr_noise < 0.5
+        assert dsr_edge > 0.95
 
     def test_oos_insufficient_data_labeled(self) -> None:
         r = compute_oos_validation(
@@ -1791,26 +1796,25 @@ class TestRealCSCVPBODSR:
     def test_pbo_not_hardcoded(self) -> None:
         from strategy.regimes import compute_cscv_pbo
         rng = np.random.default_rng(42)
-        returns = rng.normal(0.001, 0.01, size=500)
-        result = compute_cscv_pbo(returns, s=16, n_min=100)
+        M = rng.normal(0.001, 0.01, size=(500, 6))  # grid
+        result = compute_cscv_pbo(M, s=16, n_min=100)
         pbo = result["pbo_estimate"]
         assert pbo is not None
         assert 0.0 <= pbo <= 1.0
-        assert not result["is_insufficient_data"]
 
-    def test_pbo_for_strong_signal(self) -> None:
-        from strategy.regimes import compute_cscv_pbo
+    def test_dsr_is_probability_in_unit_interval(self) -> None:
+        from strategy.deflated_sharpe import deflated_sharpe_ratio
         rng = np.random.default_rng(42)
         returns = rng.normal(0.02, 0.005, size=200)
-        result = compute_cscv_pbo(returns, s=16, n_min=100)
-        assert result["deflated_sharpe_ratio"] is not None
-        assert result["deflated_sharpe_ratio"] >= 0
+        dsr = deflated_sharpe_ratio(returns, n_trials=24)["dsr"]
+        assert dsr is not None
+        assert 0.0 <= dsr <= 1.0
 
-    def test_cscv_insufficient_data_typed(self) -> None:
+    def test_cscv_single_element_not_applicable(self) -> None:
         from strategy.regimes import compute_cscv_pbo
         result = compute_cscv_pbo(np.array([0.01]), s=16, n_min=100)
         assert result["is_insufficient_data"] is True
-        assert "required_n" in result
+        assert result["cscv_status"] == "NOT_APPLICABLE"
 
 
 

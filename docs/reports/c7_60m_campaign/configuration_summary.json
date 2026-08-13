@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-07-30T07:25:36.995667+00:00",
+  "provenance": "SIMULATED \u2014 diagnostic only (MS-25/MS-26 unresolved; no ranking/optimality/convergence claim)",
+  "seeds": [
+    101,
+    211,
+    307,
+    401,
+    503,
+    601,
+    701,
+    809,
+    907,
+    1009,
+    1103,
+    1201
+  ],
+  "tiers": [
+    500000,
+    1500000,
+    3000000
+  ],
+  "strategies": [
+    "cash_secured_put",
+    "collar",
+    "covered_call",
+    "lbsp",
+    "partial_50",
+    "unhedged"
+  ],
+  "model": "Merton",
+  "distinct_configs": 36,
+  "aggregate_simulated_paths": 60000000,
+  "expected_aggregate_paths": 60000000,
+  "aggregate_reconciles": true,
+  "cross_seed_variance_nonzero": true,
+  "zero_variance_groups": [],
+  "d1_fee_base": "reference_notional",
+  "d12_interpretation": "cash_settled"
+}

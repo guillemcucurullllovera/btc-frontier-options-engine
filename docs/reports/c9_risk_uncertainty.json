@@ -1,0 +1,328 @@
+{
+  "enriched_jumps": {
+    "lam_annual": 4.46619761394922,
+    "mean": -0.0026431313696570593,
+    "std": 0.13718994010874602,
+    "frac_downward": 0.425,
+    "eta_downward": 1.4164216777252163,
+    "n_jumps": 40
+  },
+  "n_paths_per_draw": 200000,
+  "k_draws": 30,
+  "total_paths": 6000000,
+  "vrp_movement_symmetric_vs_enriched": {
+    "unhedged": {
+      "symmetric_m46": 0.0,
+      "enriched_downside": 0.0
+    },
+    "covered_call": {
+      "symmetric_m46": -679.1917204156834,
+      "enriched_downside": -1115.2166304209477
+    },
+    "long_btc_plus_short_put": {
+      "symmetric_m46": -693.0303156359714,
+      "enriched_downside": -1056.546335548247
+    },
+    "cash_secured_put": {
+      "symmetric_m46": -693.0303156359714,
+      "enriched_downside": -1056.546335548247
+    },
+    "collar": {
+      "symmetric_m46": -47.15600014076949,
+      "enriched_downside": -197.6289722690508
+    },
+    "call_spread": {
+      "symmetric_m46": -8.61850260285064,
+      "enriched_downside": -3.0818870609336955
+    },
+    "strike_ladder": {
+      "symmetric_m46": -616.8333664877539,
+      "enriched_downside": -1028.1300094490928
+    }
+  },
+  "seed_stable": true,
+  "all_finite": true,
+  "bands": [
+    {
+      "structure": "unhedged",
+      "metric": "mean_pnl",
+      "central": -9.028965267882576,
+      "q05": -41.616058232542905,
+      "q95": 27.182515476526106,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "unhedged",
+      "metric": "prob_loss",
+      "central": 0.48452,
+      "q05": 0.436021,
+      "q95": 0.49915449999999995,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "unhedged",
+      "metric": "es975",
+      "central": 34192.862507188824,
+      "q05": 27655.59719413275,
+      "q95": 38040.76241710289,
+      "mc_se_repr": 99.62541818568944
+    },
+    {
+      "structure": "unhedged",
+      "metric": "cvar95",
+      "central": 28997.615225805075,
+      "q05": 22708.749568158477,
+      "q95": 33132.1705782332,
+      "mc_se_repr": 99.62541818568944
+    },
+    {
+      "structure": "unhedged",
+      "metric": "vrp_carry",
+      "central": 0.0,
+      "q05": 0.0,
+      "q95": 0.0,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "covered_call",
+      "metric": "mean_pnl",
+      "central": -1271.951143600014,
+      "q05": -2358.7478687354733,
+      "q95": 23.98663565451791,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "covered_call",
+      "metric": "prob_loss",
+      "central": 0.40170249999999996,
+      "q05": 0.33111025,
+      "q95": 0.4313065,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "covered_call",
+      "metric": "es975",
+      "central": 32375.53248118606,
+      "q05": 25838.267168129983,
+      "q95": 36223.43239110012,
+      "mc_se_repr": 99.62541818568965
+    },
+    {
+      "structure": "covered_call",
+      "metric": "cvar95",
+      "central": 27180.28519980231,
+      "q05": 20891.419542155712,
+      "q95": 31314.840552230435,
+      "mc_se_repr": 99.62541818568965
+    },
+    {
+      "structure": "covered_call",
+      "metric": "vrp_carry",
+      "central": -1244.313889141203,
+      "q05": -2366.794426764576,
+      "q95": 26.27906690055603,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "long_btc_plus_short_put",
+      "metric": "mean_pnl",
+      "central": -1204.7768304641095,
+      "q05": -2259.303769042553,
+      "q95": -41.5673595774567,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "long_btc_plus_short_put",
+      "metric": "prob_loss",
+      "central": 0.394605,
+      "q05": 0.32216849999999997,
+      "q95": 0.42593249999999994,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "long_btc_plus_short_put",
+      "metric": "es975",
+      "central": 63226.96906306863,
+      "q05": 50152.43843695648,
+      "q95": 70922.76888289675,
+      "mc_se_repr": 199.2508363713789
+    },
+    {
+      "structure": "long_btc_plus_short_put",
+      "metric": "cvar95",
+      "central": 52836.47450030113,
+      "q05": 40258.74318500793,
+      "q95": 61105.58520515738,
+      "mc_se_repr": 199.2508363713789
+    },
+    {
+      "structure": "long_btc_plus_short_put",
+      "metric": "vrp_carry",
+      "central": -1192.474843307243,
+      "q05": -2276.9548858284284,
+      "q95": -21.997917323156145,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "cash_secured_put",
+      "metric": "mean_pnl",
+      "central": -1192.4748433072432,
+      "q05": -2276.954885828429,
+      "q95": -21.997917323156642,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "cash_secured_put",
+      "metric": "prob_loss",
+      "central": 0.283185,
+      "q05": 0.21042325,
+      "q95": 0.328188,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "cash_secured_put",
+      "metric": "es975",
+      "central": 29034.106555879807,
+      "q05": 22496.841242823728,
+      "q95": 32882.006465793864,
+      "mc_se_repr": 99.62541818568963
+    },
+    {
+      "structure": "cash_secured_put",
+      "metric": "cvar95",
+      "central": 23838.859274496055,
+      "q05": 17549.993616849457,
+      "q95": 27973.41462692418,
+      "mc_se_repr": 99.62541818568963
+    },
+    {
+      "structure": "cash_secured_put",
+      "metric": "vrp_carry",
+      "central": -1192.474843307243,
+      "q05": -2276.9548858284284,
+      "q95": -21.997917323156145,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "collar",
+      "metric": "mean_pnl",
+      "central": -265.97412396763445,
+      "q05": -435.80919127409163,
+      "q95": 131.98719730183385,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "collar",
+      "metric": "prob_loss",
+      "central": 0.45618250000000005,
+      "q05": 0.3952565,
+      "q95": 0.4716115,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "collar",
+      "metric": "es975",
+      "central": 5734.319098574699,
+      "q05": 5734.319098574697,
+      "q95": 5734.3190985747,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "collar",
+      "metric": "cvar95",
+      "central": 5734.319098574699,
+      "q05": 5734.319098574699,
+      "q95": 5734.319098574699,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "collar",
+      "metric": "vrp_carry",
+      "central": -226.67070826150757,
+      "q05": -457.5368697028337,
+      "q95": 114.8577907284626,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "call_spread",
+      "metric": "mean_pnl",
+      "central": -11.287998361729915,
+      "q05": -48.58244625736446,
+      "q95": 94.49514066942177,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "call_spread",
+      "metric": "prob_loss",
+      "central": 0.403145,
+      "q05": 0.321485,
+      "q95": 0.43114349999999996,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "call_spread",
+      "metric": "es975",
+      "central": 776.3847922565665,
+      "q05": 776.3847922565664,
+      "q95": 776.3847922565667,
+      "mc_se_repr": 7.56712072970735e-14
+    },
+    {
+      "structure": "call_spread",
+      "metric": "cvar95",
+      "central": 776.3847922565669,
+      "q05": 776.3847922565666,
+      "q95": 776.3847922565673,
+      "mc_se_repr": 7.56712072970735e-14
+    },
+    {
+      "structure": "call_spread",
+      "metric": "vrp_carry",
+      "central": -11.28799836173016,
+      "q05": -48.58244625736436,
+      "q95": 94.4951406694219,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "strike_ladder",
+      "metric": "mean_pnl",
+      "central": -1132.2789067425038,
+      "q05": -2073.8494470724536,
+      "q95": -111.08217370017718,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "strike_ladder",
+      "metric": "prob_loss",
+      "central": 0.433115,
+      "q05": 0.367413,
+      "q95": 0.4549775,
+      "mc_se_repr": 0.0
+    },
+    {
+      "structure": "strike_ladder",
+      "metric": "es975",
+      "central": 33103.170994240805,
+      "q05": 26565.905681184726,
+      "q95": 36951.07090415486,
+      "mc_se_repr": 99.6254181856895
+    },
+    {
+      "structure": "strike_ladder",
+      "metric": "cvar95",
+      "central": 27907.923712857053,
+      "q05": 21619.058055210455,
+      "q95": 32042.479065285177,
+      "mc_se_repr": 99.6254181856895
+    },
+    {
+      "structure": "strike_ladder",
+      "metric": "vrp_carry",
+      "central": -1098.4868764773232,
+      "q05": -2081.8960051015574,
+      "q95": -107.90651969873961,
+      "mc_se_repr": 0.0
+    }
+  ],
+  "notes": "Jumps bootstrapped from the full-history realized jumps (downside-loaded); P-vol drawn N(0.52,0.10) over the estimator spread; SVCJ posterior non-convergent so used qualitatively (rho_J<0 co-jump leverage), not sampled. Band = [q05,q95] across draws ON TOP of within-draw MC SE."
+}

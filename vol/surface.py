@@ -97,6 +97,15 @@ def fit_surface(
     if observed_count == 0:
         raise SurfaceError("No valid IV points extracted from book_summaries")
 
+    # C9 · M0.2: honour the declared-but-previously-unused "svi"/"ssvi" methods. Calibrate
+    # an arbitrage-free SVI/SSVI surface off the whole chain and report its reprice-the-chain
+    # IV RMSE. Falls back to "raw" (with the point set kept for iv_at) if too few slices.
+    if method in ("svi", "ssvi"):
+        fitted_method, svi_rmse = _fit_parametric_rmse(book_summaries, method)
+        return VolSurface(
+            timestamp=timestamp, points=points, method=fitted_method, fit_rmse=svi_rmse,
+        )
+
     fit_rmse = _compute_rmse(points) if len(points) > 2 else None
 
     return VolSurface(
@@ -105,6 +114,29 @@ def fit_surface(
         method="spline" if method == "spline" else "raw",
         fit_rmse=fit_rmse,
     )
+
+
+def _fit_parametric_rmse(
+    book_summaries: list[BookSummary], method: str,
+) -> tuple[Literal["spline", "svi", "ssvi", "raw"], float | None]:
+    """Calibrate the SVI/SSVI surface; return (method_actually_used, overall_iv_rmse).
+
+    Import is local to avoid a heavy import for the common spline path. Degrades to "raw"
+    (no parametric fit possible) rather than raising, so a sparse chain still yields a surface.
+    """
+    from vol.chain_surface import (
+        fit_ssvi_surface,
+        fit_svi_surface,
+        slices_from_book_summaries,
+    )
+
+    slices = slices_from_book_summaries(book_summaries)
+    try:
+        if method == "svi":
+            return "svi", fit_svi_surface(slices).overall_iv_rmse
+        return "ssvi", fit_ssvi_surface(slices).overall_iv_rmse
+    except (ValueError, ZeroDivisionError):
+        return "raw", None
 
 
 def iv_at(
@@ -194,7 +226,9 @@ def _expiry_from_name(name: str, reference: datetime | None = None) -> float:
         return 0.0
     ref = reference or datetime.now(UTC)
     delta = exp - ref
-    return max(delta.total_seconds() / (365.25 * 86400), 1e-10)
+    # 365-day annualisation (C8 brief §6 / orchestration §5.1) — consistent with
+    # pricing T = days / 365 used elsewhere in the engine.
+    return max(delta.total_seconds() / (365.0 * 86400), 1e-10)
 
 
 def _group_by_expiry(points: list[VolPoint]) -> dict[float, list[VolPoint]]:

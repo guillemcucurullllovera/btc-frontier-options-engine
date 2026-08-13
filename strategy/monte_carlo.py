@@ -14,10 +14,12 @@ No look-ahead bias. All paths deterministic given seed.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import numpy as np
+from scipy.stats import norm
 
 from config.models import Provenance
 from engine.errors import ValidationError
@@ -103,6 +105,15 @@ class MonteCarloResult:
     hedge_strategy: Literal["none", "static", "delta"] = "none"
     pending_decision_refs: list[str] = field(default_factory=list)
     provenance: Provenance = Provenance.SIMULATED
+
+    # C9 · M0.3: control-variate variance reduction on E[P&L]. Pure post-processing on the
+    # already-generated (seeded/antithetic) paths — does NOT touch the RNG stream, so the
+    # reproducibility contract is preserved.
+    expected_pnl_se: float = 0.0            # plain MC standard error of the mean
+    cv_expected_pnl: float = 0.0           # control-variate-adjusted mean (unbiased)
+    cv_expected_pnl_se: float = 0.0        # CV standard error of the mean
+    cv_variance_reduction: float = 0.0     # 1 - Var_cv/Var_plain (in [0,1))
+    cv_controls: list[str] = field(default_factory=list)
 
 
 W_HEDGE_MODEL_UNSPECIFIED = "W-HEDGE-MODEL-UNSPECIFIED: delta-hedge path requested but D-9 unresolved"
@@ -261,6 +272,95 @@ def _compute_var_es(losses: np.ndarray, n_paths: int) -> dict[str, float]:
     }
 
 
+@dataclass(frozen=True)
+class ControlVariateEstimate:
+    plain_mean: float
+    plain_se: float
+    cv_mean: float
+    cv_se: float
+    variance_reduction: float          # 1 - Var_cv/Var_plain
+    controls: list[str]
+
+
+def _gbm_payoff_mean(S0: float, K: float, mu: float, sigma: float, T: float, kind: str) -> float:
+    """Undiscounted E[payoff(S_T)] under GBM(drift=mu): Black-Scholes with r->mu, no discount.
+
+    E[S_T] = S0*exp(mu*T); d1 uses mu. This is the EXACT control-variate mean under the GBM
+    simulation measure (drift mu, not r), so the CV estimator stays unbiased.
+    """
+    if sigma <= 0 or T <= 0:
+        fwd = S0 * math.exp(mu * T)
+        return max(fwd - K, 0.0) if kind == "call" else max(K - fwd, 0.0)
+    fwd = S0 * math.exp(mu * T)
+    d1 = (math.log(S0 / K) + (mu + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    if kind == "call":
+        return float(fwd * norm.cdf(d1) - K * norm.cdf(d2))
+    return float(K * norm.cdf(-d2) - fwd * norm.cdf(-d1))
+
+
+def control_variate_expected_pnl(
+    pnl: np.ndarray, final_prices: np.ndarray, config: MonteCarloConfig, strategy: Strategy,
+) -> ControlVariateEstimate:
+    """Multivariate control-variate estimator of E[P&L] with exact analytic control means.
+
+    Controls (all with KNOWN population means, so the estimator is unbiased regardless of fit):
+      * terminal spot S_T           — mean S0*exp(drift*T) (exact for GBM and compensated Merton);
+      * per-option-leg vanilla payoff max(S_T-K,0)/max(K-S_T,0) — analytic GBM mean (GBM only;
+        omitted for Merton, whose payoff mean is a jump series, to keep the control mean exact).
+
+    Optimal coefficients via OLS on the demeaned controls; the adjusted-mean variance is
+    Var(P&L)*(1-R^2)/n. Deterministic given the (seeded) paths.
+    """
+    Y = np.asarray(pnl, dtype=np.float64)
+    ST = np.asarray(final_prices, dtype=np.float64)
+    n = Y.size
+    S0, mu, sigma, T = config.initial_spot, config.drift, config.volatility, config.horizon_years
+
+    cols: list[np.ndarray] = [ST]
+    means: list[float] = [S0 * math.exp(mu * T)]
+    names: list[str] = ["S_T"]
+    if config.model == "GBM":
+        seen: set[tuple[float, str]] = set()
+        for leg in strategy.legs:
+            if leg.option_type is None or leg.strike is None:
+                continue
+            key = (float(leg.strike), leg.option_type)
+            if key in seen:
+                continue
+            seen.add(key)
+            K = float(leg.strike)
+            payoff = (np.maximum(ST - K, 0.0) if leg.option_type == "call"
+                      else np.maximum(K - ST, 0.0))
+            cols.append(payoff)
+            means.append(_gbm_payoff_mean(S0, K, mu, sigma, T, leg.option_type))
+            names.append(f"payoff_{leg.option_type}_{K:.0f}")
+
+    C = np.column_stack(cols)
+    mu_C = np.array(means, dtype=np.float64)
+    plain_mean = float(np.mean(Y))
+    plain_var = float(np.var(Y, ddof=1)) / n
+
+    Cdm = C - C.mean(axis=0, keepdims=True)
+    Ydm = Y - plain_mean
+    # Guard against a degenerate (constant) control column.
+    keep = np.std(Cdm, axis=0) > 1e-12
+    if not np.any(keep):
+        return ControlVariateEstimate(plain_mean, math.sqrt(plain_var), plain_mean,
+                                      math.sqrt(plain_var), 0.0, [])
+    Cdm_k = Cdm[:, keep]
+    beta, *_ = np.linalg.lstsq(Cdm_k, Ydm, rcond=None)
+    resid = Ydm - Cdm_k @ beta
+    cv_mean = plain_mean - float(beta @ (C.mean(axis=0)[keep] - mu_C[keep]))
+    cv_var = float(np.var(resid, ddof=1)) / n
+    var_reduction = max(0.0, 1.0 - cv_var / plain_var) if plain_var > 0 else 0.0
+    return ControlVariateEstimate(
+        plain_mean=plain_mean, plain_se=math.sqrt(plain_var),
+        cv_mean=cv_mean, cv_se=math.sqrt(cv_var), variance_reduction=var_reduction,
+        controls=[nm for nm, k in zip(names, keep, strict=True) if k],
+    )
+
+
 def run_monte_carlo(
     strategy: Strategy,
     config: MonteCarloConfig,
@@ -313,6 +413,8 @@ def run_monte_carlo(
     sorted_pnl = np.sort(pnl_distribution)
     worst_paths = list(sorted_pnl[:10].astype(float))
 
+    cv = control_variate_expected_pnl(pnl_distribution, final_prices, config, strategy)
+
     btc_held = sum(
         leg.quantity for leg in strategy.legs
         if leg.product == "spot" and leg.side == "LONG"
@@ -352,4 +454,9 @@ def run_monte_carlo(
         hedge_strategy="none",
         pending_decision_refs=["D-9"],
         provenance=Provenance.SIMULATED,
+        expected_pnl_se=cv.plain_se,
+        cv_expected_pnl=cv.cv_mean,
+        cv_expected_pnl_se=cv.cv_se,
+        cv_variance_reduction=cv.variance_reduction,
+        cv_controls=cv.controls,
     )

@@ -1,0 +1,7 @@
+# Generated matplotlib SVG artifacts (deterministic renders) carry trailing whitespace in
+# path `d=` attributes inherent to matplotlib's SVG writer. They are machine-generated
+# deliverables, not hand-edited source, so exempt them from git's whitespace checks
+# (`git diff --check` / `git apply --whitespace`). Determinism is verified byte-identical
+# by the render smoke-test; do not hand-edit these files.
+docs/evidence/c10_figure_pack/*.svg -whitespace
+docs/handoff/figures/*.svg -whitespace

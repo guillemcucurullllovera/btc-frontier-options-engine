@@ -28,6 +28,7 @@ from pricing.black_scholes import (
 from pricing.grid import price_grid
 from pricing.inverse import (
     greeks_inverse_btc,
+    inverse_greeks_report,
     price_inverse_btc,
     settlement_inverse_call_holder,
     settlement_inverse_put_holder,
@@ -348,15 +349,22 @@ def test_black76_put_greeks_by_fd() -> None:
 
 
 def test_inverse_greeks_by_fd() -> None:
-    """Inverse BTC finite-difference Greeks are internally consistent
-    (the greeks_inverse_btc function itself uses FD, so cross-validate
-    with coarser step sizes to ensure no coding errors)."""
+    """Inverse BTC Greeks internal consistency.
+
+    C9 · B2: ``greeks_inverse_btc().delta`` is now the premium-adjusted EXCHANGE delta
+    Δ_BTC = S·d(price_BTC)/dS (Deribit/Lucic-Sepp), not the raw d(price_BTC)/dS. The raw
+    price greek is retained, separately labelled, in ``inverse_greeks_report``; gamma/vega
+    remain BTC-price sensitivities. All three are cross-validated by finite differences.
+    """
     S, K, r, sig, T = 100000.0, 95000.0, 0.04, 0.50, 0.25
     q = greeks_inverse_btc(S, K, r, sig, T, "call")
+    rep = inverse_greeks_report(S, K, r, sig, T, "call")
 
     h_s = 10.0
-    fd_delta = (price_inverse_btc(S + h_s, K, r, sig, T) - price_inverse_btc(S - h_s, K, r, sig, T)) / (2 * h_s)
-    assert abs(q.delta - fd_delta) < 1e-6
+    fd_dprice_dS = (price_inverse_btc(S + h_s, K, r, sig, T) - price_inverse_btc(S - h_s, K, r, sig, T)) / (2 * h_s)
+    # Raw price greek matches the central difference; exchange delta = S x that.
+    assert abs(rep.dprice_btc_dS - fd_dprice_dS) < 1e-10
+    assert abs(q.delta - S * fd_dprice_dS) < 1e-4
 
     fd_gamma = (price_inverse_btc(S + h_s, K, r, sig, T) - 2 * price_inverse_btc(S, K, r, sig, T) + price_inverse_btc(S - h_s, K, r, sig, T)) / (h_s * h_s)
     assert abs(q.gamma - fd_gamma) < 1e-6
@@ -535,14 +543,12 @@ def test_a1_pricing_no_yaml_read() -> None:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-try:
-    import QuantLib as ql
-    _QL_AVAILABLE = True
-except ImportError:
-    _QL_AVAILABLE = False
+# U8 (SR 11-7): QuantLib is a DECLARED, pinned validation dependency — the external
+# pricing anchor must ALWAYS run in CI, never silently skip. A missing QuantLib is a
+# hard collection error (loud), not a skip.
+import QuantLib as ql  # noqa: E402
 
 
-@pytest.mark.skipif(not _QL_AVAILABLE, reason="QuantLib not installed")
 def test_quantlib_bs_parity() -> None:
     """Black-Scholes vs QuantLib: max abs diff < 1e-6."""
     today = ql.Date(15, 7, 2026)
@@ -595,7 +601,6 @@ def test_quantlib_bs_parity() -> None:
     assert max_err < 1e-6, f"Max QuantLib BS diff: {max_err:.2e}"
 
 
-@pytest.mark.skipif(not _QL_AVAILABLE, reason="QuantLib not installed")
 def test_quantlib_black76_parity() -> None:
     """Black-76 vs QuantLib: max abs diff < 1e-4 (per contracts.md §7.5)."""
     today = ql.Date(15, 7, 2026)

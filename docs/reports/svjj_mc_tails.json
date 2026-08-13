@@ -1,0 +1,444 @@
+{
+  "provenance": "SIMULATED (physical-measure SVJJ; option premiums frozen Q_BATES anchor)",
+  "measure_note": "Physical (P) tail. The RND crash-prob module gives the Q (market-implied) leg; Q_crash - P_crash = the tail-risk premium the overlay harvests. P and Q live in SEPARATE columns and are NEVER blended.",
+  "config": {
+    "S0": 63789.0,
+    "block_btc": 30000.0,
+    "T_days": 30.0,
+    "coverage": 0.4,
+    "ladder_pcts": [
+      6.0,
+      10.0,
+      14.0,
+      18.0
+    ],
+    "central_vol": 0.46,
+    "drift": 0.0,
+    "n_paths": 400000,
+    "n_steps": 30,
+    "levels": [
+      0.95,
+      0.99
+    ]
+  },
+  "jump_calibration": {
+    "lambda_annual": 4.46619761394922,
+    "p_up": 0.4463515840801829,
+    "mu_up": 0.09734910167253422,
+    "mu_dn": -0.08325679164541014,
+    "sig_up": 0.03452054193463598,
+    "sig_dn": 0.13592121025619483,
+    "mu_v_volcojump": 0.1
+  },
+  "seed_stable": true,
+  "n_nonfinite": 0,
+  "structures": {
+    "unhedged_hold": {
+      "mean_pnl_svjj": 108863.40228689964,
+      "prob_loss_svjj": 0.45105,
+      "svjj_tail": [
+        {
+          "metric": "VaR",
+          "level": 0.95,
+          "estimate": 515391247.7627106,
+          "se": 1514602.812019463,
+          "ci_lo": 512544304.15636355,
+          "ci_hi": 518187240.77851784,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "ES",
+          "level": 0.95,
+          "estimate": 714281031.4059469,
+          "se": 1822095.9184634513,
+          "ci_lo": 710677422.305261,
+          "ci_hi": 717771903.5179029,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "CVaR",
+          "level": 0.95,
+          "estimate": 714281031.4059467,
+          "se": 1821414.0262382273,
+          "ci_lo": 710677611.2728167,
+          "ci_hi": 717791566.9311317,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "VaR",
+          "level": 0.99,
+          "estimate": 846069238.7700224,
+          "se": 2806826.4107365524,
+          "ci_lo": 841001623.8274283,
+          "ci_hi": 851572885.520764,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "ES",
+          "level": 0.99,
+          "estimate": 1004491259.0094527,
+          "se": 3338903.4131183913,
+          "ci_lo": 997762741.5844022,
+          "ci_hi": 1010675081.1197792,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "CVaR",
+          "level": 0.99,
+          "estimate": 1004491259.0094526,
+          "se": 3337693.156395804,
+          "ci_lo": 997762741.5844021,
+          "ci_hi": 1010675081.1197791,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        }
+      ],
+      "gbm_matched_tail": [
+        {
+          "metric": "VaR",
+          "level": 0.95,
+          "estimate": 472466657.61804014,
+          "se": 770959.597618748,
+          "ci_lo": 470843431.7629698,
+          "ci_hi": 473821069.96737385,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "ES",
+          "level": 0.95,
+          "estimate": 566339724.7095665,
+          "se": 857895.5362724832,
+          "ci_lo": 564440948.3019221,
+          "ci_hi": 567800102.0549167,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "CVaR",
+          "level": 0.95,
+          "estimate": 566339724.7095664,
+          "se": 858102.512002807,
+          "ci_lo": 564442992.0910765,
+          "ci_hi": 567800102.0549166,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "VaR",
+          "level": 0.99,
+          "estimate": 626700316.2570665,
+          "se": 1344400.5474611637,
+          "ci_lo": 623793369.6121305,
+          "ci_hi": 629021166.8742554,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "ES",
+          "level": 0.99,
+          "estimate": 696152027.7528142,
+          "se": 1459565.5934566862,
+          "ci_lo": 693069590.5492084,
+          "ci_hi": 698948592.1260518,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "CVaR",
+          "level": 0.99,
+          "estimate": 696152027.7528143,
+          "se": 1459167.8241117601,
+          "ci_lo": 693086590.1117085,
+          "ci_hi": 698948592.1260517,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        }
+      ]
+    },
+    "covered_ladder_40pct": {
+      "mean_pnl_svjj": -7148196.438299885,
+      "prob_loss_svjj": 0.437765,
+      "svjj_tail": [
+        {
+          "metric": "VaR",
+          "level": 0.95,
+          "estimate": 509531476.33371013,
+          "se": 1514602.8120194622,
+          "ci_lo": 506684532.72736305,
+          "ci_hi": 512327469.3495174,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "ES",
+          "level": 0.95,
+          "estimate": 708421259.9769465,
+          "se": 1822095.918463449,
+          "ci_lo": 704817650.8762606,
+          "ci_hi": 711912132.0889024,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "CVaR",
+          "level": 0.95,
+          "estimate": 708421259.9769462,
+          "se": 1821414.0262382273,
+          "ci_lo": 704817839.8438162,
+          "ci_hi": 711931795.5021313,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "VaR",
+          "level": 0.99,
+          "estimate": 840209467.341022,
+          "se": 2806826.410736546,
+          "ci_lo": 835141852.3984278,
+          "ci_hi": 845713114.0917635,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "ES",
+          "level": 0.99,
+          "estimate": 998631487.5804524,
+          "se": 3338903.413118394,
+          "ci_lo": 991902970.1554018,
+          "ci_hi": 1004815309.6907789,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "CVaR",
+          "level": 0.99,
+          "estimate": 998631487.5804522,
+          "se": 3337693.1563958055,
+          "ci_lo": 991902970.1554017,
+          "ci_hi": 1004815309.6907787,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        }
+      ],
+      "gbm_matched_tail": [
+        {
+          "metric": "VaR",
+          "level": 0.95,
+          "estimate": 466606886.1890398,
+          "se": 770959.5976187476,
+          "ci_lo": 464983660.3339695,
+          "ci_hi": 467961298.53837353,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "ES",
+          "level": 0.95,
+          "estimate": 560479953.280566,
+          "se": 857895.5362724811,
+          "ci_lo": 558581176.8729217,
+          "ci_hi": 561940330.6259162,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "CVaR",
+          "level": 0.95,
+          "estimate": 560479953.280566,
+          "se": 858102.5120028072,
+          "ci_lo": 558583220.662076,
+          "ci_hi": 561940330.6259161,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "VaR",
+          "level": 0.99,
+          "estimate": 620840544.828066,
+          "se": 1344400.5474611537,
+          "ci_lo": 617933598.18313,
+          "ci_hi": 623161395.4452549,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "ES",
+          "level": 0.99,
+          "estimate": 690292256.3238138,
+          "se": 1459565.5934566893,
+          "ci_lo": 687209819.1202078,
+          "ci_hi": 693088820.6970513,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        },
+        {
+          "metric": "CVaR",
+          "level": 0.99,
+          "estimate": 690292256.3238138,
+          "se": 1459167.8241117566,
+          "ci_lo": 687226818.682708,
+          "ci_hi": 693088820.6970512,
+          "ci_level": 0.95,
+          "n_boot": 600,
+          "n_paths": 400000
+        }
+      ]
+    }
+  },
+  "svjj_minus_gbm_gaps": {
+    "unhedged_hold": [
+      {
+        "metric": "VaR",
+        "level": 0.95,
+        "a_estimate": 515391247.7627106,
+        "b_estimate": 472466657.61804014,
+        "gap": 42924590.14467043,
+        "gap_se": 1699529.458214163,
+        "gap_z": 25.256749706342166,
+        "resolved": true
+      },
+      {
+        "metric": "ES",
+        "level": 0.95,
+        "a_estimate": 714281031.4059469,
+        "b_estimate": 566339724.7095665,
+        "gap": 147941306.69638038,
+        "gap_se": 2013955.880161584,
+        "gap_z": 73.45806735573112,
+        "resolved": true
+      },
+      {
+        "metric": "CVaR",
+        "level": 0.95,
+        "a_estimate": 714281031.4059467,
+        "b_estimate": 566339724.7095664,
+        "gap": 147941306.69638038,
+        "gap_se": 2013427.171785182,
+        "gap_z": 73.47735680213847,
+        "resolved": true
+      },
+      {
+        "metric": "VaR",
+        "level": 0.99,
+        "a_estimate": 846069238.7700224,
+        "b_estimate": 626700316.2570665,
+        "gap": 219368922.5129559,
+        "gap_se": 3112183.691882938,
+        "gap_z": 70.48713836689794,
+        "resolved": true
+      },
+      {
+        "metric": "ES",
+        "level": 0.99,
+        "a_estimate": 1004491259.0094527,
+        "b_estimate": 696152027.7528142,
+        "gap": 308339231.2566385,
+        "gap_se": 3643982.398933372,
+        "gap_z": 84.6160045522976,
+        "resolved": true
+      },
+      {
+        "metric": "CVaR",
+        "level": 0.99,
+        "a_estimate": 1004491259.0094526,
+        "b_estimate": 696152027.7528143,
+        "gap": 308339231.2566383,
+        "gap_se": 3642714.145410594,
+        "gap_z": 84.64546460366941,
+        "resolved": true
+      }
+    ],
+    "covered_ladder_40pct": [
+      {
+        "metric": "VaR",
+        "level": 0.95,
+        "a_estimate": 509531476.33371013,
+        "b_estimate": 466606886.1890398,
+        "gap": 42924590.14467031,
+        "gap_se": 1699529.4582141622,
+        "gap_z": 25.256749706342113,
+        "resolved": true
+      },
+      {
+        "metric": "ES",
+        "level": 0.95,
+        "a_estimate": 708421259.9769465,
+        "b_estimate": 560479953.280566,
+        "gap": 147941306.6963805,
+        "gap_se": 2013955.8801615809,
+        "gap_z": 73.45806735573129,
+        "resolved": true
+      },
+      {
+        "metric": "CVaR",
+        "level": 0.95,
+        "a_estimate": 708421259.9769462,
+        "b_estimate": 560479953.280566,
+        "gap": 147941306.69638026,
+        "gap_se": 2013427.171785182,
+        "gap_z": 73.47735680213842,
+        "resolved": true
+      },
+      {
+        "metric": "VaR",
+        "level": 0.99,
+        "a_estimate": 840209467.341022,
+        "b_estimate": 620840544.828066,
+        "gap": 219368922.51295602,
+        "gap_se": 3112183.691882928,
+        "gap_z": 70.48713836689821,
+        "resolved": true
+      },
+      {
+        "metric": "ES",
+        "level": 0.99,
+        "a_estimate": 998631487.5804524,
+        "b_estimate": 690292256.3238138,
+        "gap": 308339231.25663865,
+        "gap_se": 3643982.3989333757,
+        "gap_z": 84.61600455229754,
+        "resolved": true
+      },
+      {
+        "metric": "CVaR",
+        "level": 0.99,
+        "a_estimate": 998631487.5804522,
+        "b_estimate": 690292256.3238138,
+        "gap": 308339231.2566384,
+        "gap_se": 3642714.145410594,
+        "gap_z": 84.64546460366944,
+        "resolved": true
+      }
+    ]
+  },
+  "baseline_note": "GBM baseline is MATCHED to the SVJJ terminal mean+variance (no jumps), so a resolved VaR/ES gap is the jump-driven skew/kurtosis tail alone \u2014 the tail a naive Gaussian/GBM model misses."
+}

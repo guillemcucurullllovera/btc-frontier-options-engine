@@ -1,15 +1,46 @@
 # Asymmetrica BTC engine — single source of truth (mandate parameters)
+#
+# LOCKED POLICY (ratified Aug-2026, DECISIONS_LOG "FINAL SYNTHESIZED DECISIONS"):
+#   Laddered COVERED CALL, INCOME OVERLAY (not acquisition), 40% coverage
+#   (12,000 covered / 18,000 uncapped). "Safer" governed to the ~10-15 DELTA,
+#   low-assignment line: strikes are DELTA-DEFINED and solved by the engine at
+#   ENTRY VOL each cycle (harvest-when-rich), NOT fixed %-OTM. MONTHLY cadence,
+#   30-45 DTE (maximises theta/day), IV-timed entry. Target ~1%/month -> ~12%/yr
+#   on DEPLOYED (covered) capital at typical-to-rich vol (a through-cycle target,
+#   NOT a floor). Tier-B financed protective put = OPTIONAL add-on only, never the
+#   lead. Advisory: the client approves every trade.
+#
+#   This supersedes the interim +6% quarterly ladder (D-C). The +6/10/14/18% OTM
+#   ladder is RETAINED as the DOCUMENTED MORE-AGGRESSIVE ALTERNATIVE (more premium
+#   at normal vol, ~37% lead assignment) — see ladder note below. Provenance:
+#   BUSINESS_REQUIREMENT. NOTE: the priced path (strategy/definitions_multileg.py)
+#   carries its own SPEC_LADDER_PCTS; this file is the config-of-record + defaults.
 btc_quantity: 30000
-reference_spot_usd: 65000          # working value 27.07.2026; replace via live feed
+reference_spot_usd: 65000          # working value; REFRESH via live feed before the meeting
 seller_discount_pct: 2.5
 target_option_yield_pct: 2.5
 combined_target_discount_pct: 5.0
 execution_fee_pct: 0.5
-call_delta_target: [0.10, 0.15]
-dte_target_days: [30, 45]
-strike_target_pct_above_spot: [15, 20]
-target_monthly_premium_pct: 3.0
-iv_working_band_pct: [40, 50]      # DVOL band 27.07.2026; live via vol/dvol_feed.py
+
+# ── Locked mandate policy (~10-15 delta, monthly, IV-timed) ───────────────────
+coverage_fraction_pct: 40.0                     # 40% = 12,000 BTC covered (4 x 3,000)
+cadence: monthly                                # MONTHLY 30-45 DTE (was quarterly +6% collar)
+iv_timed_entry: true                            # write when IV is rich (harvest-when-rich)
+sell_when_dvol_above: 55.0                       # ~median DVOL (55.7%); IV-timing trigger
+
+# Delta-defined ladder: the governing knob is call_delta_target (below). The four
+# %-OTM rungs here are the ILLUSTRATIVE strikes the ~10-15 delta ladder solves to
+# at TYPICAL vol; the engine re-solves them per cycle at entry vol. The nearest
+# rung sits at the ~15-delta end, the far rungs run into the low-delta tail.
+# DOCUMENTED MORE-AGGRESSIVE ALTERNATIVE (interim D-C): [6.0, 10.0, 14.0, 18.0].
+ladder_strikes_pct_above_spot: [10.0, 14.0, 18.0, 22.0]
+
+# ── Delta / tenor targets (the DELTA is the policy; strikes are delta-solved) ──
+call_delta_target: [0.10, 0.15]                 # ~10-15 delta low-assignment line (governing)
+dte_target_days: [30, 45]                       # monthly 30-45 DTE traded/priced/gated tenor
+strike_target_pct_above_spot: [10.0, 22.0]      # bracket of the delta-solved ladder (informational)
+target_monthly_premium_pct: 1.0                 # ~1%/month -> ~12%/yr on deployed capital (through-cycle)
+iv_working_band_pct: [40, 50]                    # DVOL working band; live via vol/dvol_feed.py
 risk_free_rate_pct: 4.0
-tranche_btc: [250, 1000]
-expiry_ladder_dte: [30, 37, 44]
+tranche_btc: [250, 1000]                         # execution clip range (acquisition-side)
+expiry_ladder_dte: [30, 35, 40, 45]              # monthly ladder tranche DTEs (near..far, within 30-45)
