@@ -35,6 +35,17 @@ packaging metadata were added or rewritten for standalone publication.
 
 ## Licence
 
+On 2026-11-01 the portfolio owner explicitly confirmed authority to redistribute
+and license the first-party code in this release. That confirmation supports the
+first-party Apache-2.0 release; it does not transfer authorship or grant rights to
+third-party code or exchange data. Original attribution above remains unchanged.
+
+The CI remediation changes dependency metadata only: SciPy typing stubs are now
+included in the pip-installable development extra, and the lockfile includes
+patched certifi and urllib3 versions. No exchange dataset or implementation is
+added or relicensed by that remediation. Independent exchange-data redistribution
+permission remains unverified; the existing snapshot caveat below still applies.
+
 The first-party code, tests, documentation and recorded research outputs are released
 under the Apache License 2.0 (`LICENSE`). The original repository carried no licence
 file; the rights holder has confirmed the right to redistribute this material.
