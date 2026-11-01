@@ -12,3 +12,8 @@ private_reference_library/
 reference/
 market_snapshots/
 exports/
+
+# package build artefacts
+*.egg-info/
+build/
+dist/

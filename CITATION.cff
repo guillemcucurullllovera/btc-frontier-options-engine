@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "BTC Frontier Options Engine"
+abstract: "Structure, price, calibrate and risk-analyse option overlays on a large BTC holding, priced off Deribit inverse options."
+type: software
+authors:
+  - family-names: "Llovera"
+    given-names: "Guillem"
+    email: "workwithguillem@gmail.com"
+repository-code: "https://github.com/guillemcucurullllovera/btc-frontier-options-engine"
+license: Apache-2.0
+version: "0.1.0"
+date-released: "2026-11-01"
+keywords:
+  - options
+  - volatility
+  - derivatives
+  - quantitative-finance
+  - deribit

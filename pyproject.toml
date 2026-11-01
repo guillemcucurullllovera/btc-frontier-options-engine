@@ -1,10 +1,18 @@
 [project]
-name = "btc-engine"
+name = "btc-frontier-options-engine"
 version = "0.1.0"
-description = "Asymmetrica BTC 30k options-overlay comparison engine"
+description = "BTC options-overlay structuring, pricing, calibration and risk engine for Deribit inverse options"
 requires-python = ">=3.12"
 readme = "README.md"
-authors = [{ name = "Asymmetrica" }]
+license = { text = "Apache-2.0" }
+authors = [{ name = "Guillem Llovera", email = "workwithguillem@gmail.com" }]
+keywords = ["options", "volatility", "derivatives", "quantitative-finance", "deribit"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
 # U21 (SR 11-7): pin runtime + validation deps so the checks are reproducible and
 # never silently skipped. QuantLib (external pricing anchor) + hypothesis
 # (property fuzzing) are validation deps in the dev group.
@@ -17,6 +25,40 @@ dependencies = [
     "arch>=8.0.0",
     "statsmodels>=0.14.6",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "hypothesis>=6.100",
+    "QuantLib>=1.30",
+    "pyarrow>=15.0",
+    "pandas>=2.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "types-requests",
+    "types-PyYAML",
+]
+
+[project.urls]
+Homepage = "https://github.com/guillemcucurullllovera/btc-frontier-options-engine"
+Issues = "https://github.com/guillemcucurullllovera/btc-frontier-options-engine/issues"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = [
+    "engine*",
+    "pricing*",
+    "vol*",
+    "strategy*",
+    "risk*",
+    "execution*",
+    "config*",
+    "research*",
+]
+namespaces = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"

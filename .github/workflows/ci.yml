@@ -1,10 +1,17 @@
-name: BTC Engine CI
+name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -15,64 +22,49 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
-      - name: Install dependencies
+          cache: pip
+      - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install pydantic pyyaml scipy numpy requests pytest hypothesis ruff mypy
+          pip install -e ".[dev]"
       - name: pytest
-        run: python -m pytest -q
+        run: python -m pytest -o addopts="--strict-markers --tb=short"
 
   reprice-gate:
-    name: per-tenor reprice gate + client-number regression
+    name: per-tenor reprice gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies
+          cache: pip
+      - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install pydantic pyyaml scipy numpy requests pytest arch statsmodels
-      # REAL call site: bind the client-facing accuracy claim to the tenor we trade.
-      # The per-tenor gate hard-asserts the traded ~1-month bucket (~97.6%, honest —
-      # NOT a tenor-aggregated average that hides it) and the +6% income / ledger /
-      # deflated-Sharpe / data-integrity anchors, so a silent drift fails CI.
+          pip install -e ".[dev]"
       - name: per-tenor reprice gate (fixture diagnostic)
         run: python -m vol.reprice_gate
       - name: client-number regression suite
         run: >
-          python -m pytest -q
+          python -m pytest -o addopts="--strict-markers --tb=short" -q
           tests/test_client_numbers_regression.py
           tests/test_reprice_gate_per_tenor.py
 
   typecheck:
-    name: mypy (strict)
+    name: mypy (strict, decision-grade engine)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies
+          cache: pip
+      - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install pydantic pyyaml scipy numpy requests mypy types-requests types-PyYAML
-      # STRICT gate scope = the DECISION-GRADE ENGINE OF RECORD (the packages whose
-      # types back every client-facing number). This gate is mypy --strict CLEAN.
-      # It deliberately ADDS strategy/ + risk/ (previously unchecked) and EXCLUDES
-      # the exploratory research/fetch one-offs under scripts/ and the JSON-fixture
-      # test scaffolding under tests/ — those carry pre-existing analysis-code type
-      # debt (tracked separately) and are validated by EXECUTION in the `test` and
-      # `reprice-gate` jobs (pytest + the per-tenor reprice assertion), which is the
-      # stronger correctness bar for harness code. Do not silently re-add scripts/tests
-      # to the strict gate without hardening them first.
-      - name: mypy (strict — decision-grade engine)
+          pip install -e ".[dev]"
+      - name: mypy
         run: python -m mypy pricing/ execution/ config/ engine/ vol/ risk/ strategy/
 
   lint:
@@ -83,25 +75,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies
+          cache: pip
+      - name: Install
         run: |
           python -m pip install --upgrade pip
           pip install ruff
-      # RATIFIED SCOPE (matches the strict typecheck gate): lint the engine of record +
-      # the test scaffolding, and EXCLUDE the exploratory research/fetch one-offs under
-      # scripts/ (pre-existing analysis-code style debt, tracked separately). The intended
-      # math notation in engine docstrings is allowed via `allowed-confusables` in
-      # pyproject.toml, so the math is never mangled to pass the linter.
-      - name: ruff check (engine of record + tests)
+      - name: ruff check
         run: python -m ruff check pricing/ execution/ config/ engine/ vol/ tests/
 
-  anonymisation:
+  confidentiality:
     name: confidentiality scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run anonymisation scan
+      - name: repository scan
         run: python scripts/anonymisation_scan.py
+      - name: history scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
